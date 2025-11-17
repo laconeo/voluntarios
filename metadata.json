@@ -1,0 +1,5 @@
+{
+  "name": "Sistema de Booking de Voluntarios",
+  "description": "Una aplicación web para gestionar el registro y la asignación de turnos para voluntarios en la Feria del Libro. Permite a los voluntarios ver los turnos disponibles, inscribirse en roles específicos y gestionar sus compromisos. Los administradores pueden supervisar las inscripciones, aprobar bajas y generar informes.",
+  "requestFramePermissions": []
+}
