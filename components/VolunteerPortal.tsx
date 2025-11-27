@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { User, Shift, Role, Booking } from '../types';
 import { mockApi } from '../services/mockApiService';
-import { Calendar, ChevronLeft, ChevronRight, Info, PlusCircle, Clock, Users, X, CheckCircle, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus } from 'lucide-react';
 import RoleDetailModal from './RoleDetailModal';
 import { toast } from 'react-hot-toast';
 
@@ -68,7 +67,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout }) => 
   };
 
   const handleSignUp = async (shiftId: string) => {
-    const confirmation = window.confirm("¿Estás seguro de que deseas inscribirte? Recuerda que esto es un COMPROMISO.");
+    const confirmation = window.confirm("¿Confirmas tu inscripción? Recuerda que es un compromiso de asistencia.");
     if (confirmation) {
         try {
             await mockApi.createBooking(user.id, shiftId);
@@ -82,7 +81,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout }) => 
   };
 
   const handleCancellationRequest = async (bookingId: string) => {
-    const confirmation = window.confirm("¿Estás seguro de que deseas solicitar la baja de este turno?");
+    const confirmation = window.confirm("¿Estás seguro de que deseas darte de baja?");
     if (confirmation) {
         try {
             await mockApi.requestBookingCancellation(bookingId);
@@ -116,16 +115,16 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout }) => 
     const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
     return (
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
+      <div className="bg-white p-5 rounded-lg shadow-card border border-fs-border">
         <div className="flex justify-between items-center mb-4">
-          <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><ChevronLeft /></button>
-          <h3 className="font-semibold text-lg">{currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}</h3>
-          <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><ChevronRight /></button>
+          <button onClick={() => changeMonth(-1)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-600"><ChevronLeft size={20}/></button>
+          <h3 className="font-serif text-lg text-fs-text font-medium capitalize">{currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}</h3>
+          <button onClick={() => changeMonth(1)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-600"><ChevronRight size={20}/></button>
         </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-sm text-gray-500 dark:text-gray-400">
+        <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-fs-meta uppercase mb-2">
           {['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'].map(d => <div key={d}>{d}</div>)}
         </div>
-        <div className="grid grid-cols-7 gap-1 mt-2">
+        <div className="grid grid-cols-7 gap-1">
           {blanks.map((_, i) => <div key={`blank-${i}`} />)}
           {days.map(day => {
             const date = new Date(year, month, day);
@@ -133,20 +132,31 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout }) => 
             const isInEvent = date >= eventStartDate && date <= eventEndDate;
             const isBooked = userBookings.some(b => new Date(b.shift?.date!).toDateString() === date.toDateString());
 
-            let classes = "w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition-colors ";
+            let classes = "w-8 h-8 mx-auto flex items-center justify-center rounded-full text-sm font-medium transition-colors ";
             if (isInEvent) {
-                classes += isSelected ? "bg-primary-600 text-white font-bold " : "hover:bg-primary-100 dark:hover:bg-primary-900 ";
-                if(isBooked && !isSelected) classes += "bg-green-200 dark:bg-green-800 "
+                if (isSelected) {
+                     classes += "bg-primary-500 text-white shadow-sm ";
+                } else if (isBooked) {
+                     classes += "bg-primary-100 text-primary-700 ring-1 ring-primary-200 ";
+                } else {
+                     classes += "text-fs-text hover:bg-gray-100 cursor-pointer ";
+                }
             } else {
-                classes += "text-gray-400 dark:text-gray-600 cursor-not-allowed ";
+                classes += "text-gray-300 cursor-default ";
             }
 
             return (
-              <div key={day} className={classes} onClick={() => isInEvent && handleDateChange(date)}>
-                {day}
+              <div key={day} className="py-1">
+                  <div className={classes} onClick={() => isInEvent && handleDateChange(date)}>
+                    {day}
+                  </div>
               </div>
             );
           })}
+        </div>
+        <div className="mt-4 pt-3 border-t border-fs-border text-xs text-gray-500 flex justify-center gap-4">
+            <div className="flex items-center"><span className="w-2 h-2 rounded-full bg-primary-500 mr-1.5"></span> Seleccionado</div>
+            <div className="flex items-center"><span className="w-2 h-2 rounded-full bg-primary-100 ring-1 ring-primary-200 mr-1.5"></span> Tu Turno</div>
         </div>
       </div>
     );
@@ -155,79 +165,155 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout }) => 
   const getRoleName = (roleId: string) => roles.find(r => r.id === roleId)?.name || 'Desconocido';
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pb-12">
       {selectedRole && <RoleDetailModal role={selectedRole} onClose={() => setSelectedRole(null)} />}
       
-      <div className="lg:col-span-1 space-y-6">
+      <div className="lg:col-span-4 space-y-6">
         {renderCalendar()}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-          <h3 className="text-lg font-semibold mb-3 border-b pb-2 border-gray-200 dark:border-gray-700">Mis Inscripciones</h3>
+        
+        <div className="bg-white p-5 rounded-lg shadow-card border border-fs-border">
+          <h3 className="font-serif text-lg text-fs-text mb-4 border-b border-fs-border pb-2">Mis Inscripciones</h3>
           {userBookings.length > 0 ? (
-            <ul className="space-y-3 max-h-60 overflow-y-auto">
+            <ul className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
               {userBookings.map(booking => (
-                <li key={booking.id} className="p-3 rounded-md bg-gray-100 dark:bg-gray-700/50">
-                  <p className="font-semibold">{booking.shift?.role.name}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    {new Date(booking.shift?.date!).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                    {' - '}
-                    {booking.shift?.timeSlot}
-                  </p>
-                  {booking.status === 'confirmed' && (
-                    <button onClick={() => handleCancellationRequest(booking.id)} className="text-xs text-red-500 hover:underline mt-1">Solicitar baja</button>
-                  )}
+                <li key={booking.id} className="group p-3 rounded-fs border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-sm hover:border-gray-200 transition-all">
+                  <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-bold text-fs-text text-sm">{booking.shift?.role.name}</p>
+                        <div className="flex items-center text-xs text-gray-500 mt-1">
+                            <CalendarIcon size={12} className="mr-1"/>
+                            <span className="capitalize mr-2">{new Date(booking.shift?.date!).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+                            <Clock size={12} className="mr-1"/>
+                            <span>{booking.shift?.timeSlot}</span>
+                        </div>
+                      </div>
+                      {booking.status === 'confirmed' && (
+                        <button 
+                            onClick={() => handleCancellationRequest(booking.id)} 
+                            className="text-xs font-medium text-fs-blue hover:text-red-600 hover:underline px-2 py-1"
+                        >
+                            Baja
+                        </button>
+                      )}
+                  </div>
+                  
                   {booking.status === 'cancellation_requested' && (
-                    <p className="text-xs text-yellow-500 mt-1 flex items-center"><AlertTriangle size={14} className="mr-1"/>Baja solicitada</p>
+                    <div className="mt-2 bg-yellow-50 text-yellow-800 text-xs px-2 py-1.5 rounded-fs inline-flex items-center w-full border border-yellow-100">
+                        <AlertTriangle size={12} className="mr-1.5"/> Solicitud pendiente
+                    </div>
                   )}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">Aún no te has inscripto a ningún turno.</p>
+            <div className="text-center py-10 px-4 bg-gray-50 rounded-fs border border-dashed border-gray-200">
+                <CalendarIcon size={28} className="mx-auto text-gray-300 mb-2" />
+                <p className="text-sm text-gray-500">No tienes turnos agendados aún.</p>
+            </div>
           )}
         </div>
       </div>
 
-      <div className="lg:col-span-2">
-        <h2 className="text-2xl font-bold mb-4">
-          Turnos disponibles para {selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </h2>
+      <div className="lg:col-span-8">
+        <div className="mb-6">
+            <h2 className="text-2xl font-serif text-fs-text">
+            Turnos Disponibles
+            </h2>
+            <p className="text-fs-meta mt-1 capitalize flex items-center">
+                 <span className="font-medium text-gray-800">{selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                 <span className="mx-2 text-gray-300">|</span>
+                 Feria del Libro
+            </p>
+        </div>
+
         {isLoading ? (
-          <div className="text-center p-10">Cargando turnos...</div>
+          <div className="text-center p-24 bg-white rounded-lg border border-fs-border shadow-sm">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-200 border-t-primary-500 mx-auto mb-4"></div>
+              <p className="text-gray-500 text-sm font-medium">Actualizando disponibilidad...</p>
+          </div>
         ) : (
-          <div className="space-y-6">
-            {/* FIX: Explicitly type the map parameters to fix type inference issue with Object.entries. */}
+          <div className="space-y-8">
             {Object.entries(groupedShifts).map(([timeSlot, shiftsInSlot]: [string, Shift[]]) => shiftsInSlot.length > 0 && (
-              <div key={timeSlot}>
-                <h3 className="text-xl font-semibold mb-3 flex items-center text-primary-700 dark:text-primary-300">
-                  <Clock size={20} className="mr-2"/> Turno {timeSlot}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {shiftsInSlot.map(shift => (
-                    <div key={shift.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col justify-between hover:shadow-xl transition-shadow">
-                      <div>
-                        <h4 className="font-bold text-lg">{getRoleName(shift.roleId)}</h4>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center my-2">
-                          <Users size={16} className="mr-2" />
-                          <span>{shift.availableVacancies} de {shift.totalVacancies} vacantes</span>
+              <div key={timeSlot} className="animate-fade-in">
+                <div className="flex items-center mb-3">
+                    <div className="bg-primary-50 text-primary-700 px-3 py-1 rounded-full text-sm font-bold flex items-center border border-primary-100">
+                        <Clock size={16} className="mr-2"/>
+                        {timeSlot} hs
+                    </div>
+                    <div className="h-px bg-gray-200 flex-grow ml-4"></div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {shiftsInSlot.map(shift => {
+                    const role = roles.find(r => r.id === shift.roleId);
+                    const isFull = shift.availableVacancies <= 0;
+                    const isAlreadyBooked = userBookings.some(b => b.shiftId === shift.id && b.status !== 'cancelled');
+
+                    return (
+                    <div key={shift.id} className={`bg-white border rounded-lg transition-all duration-200 flex flex-col
+                        ${isAlreadyBooked 
+                            ? 'border-primary-200 ring-1 ring-primary-100 shadow-sm' 
+                            : 'border-fs-border shadow-card hover:shadow-card-hover hover:border-gray-300'
+                        } ${isFull && !isAlreadyBooked ? 'opacity-75 bg-gray-50' : ''}`}>
+                      
+                      <div className="p-5 flex-grow">
+                        <div className="flex justify-between items-start mb-2">
+                             <h4 className="font-bold text-base text-fs-text leading-snug">
+                                {role?.name}
+                             </h4>
+                             {role?.youtubeUrl && (
+                                <button onClick={() => setSelectedRole(role)} className="text-fs-blue hover:text-blue-800 text-xs font-medium shrink-0 ml-2">
+                                    Ver detalle
+                                </button>
+                             )}
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[2.5em]">
+                            {role?.description}
+                        </p>
+
+                        <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-100">
+                            <div className="flex flex-col">
+                                <span className="text-[11px] uppercase tracking-wider font-bold text-gray-400 mb-0.5">Vacantes</span>
+                                <div className="flex items-baseline">
+                                    <span className={`text-lg font-bold ${shift.availableVacancies > 3 ? 'text-gray-700' : 'text-orange-600'}`}>
+                                        {shift.availableVacancies}
+                                    </span>
+                                    <span className="text-xs text-gray-400 ml-1">/ {shift.totalVacancies}</span>
+                                </div>
+                            </div>
+                            
+                            {isAlreadyBooked ? (
+                                <div className="flex items-center text-primary-600 font-bold text-sm bg-primary-50 px-3 py-2 rounded-fs">
+                                    <CheckCircle2 size={18} className="mr-2"/>
+                                    Inscripto
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={() => handleSignUp(shift.id)}
+                                    disabled={isFull}
+                                    className={`flex items-center px-4 py-2 rounded-fs text-sm font-bold transition-colors ${
+                                        isFull 
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                        : 'bg-primary-500 text-white hover:bg-primary-600 shadow-sm'
+                                    }`}
+                                >
+                                    {isFull ? 'Completo' : <><Plus size={16} className="mr-1.5"/> Inscribirme</>}
+                                </button>
+                            )}
                         </div>
                       </div>
-                      <div className="flex items-center justify-end space-x-2 mt-4">
-                         <button onClick={() => setSelectedRole(roles.find(r => r.id === shift.roleId) || null)} className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
-                          <Info size={20}/>
-                        </button>
-                        {shift.availableVacancies > 0 ? (
-                           <button onClick={() => handleSignUp(shift.id)} className="flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:bg-gray-400">
-                             <PlusCircle size={16} className="mr-2"/> Inscribirse
-                           </button>
-                         ) : (
-                            <span className="px-4 py-2 text-sm text-gray-500">Completo</span>
-                         )}
-                      </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
             ))}
+            
+            {Object.values(groupedShifts).every((arr: Shift[]) => arr.length === 0) && (
+                <div className="text-center py-16 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    <p className="text-gray-500">No hay turnos configurados para esta fecha.</p>
+                </div>
+            )}
           </div>
         )}
       </div>

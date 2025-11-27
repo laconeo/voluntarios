@@ -1,36 +1,52 @@
-
 import React from 'react';
 import type { User } from '../types';
-import { LogOut, User as UserIcon } from 'lucide-react';
+import { LogOut, User as UserIcon, TreePine } from 'lucide-react';
 
 interface HeaderProps {
   user: User | null;
   onLogout?: () => void;
+  onProfileClick?: () => void;
+  onLogoClick?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
+const Header: React.FC<HeaderProps> = ({ user, onLogout, onProfileClick, onLogoClick }) => {
   return (
-    <header className="bg-white dark:bg-gray-800 shadow-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
-            <h1 className="text-xl sm:text-2xl font-bold text-primary-600 dark:text-primary-400">
-              Sistema de Voluntarios
-            </h1>
-            <span className="ml-4 text-sm text-gray-500 dark:text-gray-400 hidden sm:block">Feria del Libro 2026</span>
-          </div>
-          {user && onLogout && (
-            <div className="flex items-center space-x-4">
-              <div className="hidden sm:flex items-center space-x-2 text-gray-700 dark:text-gray-300">
-                <UserIcon size={18} />
-                <span className="font-medium">{user.fullName}</span>
+    <header className="bg-white border-b border-fs-border sticky top-0 z-50 h-[60px] flex items-center shadow-sm">
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={onLogoClick}>
+            {/* Logo FS Simplificado */}
+            <div className="text-primary-500">
+              <TreePine size={26} strokeWidth={2} />
+            </div>
+            <div className="flex flex-col leading-none justify-center pt-1">
+              <div className="flex items-baseline gap-1.5">
+                <h1 className="text-[20px] text-fs-text font-serif tracking-tight">
+                  FamilySearch
+                </h1>
+                <span className="text-[10px] font-bold text-fs-meta font-sans uppercase tracking-widest translate-y-[-1px]">
+                  Voluntarios
+                </span>
               </div>
+            </div>
+            <div className="hidden md:block h-5 w-px bg-gray-300 mx-3"></div>
+            <div className="hidden md:block text-sm text-fs-meta font-sans">Feria del Libro 2026</div>
+          </div>
+
+          {user && onLogout && (
+            <div className="flex items-center space-x-6">
+              <button onClick={onProfileClick} className="hidden sm:flex items-center space-x-2 hover:bg-gray-50 p-1 rounded-fs transition-colors">
+                <div className="bg-gray-100 p-1.5 rounded-full text-gray-500">
+                  <UserIcon size={16} />
+                </div>
+                <span className="font-normal font-sans text-sm text-fs-text">{user.fullName}</span>
+              </button>
               <button
                 onClick={onLogout}
-                className="flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                className="flex items-center text-sm font-semibold text-fs-blue hover:text-blue-800 hover:underline transition-colors focus:outline-none"
                 aria-label="Cerrar sesión"
               >
-                <LogOut size={16} className="mr-2" />
+                <LogOut size={16} className="mr-1" />
                 Salir
               </button>
             </div>

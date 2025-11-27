@@ -28,6 +28,16 @@ export const mockApi = {
     return registeredUser;
   },
 
+  updateUser: async (updatedUser: User): Promise<User> => {
+    await delay(600);
+    const index = users.findIndex(u => u.id === updatedUser.id);
+    if (index !== -1) {
+      users[index] = updatedUser;
+      return users[index];
+    }
+    throw new Error("Usuario no encontrado");
+  },
+
   getShiftsForDate: async (date: string): Promise<Shift[]> => {
     await delay(300);
     const dateShifts = shifts.filter(s => s.date === date);
@@ -42,12 +52,23 @@ export const mockApi = {
     await delay(100);
     return ROLES.find(r => r.id === roleId) || null;
   },
-  
+
   getAllRoles: async (): Promise<Role[]> => {
     await delay(100);
     return [...ROLES];
   },
-  
+
+  createShift: async (newShift: Omit<Shift, 'id' | 'availableVacancies'>): Promise<Shift> => {
+    await delay(500);
+    const createdShift: Shift = {
+      ...newShift,
+      id: `shift_${Date.now()}`,
+      availableVacancies: newShift.totalVacancies
+    };
+    shifts.push(createdShift);
+    return createdShift;
+  },
+
   createBooking: async (userId: string, shiftId: string): Promise<Booking> => {
     await delay(1000);
     const shift = shifts.find(s => s.id === shiftId);
@@ -55,12 +76,12 @@ export const mockApi = {
 
     const existingBooking = bookings.find(b => b.userId === userId && b.shiftId === shiftId && b.status !== 'cancelled');
     if (existingBooking) throw new Error("Ya estás inscripto en este turno.");
-    
+
     const confirmedBookings = bookings.filter(b => b.shiftId === shiftId && b.status === 'confirmed').length;
     if (confirmedBookings >= shift.totalVacancies) {
       throw new Error("No hay vacantes disponibles para este rol y turno.");
     }
-    
+
     const newBooking: Booking = {
       id: `booking_${Date.now()}`,
       userId,
@@ -71,7 +92,7 @@ export const mockApi = {
     console.log('New booking created:', newBooking);
     return newBooking;
   },
-  
+
   getUserBookings: async (userId: string): Promise<Booking[]> => {
     await delay(400);
     return bookings
@@ -88,11 +109,11 @@ export const mockApi = {
     await delay(600);
     const bookingIndex = bookings.findIndex(b => b.id === bookingId);
     if (bookingIndex === -1) throw new Error("Inscripción no encontrada.");
-    
+
     bookings[bookingIndex].status = 'cancellation_requested';
     return { ...bookings[bookingIndex] };
   },
-  
+
   // Admin functions
   getPendingCancellations: async (): Promise<Booking[]> => {
     await delay(500);
@@ -120,9 +141,9 @@ export const mockApi = {
     await delay(800);
     const targetShifts = shifts.filter(s => s.date === date && s.timeSlot === timeSlot);
     const targetShiftIds = targetShifts.map(s => s.id);
-    
+
     const rosterBookings = bookings.filter(b => targetShiftIds.includes(b.shiftId) && b.status === 'confirmed');
-    
+
     return rosterBookings.map(b => {
       const user = users.find(u => u.id === b.userId);
       const shift = shifts.find(s => s.id === b.shiftId);
@@ -132,6 +153,6 @@ export const mockApi = {
         dni: user?.dni || 'N/A',
         role: role?.name || 'N/A',
       };
-    }).sort((a,b) => a.role.localeCompare(b.role));
+    }).sort((a, b) => a.role.localeCompare(b.role));
   }
 };
