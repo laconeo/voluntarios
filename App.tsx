@@ -7,6 +7,7 @@ import Login from './components/Login';
 import Header from './components/Header';
 import UserProfile from './components/UserProfile';
 import { Toaster, toast } from 'react-hot-toast';
+import SuperAdminDashboard from './components/SuperAdminDashboard';
 
 type ViewState = 'portal' | 'profile' | 'admin';
 
@@ -69,6 +70,10 @@ const App: React.FC = () => {
   const renderContent = () => {
     if (!currentUser) {
       return <Login onLogin={handleLogin} onRegister={handleRegister} />;
+    }
+
+    if (currentUser.role === 'superadmin') {
+      return <SuperAdminDashboard user={currentUser} onLogout={handleLogout} />;
     }
 
     // Si el usuario no tiene ID, es que está en proceso de registro (paso intermedio en Login)
