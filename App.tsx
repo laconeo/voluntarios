@@ -8,7 +8,6 @@ import Login from './components/Login';
 import Header from './components/Header';
 import UserProfile from './components/UserProfile';
 import { Toaster, toast } from 'react-hot-toast';
-import SuperAdminDashboard from './components/SuperAdminDashboard';
 
 // Wrapper component to handle event slug logic
 const EventPortalWrapper: React.FC<{
@@ -142,9 +141,7 @@ const AppContent: React.FC = () => {
             <Route path="/" element={
               !currentUser ? (
                 <Login onLogin={handleLogin} onRegister={handleRegister} />
-              ) : currentUser.role === 'superadmin' ? (
-                <SuperAdminDashboard user={currentUser} onLogout={handleLogout} />
-              ) : currentUser.role === 'admin' ? (
+              ) : currentUser.role === 'superadmin' || currentUser.role === 'admin' ? (
                 <AdminDashboard user={currentUser} onLogout={handleLogout} />
               ) : (
                 // If regular volunteer at root, maybe show a list of events to choose from?

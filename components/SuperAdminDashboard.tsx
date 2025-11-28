@@ -162,7 +162,14 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                         </div>
                         <div className="flex gap-3">
                             <button
-                                onClick={() => onViewMetrics?.('users')}
+                                onClick={() => {
+                                    console.log('Gestionar Usuarios clicked', onViewMetrics);
+                                    if (onViewMetrics) {
+                                        onViewMetrics('users');
+                                    } else {
+                                        console.error('onViewMetrics is not defined');
+                                    }
+                                }}
                                 className="flex items-center gap-2 bg-white text-primary-600 px-6 py-3 rounded-lg hover:bg-gray-50 shadow-lg font-semibold"
                             >
                                 <Users size={20} />
