@@ -227,21 +227,34 @@ export const mockApi = {
     });
   },
 
-  getAllShiftsByEvent: async (eventId: string): Promise<Shift[]> => {
-    await delay(400);
+  getShiftsByEvent: async (eventId: string): Promise<Shift[]> => {
+    await delay(300);
     return shifts.filter(s => s.eventId === eventId);
   },
 
-  createShift: async (shiftData: Omit<Shift, 'id' | 'availableVacancies' | 'coordinatorIds'>): Promise<Shift> => {
+  getShiftById: async (shiftId: string): Promise<Shift | null> => {
+    await delay(200);
+    return shifts.find(s => s.id === shiftId) || null;
+  },
+
+  createShift: async (shiftData: Omit<Shift, 'id'>): Promise<Shift> => {
     await delay(500);
-    const createdShift: Shift = {
+    const newShift: Shift = {
       ...shiftData,
-      id: `shift_${Date.now()}`,
-      availableVacancies: shiftData.totalVacancies,
-      coordinatorIds: [],
+      id: `shift_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     };
-    shifts.push(createdShift);
-    return createdShift;
+    shifts.push(newShift);
+    return newShift;
+  },
+
+  deleteShift: async (shiftId: string): Promise<void> => {
+    await delay(500);
+    // Verificar si hay bookings asociados
+    const hasBookings = bookings.some(b => b.shiftId === shiftId && b.status !== 'cancelled');
+    if (hasBookings) {
+      throw new Error('No se puede eliminar un turno con voluntarios inscritos');
+    }
+    shifts = shifts.filter(s => s.id !== shiftId);
   },
 
   assignCoordinatorToShift: async (shiftId: string, userId: string): Promise<Shift> => {

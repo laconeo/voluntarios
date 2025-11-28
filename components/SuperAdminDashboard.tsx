@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Plus, Edit2, Archive, Trash2, CheckCircle, XCircle, Filter, Search, TrendingUp, Users, Copy } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, XCircle, CheckCircle, Users, Filter } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { Event, User } from '../types';
 import { toast } from 'react-hot-toast';
+import ShiftManagement from './ShiftManagement';
 
 interface SuperAdminDashboardProps {
     user: User;
@@ -12,6 +13,7 @@ interface SuperAdminDashboardProps {
 
 const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewMetrics }) => {
     const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar'>('listado');
+    const [activeTab, setActiveTab] = useState<'details' | 'shifts'>('details');
     const [eventoSeleccionado, setEventoSeleccionado] = useState<Event | null>(null);
     const [mostrarModal, setMostrarModal] = useState(false);
     const [accionModal, setAccionModal] = useState('');
@@ -440,173 +442,206 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
             </div>
             <div className="max-w-3xl mx-auto px-6 py-8">
                 <div className="bg-white rounded-lg shadow-md border border-gray-200 p-8">
-                    <div className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">Nombre del evento *</label>
-                            <input
-                                type="text"
-                                name="nombre"
-                                value={formData.nombre}
-                                onChange={handleInputChange}
-                                placeholder="Ej: Feria del Libro Buenos Aires 2026"
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                            />
+                    {eventoSeleccionado && (
+                        <div className="flex gap-4 mb-8 border-b border-gray-200">
+                            <button
+                                onClick={() => setActiveTab('details')}
+                                className={`pb-4 px-4 font-medium transition-colors relative ${activeTab === 'details'
+                                    ? 'text-primary-600 border-b-2 border-primary-600'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                Detalles del Evento
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('shifts')}
+                                className={`pb-4 px-4 font-medium transition-colors relative ${activeTab === 'shifts'
+                                    ? 'text-primary-600 border-b-2 border-primary-600'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                Gestión de Turnos
+                            </button>
                         </div>
+                    )}
 
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">URL del evento *</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    name="slug"
-                                    value={formData.slug}
-                                    onChange={handleInputChange}
-                                    placeholder="feriadellibrobuenosaires"
-                                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={generateSlug}
-                                    className="px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium whitespace-nowrap"
-                                >
-                                    Auto-generar
-                                </button>
-                            </div>
-                            {formData.slug && (
-                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex-1">
-                                            <p className="text-xs text-blue-600 font-semibold mb-1">URL de acceso público:</p>
-                                            <p className="text-sm text-blue-900 font-mono break-all">
-                                                {window.location.origin}/{formData.slug}
-                                            </p>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={copyEventUrl}
-                                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm whitespace-nowrap flex items-center gap-2"
-                                        >
-                                            <Copy size={16} />
-                                            Copiar
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                            <p className="text-sm text-gray-500 mt-2">
-                                Esta URL será utilizada para que los voluntarios accedan al evento. Solo letras minúsculas sin espacios.
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Ciudad *</label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-3 top-3.5 text-gray-400" size={20} />
+                    {activeTab === 'shifts' && eventoSeleccionado ? (
+                        <ShiftManagement
+                            eventId={eventoSeleccionado.id}
+                            eventStartDate={eventoSeleccionado.fechaInicio}
+                            eventEndDate={eventoSeleccionado.fechaFin}
+                        />
+                    ) : (
+                        <>
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Nombre del evento *</label>
                                     <input
                                         type="text"
-                                        name="ubicacion"
-                                        value={formData.ubicacion}
+                                        name="nombre"
+                                        value={formData.nombre}
                                         onChange={handleInputChange}
-                                        placeholder="Buenos Aires"
-                                        className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        placeholder="Ej: Feria del Libro Buenos Aires 2026"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                                     />
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">País *</label>
-                                <input
-                                    type="text"
-                                    name="pais"
-                                    value={formData.pais}
-                                    onChange={handleInputChange}
-                                    placeholder="Argentina"
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                />
-                            </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Fecha de inicio *</label>
-                                <input
-                                    type="date"
-                                    name="fechaInicio"
-                                    value={formData.fechaInicio}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                />
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">URL del evento *</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            name="slug"
+                                            value={formData.slug}
+                                            onChange={handleInputChange}
+                                            placeholder="feriadellibrobuenosaires"
+                                            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={generateSlug}
+                                            className="px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium whitespace-nowrap"
+                                        >
+                                            Auto-generar
+                                        </button>
+                                    </div>
+                                    {formData.slug && (
+                                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex-1">
+                                                    <p className="text-xs text-blue-600 font-semibold mb-1">URL de acceso público:</p>
+                                                    <p className="text-sm text-blue-900 font-mono break-all">
+                                                        {window.location.origin}/{formData.slug}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={copyEventUrl}
+                                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm whitespace-nowrap flex items-center gap-2"
+                                                >
+                                                    <Copy size={16} />
+                                                    Copiar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <p className="text-sm text-gray-500 mt-2">
+                                        Esta URL será utilizada para que los voluntarios accedan al evento. Solo letras minúsculas sin espacios.
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Ciudad *</label>
+                                        <div className="relative">
+                                            <MapPin className="absolute left-3 top-3.5 text-gray-400" size={20} />
+                                            <input
+                                                type="text"
+                                                name="ubicacion"
+                                                value={formData.ubicacion}
+                                                onChange={handleInputChange}
+                                                placeholder="Buenos Aires"
+                                                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">País *</label>
+                                        <input
+                                            type="text"
+                                            name="pais"
+                                            value={formData.pais}
+                                            onChange={handleInputChange}
+                                            placeholder="Argentina"
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Fecha de inicio *</label>
+                                        <input
+                                            type="date"
+                                            name="fechaInicio"
+                                            value={formData.fechaInicio}
+                                            onChange={handleInputChange}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Fecha de fin *</label>
+                                        <input
+                                            type="date"
+                                            name="fechaFin"
+                                            value={formData.fechaFin}
+                                            onChange={handleInputChange}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Descripción</label>
+                                    <textarea
+                                        name="descripcion"
+                                        value={formData.descripcion}
+                                        onChange={handleInputChange}
+                                        placeholder="Describe brevemente el evento..."
+                                        rows={4}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Estado del evento *</label>
+                                    <select
+                                        name="estado"
+                                        value={formData.estado}
+                                        onChange={handleInputChange}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    >
+                                        <option value="Activo">Activo (visible para voluntarios)</option>
+                                        <option value="Inactivo">Inactivo (oculto, en preparación)</option>
+                                        <option value="Archivado">Archivado (solo lectura)</option>
+                                    </select>
+                                    <p className="text-sm text-gray-500 mt-2">
+                                        Solo eventos activos son visibles para voluntarios en el registro
+                                    </p>
+                                </div>
+
+                                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                                    <h4 className="font-semibold text-yellow-800 mb-2 flex items-center gap-2">
+                                        <span>⚠️</span> Reglas importantes
+                                    </h4>
+                                    <ul className="text-sm text-yellow-700 space-y-1 ml-6 list-disc">
+                                        <li>Solo puedes tener máximo 5 eventos activos simultáneos</li>
+                                        <li>La fecha de fin debe ser posterior a la fecha de inicio</li>
+                                        <li>No se pueden eliminar eventos con voluntarios registrados</li>
+                                    </ul>
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Fecha de fin *</label>
-                                <input
-                                    type="date"
-                                    name="fechaFin"
-                                    value={formData.fechaFin}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                />
+                            <div className="flex gap-4 pt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setVistaActual('listado')}
+                                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-semibold"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={guardarEvento}
+                                    className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-semibold shadow-lg"
+                                >
+                                    {vistaActual === 'crear' ? 'Crear evento' : 'Guardar cambios'}
+                                </button>
                             </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">Descripción</label>
-                            <textarea
-                                name="descripcion"
-                                value={formData.descripcion}
-                                onChange={handleInputChange}
-                                placeholder="Describe brevemente el evento..."
-                                rows={4}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">Estado del evento *</label>
-                            <select
-                                name="estado"
-                                value={formData.estado}
-                                onChange={handleInputChange}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                            >
-                                <option value="Activo">Activo (visible para voluntarios)</option>
-                                <option value="Inactivo">Inactivo (oculto, en preparación)</option>
-                                <option value="Archivado">Archivado (solo lectura)</option>
-                            </select>
-                            <p className="text-sm text-gray-500 mt-2">
-                                Solo eventos activos son visibles para voluntarios en el registro
-                            </p>
-                        </div>
-
-                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                            <h4 className="font-semibold text-yellow-800 mb-2 flex items-center gap-2">
-                                <span>⚠️</span> Reglas importantes
-                            </h4>
-                            <ul className="text-sm text-yellow-700 space-y-1 ml-6 list-disc">
-                                <li>Solo puedes tener máximo 5 eventos activos simultáneos</li>
-                                <li>La fecha de fin debe ser posterior a la fecha de inicio</li>
-                                <li>No se pueden eliminar eventos con voluntarios registrados</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div className="flex gap-4 pt-6">
-                        <button
-                            type="button"
-                            onClick={() => setVistaActual('listado')}
-                            className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-semibold"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="button"
-                            onClick={guardarEvento}
-                            className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-semibold shadow-lg"
-                        >
-                            {vistaActual === 'crear' ? 'Crear evento' : 'Guardar cambios'}
-                        </button>
-                    </div>
+                        </>
+                    )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

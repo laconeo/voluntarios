@@ -3,6 +3,7 @@ import { TrendingUp, Users, Calendar, AlertCircle, Clock, PieChart } from 'lucid
 import { mockApi } from '../services/mockApiService';
 import type { DashboardMetrics, Event } from '../types';
 import { toast } from 'react-hot-toast';
+import EventVolunteersList from './EventVolunteersList';
 
 interface MetricsDashboardProps {
     eventId: string;
@@ -197,8 +198,8 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                                 <div className="flex-1 bg-gray-200 rounded-full h-6 relative">
                                     <div
                                         className={`h-6 rounded-full transition-all duration-500 flex items-center justify-end pr-2 ${day.occupation >= 80 ? 'bg-primary-500' :
-                                                day.occupation >= 50 ? 'bg-yellow-500' :
-                                                    'bg-red-500'
+                                            day.occupation >= 50 ? 'bg-yellow-500' :
+                                                'bg-red-500'
                                             }`}
                                         style={{ width: `${day.occupation}%` }}
                                     >
@@ -235,6 +236,9 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                     </div>
                 </div>
             )}
+
+            {/* Event Volunteers List */}
+            <EventVolunteersList eventId={eventId} />
         </div>
     );
 };
