@@ -23,12 +23,21 @@ const isWithin24Hours = (shiftDate: string, shiftTime: string): boolean => {
 
 export const mockApi = {
   // ==================== AUTH ====================
-  login: async (identifier: string): Promise<User | null> => {
+  login: async (identifier: string, password?: string): Promise<User | null> => {
     await delay(500);
     const user = users.find(u => u.dni === identifier || u.email === identifier);
     if (user) {
+      // Si el usuario es admin o superadmin, requiere contraseña
+      if (user.role === 'admin' || user.role === 'superadmin') {
+        if (!password || user.password !== password) {
+          console.log(`Invalid password for ${user.role}: ${user.fullName}`);
+          throw new Error('Contraseña incorrecta');
+        }
+      }
       console.log(`Logged in as: ${user.fullName}`);
-      return { ...user };
+      // No devolver la contraseña al cliente
+      const { password: _, ...userWithoutPassword } = user;
+      return userWithoutPassword as User;
     }
     console.log(`User not found for identifier: ${identifier}`);
     return null;
@@ -56,6 +65,12 @@ export const mockApi = {
     throw new Error("Usuario no encontrado");
   },
 
+  getAllUsers: async (): Promise<User[]> => {
+    await delay(300);
+    // No devolver contraseñas
+    return users.map(({ password, ...user }) => user as User);
+  },
+
   // ==================== EVENTS ====================
   getAllEvents: async (): Promise<Event[]> => {
     await delay(300);
@@ -78,6 +93,11 @@ export const mockApi = {
   getEventById: async (eventId: string): Promise<Event | null> => {
     await delay(200);
     return events.find(e => e.id === eventId) || null;
+  },
+
+  getEventBySlug: async (slug: string): Promise<Event | null> => {
+    await delay(200);
+    return events.find(e => e.slug === slug) || null;
   },
 
   createEvent: async (eventData: Omit<Event, 'id' | 'voluntarios' | 'turnos' | 'ocupacion' | 'createdAt'>): Promise<Event> => {

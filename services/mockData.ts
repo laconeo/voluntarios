@@ -3,6 +3,7 @@ import type { User, Role, Shift, Booking, Event, EventAdmin, WaitlistEntry } fro
 export const EVENTS: Event[] = [
   {
     id: 'event_1',
+    slug: 'feriadellibrobuenosaires',
     nombre: 'Feria del Libro Buenos Aires 2026',
     ubicacion: 'Buenos Aires, Argentina',
     pais: 'Argentina',
@@ -10,13 +11,14 @@ export const EVENTS: Event[] = [
     fechaFin: '2026-05-11',
     descripcion: 'Feria anual del libro en la ciudad de Buenos Aires',
     estado: 'Activo',
-    voluntarios: 0,
-    turnos: 0,
+    voluntarios: 400,
+    turnos: 2,
     ocupacion: 0,
     createdAt: new Date('2025-01-15').toISOString(),
   },
   {
     id: 'event_2',
+    slug: 'feriadellibrocorrientes',
     nombre: 'Feria del Libro Corrientes 2025',
     ubicacion: 'Corrientes, Argentina',
     pais: 'Argentina',
@@ -31,6 +33,7 @@ export const EVENTS: Event[] = [
   },
   {
     id: 'event_3',
+    slug: 'feriadellibrochile',
     nombre: 'Feria del Libro Santiago 2026',
     ubicacion: 'Santiago, Chile',
     pais: 'Chile',
@@ -58,6 +61,7 @@ export const USERS: User[] = [
     isOver18: true,
     howTheyHeard: 'Internal',
     role: 'superadmin',
+    password: 'admin123',
     createdAt: new Date('2024-01-01').toISOString(),
   },
   {
@@ -72,6 +76,7 @@ export const USERS: User[] = [
     isOver18: true,
     howTheyHeard: 'Internal',
     role: 'admin',
+    password: 'admin123',
     createdAt: new Date('2024-03-01').toISOString(),
   },
   {

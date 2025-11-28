@@ -10,11 +10,14 @@ export interface User {
   isOver18: boolean;
   howTheyHeard: string;
   role: 'volunteer' | 'admin' | 'coordinator' | 'superadmin';
+  password?: string; // Solo para admin y superadmin
+  status?: 'active' | 'suspended'; // Estado del usuario
   createdAt?: string;
 }
 
 export interface Event {
   id: string;
+  slug: string;
   nombre: string;
   ubicacion: string;
   pais: string;
