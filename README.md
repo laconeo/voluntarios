@@ -368,8 +368,8 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para
 
 ## 👥 Autores
 
-- **Equipo de Desarrollo** - *Trabajo inicial y mantenimiento*
-- **FamilySearch** - *Brand guidelines y soporte*
+- **Freddy Hernandez & Oscar Riquelme** - *Trabajo inicial y mantenimiento*
+- **FamilySearch** - *con el aporte del Brand guidelines y soporte*
 
 ---
 
