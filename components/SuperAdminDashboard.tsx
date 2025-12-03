@@ -4,6 +4,7 @@ import { mockApi } from '../services/mockApiService';
 import type { Event, User } from '../types';
 import { toast } from 'react-hot-toast';
 import ShiftManagement from './ShiftManagement';
+import RoleManagement from './RoleManagement';
 
 interface SuperAdminDashboardProps {
     user: User;
@@ -13,7 +14,7 @@ interface SuperAdminDashboardProps {
 
 const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewMetrics }) => {
     const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar'>('listado');
-    const [activeTab, setActiveTab] = useState<'details' | 'shifts'>('details');
+    const [activeTab, setActiveTab] = useState<'details' | 'roles' | 'shifts'>('details');
     const [eventoSeleccionado, setEventoSeleccionado] = useState<Event | null>(null);
     const [mostrarModal, setMostrarModal] = useState(false);
     const [accionModal, setAccionModal] = useState('');
@@ -454,6 +455,15 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                 Detalles del Evento
                             </button>
                             <button
+                                onClick={() => setActiveTab('roles')}
+                                className={`pb-4 px-4 font-medium transition-colors relative ${activeTab === 'roles'
+                                    ? 'text-primary-600 border-b-2 border-primary-600'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                Gestión de Roles
+                            </button>
+                            <button
                                 onClick={() => setActiveTab('shifts')}
                                 className={`pb-4 px-4 font-medium transition-colors relative ${activeTab === 'shifts'
                                     ? 'text-primary-600 border-b-2 border-primary-600'
@@ -465,7 +475,9 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                         </div>
                     )}
 
-                    {activeTab === 'shifts' && eventoSeleccionado ? (
+                    {activeTab === 'roles' && eventoSeleccionado ? (
+                        <RoleManagement eventId={eventoSeleccionado.id} />
+                    ) : activeTab === 'shifts' && eventoSeleccionado ? (
                         <ShiftManagement
                             eventId={eventoSeleccionado.id}
                             eventStartDate={eventoSeleccionado.fechaInicio}

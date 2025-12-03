@@ -250,7 +250,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
         </form>
 
         <p className="mt-8 text-xs text-gray-400">
-          Feria del Libro 2026 &bull; Buenos Aires
+          Sirviendo Juntos 2026 &bull; Buenos Aires
         </p>
       </div>
     </div>

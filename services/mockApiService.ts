@@ -247,6 +247,28 @@ export const mockApi = {
     return newShift;
   },
 
+  updateShift: async (shiftId: string, updates: Partial<Shift>): Promise<Shift> => {
+    await delay(500);
+    const index = shifts.findIndex(s => s.id === shiftId);
+    if (index === -1) throw new Error('Turno no encontrado');
+
+    // Si se reduce el cupo, verificar que no sea menor a los inscritos
+    if (updates.totalVacancies !== undefined) {
+      const bookedCount = bookings.filter(b => b.shiftId === shiftId && b.status === 'confirmed').length;
+      if (updates.totalVacancies < bookedCount) {
+        throw new Error(`No se puede reducir el cupo a ${updates.totalVacancies} porque ya hay ${bookedCount} voluntarios inscritos.`);
+      }
+    }
+
+    shifts[index] = { ...shifts[index], ...updates };
+
+    // Recalcular vacantes disponibles
+    const bookedCount = bookings.filter(b => b.shiftId === shiftId && b.status === 'confirmed').length;
+    shifts[index].availableVacancies = shifts[index].totalVacancies - bookedCount;
+
+    return shifts[index];
+  },
+
   deleteShift: async (shiftId: string): Promise<void> => {
     await delay(500);
     // Verificar si hay bookings asociados
@@ -349,6 +371,11 @@ export const mockApi = {
     bookings.push(newBooking);
     console.log('New booking created:', newBooking);
     return newBooking;
+  },
+
+  getBookingsByEvent: async (eventId: string): Promise<Booking[]> => {
+    await delay(400);
+    return bookings.filter(b => b.eventId === eventId && b.status !== 'cancelled');
   },
 
   getUserBookings: async (userId: string, eventId?: string): Promise<Booking[]> => {

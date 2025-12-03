@@ -29,8 +29,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onProfileClick, onLogoC
                 </span>
               </div>
             </div>
-            <div className="hidden md:block h-5 w-px bg-gray-300 mx-3"></div>
-            <div className="hidden md:block text-sm text-fs-meta font-sans">Feria del Libro 2026</div>
+
           </div>
 
           {user && onLogout && (
