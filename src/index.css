@@ -1,49 +1,58 @@
-/* Fuente de respaldo */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&display=swap');
+/* Fuente de respaldo - Usaremos Roboto que es muy similar a la de FS */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
 
 @import "tailwindcss";
 
 @theme {
   /* Fuentes personalizadas */
-  --font-family-sans: "Noto Sans", system-ui, -apple-system, sans-serif;
-  --font-family-serif: Georgia, "Times New Roman", serif;
+  --font-family-sans: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-serif: "Roboto", sans-serif;
+  /* FS usa mayormente sans-serif ahora */
 
-  /* Colores Primary - FamilySearch Green */
-  --color-primary-50: #f4f9e9;
-  --color-primary-100: #e6f2d0;
-  --color-primary-200: #d0e5a6;
-  --color-primary-300: #b4d675;
-  --color-primary-400: #9bc54e;
+  /* Colores FamilySearch Frontier */
+  /* Primary Green (Action) */
+  --color-primary-50: #f1f8e9;
+  --color-primary-100: #dcedc8;
+  --color-primary-200: #c5e1a5;
+  --color-primary-300: #aed581;
+  --color-primary-400: #9ccc65;
   --color-primary-500: #8CB83E;
-  --color-primary-600: #6d942d;
-  --color-primary-700: #557326;
-  --color-primary-800: #445a23;
-  --color-primary-900: #384a20;
+  /* FS Tree Green */
+  --color-primary-600: #7cb342;
+  --color-primary-700: #689f38;
+  --color-primary-800: #558b2f;
+  --color-primary-900: #33691e;
   --color-primary: #8CB83E;
 
-  /* Colores FamilySearch */
-  --color-fs-blue: #0077C5;
-  --color-fs-text: #333333;
-  --color-fs-meta: #767676;
-  --color-fs-border: #DDDDDD;
-  --color-fs-bg: #F7F7F7;
-  --color-fs-tree: #8CB83E;
+  /* FS Blue (Links & Info) */
+  --color-fs-blue: #005994;
+  --color-fs-blue-hover: #004a7c;
 
-  /* Sombras personalizadas */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
-  --shadow-card-hover: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+  /* FS Grays (Text & UI) */
+  --color-fs-text: #282829;
+  --color-fs-text-light: #575757;
+  --color-fs-border: #dcdcdc;
+  --color-fs-bg: #ffffff;
+  --color-fs-bg-alt: #f3f3f3;
+
+  /* Sombras personalizadas Frontier */
+  --shadow-card: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-card-hover: 0 4px 8px rgba(0, 0, 0, 0.15);
+  --shadow-modal: 0 10px 25px rgba(0, 0, 0, 0.2);
 
   /* Radio de borde FamilySearch */
-  --radius-fs: 4px;
+  --radius-fs: 8px;
 }
 
 body {
   margin: 0;
-  background-color: #F7F7F7;
-  color: #333333;
-  font-family: "Noto Sans", system-ui, -apple-system, sans-serif;
+  background-color: #f3f3f3;
+  /* Fondo gris muy suave típico de FS */
+  color: #282829;
+  font-family: "Roboto", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
 }
 
 h1,
@@ -52,20 +61,69 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: Georgia, 'Times New Roman', serif;
-  color: #333333;
+  font-family: "Roboto", sans-serif;
+  color: #282829;
+  font-weight: 500;
 }
 
-/* Estilos globales para inputs y botones */
-button,
+h1 {
+  font-weight: 300;
+  letter-spacing: -0.5px;
+}
+
+/* Estilos globales para inputs y botones estilo Frontier */
+button {
+  font-family: "Roboto", sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
 input,
 select,
 textarea {
-  font-family: "Not Sans", sans-serif;
+  font-family: "Roboto", sans-serif;
+}
+
+/* Inputs estilo Frontier */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+select {
+  border: 1px solid #dcdcdc;
+  border-radius: 4px;
+  /* Bordes ligeramente redondeados */
+  padding: 10px 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus,
+select:focus {
+  border-color: #005994;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 89, 148, 0.1);
+}
+
+/* Botones estilo Frontier */
+.btn-primary {
+  background-color: #8CB83E;
+  color: white;
+  border-radius: 20px;
+  /* Botones más redondeados (pill shape) son comunes en FS */
+  padding: 10px 24px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.875rem;
+  letter-spacing: 0.5px;
+  transition: background-color 0.2s;
+}
+
+.btn-primary:hover {
+  background-color: #7cb342;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -73,12 +131,12 @@ textarea {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 3px;
+  background: #bdbdbd;
+  border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #bbb;
+  background: #9e9e9e;
 }
 
 /* Animaciones para Modal */

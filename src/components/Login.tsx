@@ -189,9 +189,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
           <div className="pt-4">
             <button
               type="submit"
-              className={`w-full py-3 px-6 font-bold text-base rounded-fs shadow-sm transition-all ${isFormValid
-                ? 'bg-primary-500 text-white hover:bg-primary-600 hover:shadow-md'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              className={`w-full btn-primary shadow-sm transition-all ${isFormValid
+                ? 'opacity-100 hover:shadow-md'
+                : 'opacity-50 cursor-not-allowed bg-gray-400 hover:bg-gray-400'
                 }`}
               disabled={!isFormValid}
             >
@@ -259,9 +259,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
 
           <button
             type="submit"
-            className="w-full py-3.5 px-4 bg-primary-500 text-white text-base font-bold rounded-fs hover:bg-primary-600 transition duration-200 shadow-sm hover:shadow-md"
+            className="w-full btn-primary shadow-sm hover:shadow-md"
           >
-            {showPassword ? 'Iniciar Sesión' : 'Continuar'}
+            {showPassword ? 'INICIAR SESIÓN' : 'CONTINUAR'}
           </button>
 
           {showPassword && (
@@ -271,7 +271,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                 setShowPassword(false);
                 setPassword('');
               }}
-              className="text-sm text-gray-500 hover:text-gray-700 underline"
+              className="text-sm text-fs-blue hover:text-fs-blue-hover underline mt-4 block mx-auto"
             >
               ← Volver
             </button>
