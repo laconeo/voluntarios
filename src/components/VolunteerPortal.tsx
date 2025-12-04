@@ -119,14 +119,12 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   };
 
   const groupedShifts = useMemo(() => {
-    const groups: Record<string, Shift[]> = {
-      '13:00-16:00': [],
-      '16:00-22:00': [],
-    };
+    const groups: Record<string, Shift[]> = {};
     shifts.forEach(shift => {
-      if (groups[shift.timeSlot]) {
-        groups[shift.timeSlot].push(shift);
+      if (!groups[shift.timeSlot]) {
+        groups[shift.timeSlot] = [];
       }
+      groups[shift.timeSlot].push(shift);
     });
     return groups;
   }, [shifts]);
@@ -258,7 +256,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
           </div>
         ) : (
           <div className="space-y-8">
-            {Object.entries(groupedShifts).map(([timeSlot, shiftsInSlot]: [string, Shift[]]) => shiftsInSlot.length > 0 && (
+            {Object.entries(groupedShifts).sort().map(([timeSlot, shiftsInSlot]: [string, Shift[]]) => shiftsInSlot.length > 0 && (
               <div key={timeSlot} className="animate-fade-in">
                 <div className="flex items-center mb-3">
                   <div className="bg-primary-50 text-primary-700 px-3 py-1 rounded-full text-sm font-bold flex items-center border border-primary-100">

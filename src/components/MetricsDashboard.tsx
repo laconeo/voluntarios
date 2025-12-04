@@ -124,7 +124,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                 </div>
             </div>
 
-            {/* Ocupación por Horario */}
+            {/* Ocupación por Horario y Roles */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white p-6 rounded-lg shadow-card border border-fs-border">
                     <div className="flex items-center gap-2 mb-4">
@@ -132,30 +132,26 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                         <h3 className="font-serif text-lg text-fs-text">Ocupación por Horario</h3>
                     </div>
                     <div className="space-y-4">
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-sm font-medium text-gray-700">Turno Tarde (13-16hs)</span>
-                                <span className="text-sm font-bold text-gray-900">{metrics.shiftOccupation.morning}%</span>
+                        {Object.entries(metrics.shiftOccupation).map(([timeSlot, percentage]) => (
+                            <div key={timeSlot}>
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-sm font-medium text-gray-700">{timeSlot}</span>
+                                    <span className="text-sm font-bold text-gray-900">{percentage}%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-3">
+                                    <div
+                                        className={`h-3 rounded-full transition-all duration-500 ${percentage >= 80 ? 'bg-primary-500' :
+                                                percentage >= 50 ? 'bg-yellow-500' :
+                                                    'bg-blue-500'
+                                            }`}
+                                        style={{ width: `${percentage}%` }}
+                                    ></div>
+                                </div>
                             </div>
-                            <div className="w-full bg-gray-200 rounded-full h-3">
-                                <div
-                                    className="bg-primary-500 h-3 rounded-full transition-all duration-500"
-                                    style={{ width: `${metrics.shiftOccupation.morning}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-sm font-medium text-gray-700">Turno Noche (16-22hs)</span>
-                                <span className="text-sm font-bold text-gray-900">{metrics.shiftOccupation.afternoon}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-3">
-                                <div
-                                    className="bg-blue-500 h-3 rounded-full transition-all duration-500"
-                                    style={{ width: `${metrics.shiftOccupation.afternoon}%` }}
-                                ></div>
-                            </div>
-                        </div>
+                        ))}
+                        {Object.keys(metrics.shiftOccupation).length === 0 && (
+                            <p className="text-sm text-gray-500">No hay turnos configurados.</p>
+                        )}
                     </div>
                 </div>
 

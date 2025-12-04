@@ -14,7 +14,8 @@ let waitlist: WaitlistEntry[] = [...WAITLIST];
 // Helper: calcular si baja es <24hs o >24hs
 const isWithin24Hours = (shiftDate: string, shiftTime: string): boolean => {
   const [startTime] = shiftTime.split('-');
-  const shiftDateTime = new Date(`${shiftDate}T${startTime}:00`);
+  const cleanStartTime = startTime ? startTime.trim() : '00:00';
+  const shiftDateTime = new Date(`${shiftDate}T${cleanStartTime}:00`);
   const now = new Date();
   const diff = shiftDateTime.getTime() - now.getTime();
   const hoursUntilShift = diff / (1000 * 60 * 60);
@@ -476,7 +477,7 @@ export const mockApi = {
     return { ...bookings[bookingIndex] };
   },
 
-  getPrintableRoster: async (eventId: string, date: string, timeSlot: '13:00-16:00' | '16:00-22:00'): Promise<any[]> => {
+  getPrintableRoster: async (eventId: string, date: string, timeSlot: string): Promise<any[]> => {
     await delay(800);
     const targetShifts = shifts.filter(s => s.eventId === eventId && s.date === date && s.timeSlot === timeSlot);
     const targetShiftIds = targetShifts.map(s => s.id);
@@ -541,22 +542,19 @@ export const mockApi = {
       return { date, occupation };
     });
 
-    // Shift occupation (morning vs afternoon)
-    const morningShifts = eventShifts.filter(s => s.timeSlot === '13:00-16:00');
-    const afternoonShifts = eventShifts.filter(s => s.timeSlot === '16:00-22:00');
+    // Shift occupation (dynamic)
+    const shiftOccupation: Record<string, number> = {};
+    const uniqueTimeSlots = [...new Set(eventShifts.map(s => s.timeSlot))].sort();
 
-    const morningBookings = eventBookings.filter(b => {
-      const shift = eventShifts.find(s => s.id === b.shiftId);
-      return shift?.timeSlot === '13:00-16:00';
+    uniqueTimeSlots.forEach(slot => {
+      const slotShifts = eventShifts.filter(s => s.timeSlot === slot);
+      const slotBookings = eventBookings.filter(b => {
+        const shift = eventShifts.find(s => s.id === b.shiftId);
+        return shift?.timeSlot === slot;
+      });
+      const slotVacancies = slotShifts.reduce((sum, s) => sum + s.totalVacancies, 0);
+      shiftOccupation[slot] = slotVacancies > 0 ? Math.round((slotBookings.length / slotVacancies) * 100) : 0;
     });
-
-    const afternoonBookings = eventBookings.filter(b => {
-      const shift = eventShifts.find(s => s.id === b.shiftId);
-      return shift?.timeSlot === '16:00-22:00';
-    });
-
-    const morningVacancies = morningShifts.reduce((sum, s) => sum + s.totalVacancies, 0);
-    const afternoonVacancies = afternoonShifts.reduce((sum, s) => sum + s.totalVacancies, 0);
 
     return {
       eventId,
@@ -572,10 +570,7 @@ export const mockApi = {
       waitlistCount,
       roleDistribution,
       dailyOccupation,
-      shiftOccupation: {
-        morning: morningVacancies > 0 ? Math.round((morningBookings.length / morningVacancies) * 100) : 0,
-        afternoon: afternoonVacancies > 0 ? Math.round((afternoonBookings.length / afternoonVacancies) * 100) : 0,
-      },
+      shiftOccupation,
     };
   },
 };

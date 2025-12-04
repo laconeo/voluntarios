@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import type { User, Event } from './types';
 import { mockApi } from './services/mockApiService';
 import VolunteerPortal from './components/VolunteerPortal';
@@ -38,6 +38,59 @@ const EventPortalWrapper: React.FC<{
       <div className="p-8 text-center">
         <h2 className="text-xl font-bold text-red-600">Evento no encontrado</h2>
         <p className="text-gray-600">La URL ingresada no corresponde a ningún evento activo.</p>
+      </div>
+    );
+  }
+
+  // Check if event is archived or inactive
+  if (event.estado === 'Archivado') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg border border-gray-200 p-8 text-center">
+          <div className="mb-4">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">{event.nombre}</h2>
+            <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 text-sm font-semibold rounded-full">
+              Evento Archivado
+            </span>
+          </div>
+          <p className="text-gray-600 mb-4">
+            Este evento ha finalizado y ya no está aceptando inscripciones de voluntarios.
+          </p>
+          <p className="text-sm text-gray-500">
+            Si crees que esto es un error, por favor contacta al administrador del evento.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (event.estado === 'Inactivo') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg border border-yellow-200 p-8 text-center">
+          <div className="mb-4">
+            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">{event.nombre}</h2>
+            <span className="inline-block px-3 py-1 bg-yellow-100 text-yellow-700 text-sm font-semibold rounded-full">
+              Evento Inactivo
+            </span>
+          </div>
+          <p className="text-gray-600 mb-4">
+            Este evento aún no está activo. Las inscripciones se abrirán próximamente.
+          </p>
+          <p className="text-sm text-gray-500">
+            Por favor, vuelve más tarde o contacta al administrador del evento para más información.
+          </p>
+        </div>
       </div>
     );
   }
@@ -169,9 +222,9 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <AppContent />
-    </HashRouter>
+    </BrowserRouter>
   );
 };
 

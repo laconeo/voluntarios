@@ -46,7 +46,7 @@ export interface Shift {
   id: string;
   eventId: string; // Turnos pertenecen a un evento
   date: string; // YYYY-MM-DD
-  timeSlot: '13:00-16:00' | '16:00-22:00';
+  timeSlot: string;
   roleId: string;
   totalVacancies: number;
   availableVacancies: number;
@@ -96,8 +96,5 @@ export interface DashboardMetrics {
   waitlistCount: number;
   roleDistribution: { roleName: string; count: number }[];
   dailyOccupation: { date: string; occupation: number }[];
-  shiftOccupation: {
-    morning: number; // 13-16
-    afternoon: number; // 16-22
-  };
+  shiftOccupation: Record<string, number>; // Ocupación por franja horaria (timeSlot -> cantidad)
 }

@@ -19,7 +19,8 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
 
     const [formData, setFormData] = useState({
         date: '',
-        timeSlot: '13:00-16:00' as '13:00-16:00' | '16:00-22:00',
+        startTime: '13:00',
+        endTime: '16:00',
         roleId: '',
         totalVacancies: 10,
     });
@@ -49,7 +50,8 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
         setEditingShift(null);
         setFormData({
             date: '',
-            timeSlot: '13:00-16:00',
+            startTime: '13:00',
+            endTime: '16:00',
             roleId: '',
             totalVacancies: 10,
         });
@@ -58,9 +60,11 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
 
     const openEditModal = (shift: Shift) => {
         setEditingShift(shift);
+        const [start, end] = shift.timeSlot.split('-');
         setFormData({
             date: shift.date,
-            timeSlot: shift.timeSlot,
+            startTime: start ? start.trim() : '13:00',
+            endTime: end ? end.trim() : '16:00',
             roleId: shift.roleId,
             totalVacancies: shift.totalVacancies,
         });
@@ -80,14 +84,19 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
         }
 
         try {
+            const timeSlot = `${formData.startTime} - ${formData.endTime}`;
+
             if (editingShift) {
-                await mockApi.updateShift(editingShift.id, formData);
+                await mockApi.updateShift(editingShift.id, {
+                    ...formData,
+                    timeSlot
+                });
                 toast.success('Turno actualizado exitosamente');
             } else {
                 const shiftData: Omit<Shift, 'id'> = {
                     eventId,
                     date: formData.date,
-                    timeSlot: formData.timeSlot,
+                    timeSlot,
                     roleId: formData.roleId,
                     totalVacancies: formData.totalVacancies,
                     availableVacancies: formData.totalVacancies,
@@ -288,16 +297,25 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
                                 </p>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Horario *</label>
-                                <select
-                                    value={formData.timeSlot}
-                                    onChange={(e) => setFormData({ ...formData, timeSlot: e.target.value as any })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                >
-                                    <option value="13:00-16:00">Tarde (13:00 - 16:00)</option>
-                                    <option value="16:00-22:00">Noche (16:00 - 22:00)</option>
-                                </select>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Hora Inicio *</label>
+                                    <input
+                                        type="time"
+                                        value={formData.startTime}
+                                        onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Hora Fin *</label>
+                                    <input
+                                        type="time"
+                                        value={formData.endTime}
+                                        onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    />
+                                </div>
                             </div>
 
                             <div>

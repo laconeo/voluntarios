@@ -157,13 +157,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         return (
             <div className="min-h-screen bg-gray-50">
                 {/* Header */}
-                <div className="bg-primary-500 text-white px-6 py-8">
-                    <div className="max-w-7xl mx-auto flex justify-between items-start">
-                        <div>
-                            <h1 className="text-4xl font-serif mb-3">Gestión de eventos</h1>
-                            <p className="text-lg opacity-90">Administra eventos de voluntariado multi-organización</p>
+                <div className="bg-primary-500 text-white px-4 sm:px-6 py-6 sm:py-8">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="mb-4 sm:mb-6">
+                            <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif mb-2 sm:mb-3">Gestión de eventos</h1>
+                            <p className="text-sm sm:text-base md:text-lg opacity-90">Administra eventos de voluntariado multi-organización</p>
                         </div>
-                        <div className="flex gap-3">
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                             <button
                                 onClick={() => {
                                     console.log('Gestionar Usuarios clicked', onViewMetrics);
@@ -173,17 +173,17 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                         console.error('onViewMetrics is not defined');
                                     }
                                 }}
-                                className="flex items-center gap-2 bg-white text-primary-600 px-6 py-3 rounded-lg hover:bg-gray-50 shadow-lg font-semibold"
+                                className="flex items-center justify-center gap-2 bg-white text-primary-600 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg hover:bg-gray-50 shadow-lg font-semibold text-sm sm:text-base"
                             >
-                                <Users size={20} />
-                                Gestionar Usuarios
+                                <Users size={18} className="sm:w-5 sm:h-5" />
+                                <span className="whitespace-nowrap">Gestionar Usuarios</span>
                             </button>
                             <button
                                 onClick={iniciarCrearEvento}
-                                className="flex items-center gap-2 bg-white text-primary-600 px-6 py-3 rounded-lg hover:bg-gray-50 shadow-lg font-semibold"
+                                className="flex items-center justify-center gap-2 bg-white text-primary-600 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg hover:bg-gray-50 shadow-lg font-semibold text-sm sm:text-base"
                             >
-                                <Plus size={20} />
-                                Crear nuevo evento
+                                <Plus size={18} className="sm:w-5 sm:h-5" />
+                                <span className="whitespace-nowrap">Crear nuevo evento</span>
                             </button>
                         </div>
                     </div>
@@ -337,38 +337,39 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                                 <p className="text-xs text-gray-500 mt-1">Ocupación</p>
                                             </div>
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className="flex flex-col sm:flex-row gap-2">
                                             <button
                                                 onClick={() => iniciarEditarEvento(evento)}
-                                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 font-medium"
+                                                className="flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 font-medium text-sm"
                                             >
                                                 <Edit2 size={16} />
-                                                Editar
+                                                <span>Editar</span>
                                             </button>
                                             {onViewMetrics && (
                                                 <button
                                                     onClick={() => onViewMetrics(evento.id)}
-                                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 font-medium"
+                                                    className="flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 font-medium text-sm"
                                                 >
                                                     <TrendingUp size={16} />
-                                                    Métricas
+                                                    <span>Métricas</span>
                                                 </button>
                                             )}
                                             {evento.estado !== 'Archivado' && (
                                                 <button
                                                     onClick={() => confirmarAccion('archivar', evento)}
-                                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 font-medium"
+                                                    className="flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 font-medium text-sm"
                                                 >
                                                     <Archive size={16} />
-                                                    Archivar
+                                                    <span>Archivar</span>
                                                 </button>
                                             )}
                                             {evento.voluntarios === 0 && (
                                                 <button
                                                     onClick={() => confirmarAccion('eliminar', evento)}
-                                                    className="px-4 py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
+                                                    className="flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-sm"
                                                 >
                                                     <Trash2 size={16} />
+                                                    <span className="sm:hidden">Eliminar</span>
                                                 </button>
                                             )}
                                         </div>
@@ -444,33 +445,33 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
             <div className="max-w-3xl mx-auto px-6 py-8">
                 <div className="bg-white rounded-lg shadow-md border border-gray-200 p-8">
                     {eventoSeleccionado && (
-                        <div className="flex gap-4 mb-8 border-b border-gray-200">
+                        <div className="flex gap-2 sm:gap-4 mb-6 sm:mb-8 border-b border-gray-200 overflow-x-auto">
                             <button
                                 onClick={() => setActiveTab('details')}
-                                className={`pb-4 px-4 font-medium transition-colors relative ${activeTab === 'details'
+                                className={`pb-3 sm:pb-4 px-3 sm:px-4 font-medium transition-colors relative whitespace-nowrap text-sm sm:text-base ${activeTab === 'details'
                                     ? 'text-primary-600 border-b-2 border-primary-600'
                                     : 'text-gray-500 hover:text-gray-700'
                                     }`}
                             >
-                                Detalles del Evento
+                                Detalles
                             </button>
                             <button
                                 onClick={() => setActiveTab('roles')}
-                                className={`pb-4 px-4 font-medium transition-colors relative ${activeTab === 'roles'
+                                className={`pb-3 sm:pb-4 px-3 sm:px-4 font-medium transition-colors relative whitespace-nowrap text-sm sm:text-base ${activeTab === 'roles'
                                     ? 'text-primary-600 border-b-2 border-primary-600'
                                     : 'text-gray-500 hover:text-gray-700'
                                     }`}
                             >
-                                Gestión de Roles
+                                Roles
                             </button>
                             <button
                                 onClick={() => setActiveTab('shifts')}
-                                className={`pb-4 px-4 font-medium transition-colors relative ${activeTab === 'shifts'
+                                className={`pb-3 sm:pb-4 px-3 sm:px-4 font-medium transition-colors relative whitespace-nowrap text-sm sm:text-base ${activeTab === 'shifts'
                                     ? 'text-primary-600 border-b-2 border-primary-600'
                                     : 'text-gray-500 hover:text-gray-700'
                                     }`}
                             >
-                                Gestión de Turnos
+                                Turnos
                             </button>
                         </div>
                     )}
