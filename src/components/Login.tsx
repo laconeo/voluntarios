@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { User } from '../types';
 import { Lock } from 'lucide-react';
+import Modal from './Modal';
 
 interface LoginProps {
   onLogin: (identifier: string, password?: string) => void;
@@ -13,6 +14,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isRegistering, setIsRegistering] = useState(!!initialDni);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [termsContent, setTermsContent] = useState('');
+
   const [formData, setFormData] = useState<Omit<User, 'id' | 'role'>>({
     dni: initialDni || '',
     fullName: '',
@@ -25,6 +29,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
     howTheyHeard: 'Redes Sociales',
   });
   const [agreed, setAgreed] = useState(false);
+
+  // Cargar términos y condiciones
+  useEffect(() => {
+    fetch('/terminos-voluntariado.html')
+      .then(res => res.text())
+      .then(html => setTermsContent(html))
+      .catch(err => console.error('Error loading terms:', err));
+  }, []);
 
   // Detectar si el identificador requiere contraseña (admin, superadmin o coordinator)
   const requiresPassword = (id: string) => {
@@ -135,11 +147,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
           <div className="bg-gray-50 p-5 rounded-fs border border-fs-border">
             <h3 className="text-md font-bold text-fs-text mb-3">Información Adicional</h3>
             <div className="space-y-3">
-              <label className={`flex items-center p-2 rounded transition-colors cursor-pointer border ${!formData.isMember ? 'bg-white border-red-200' : 'border-transparent'}`}>
+              <label className="flex items-center cursor-pointer">
                 <input type="checkbox" name="isMember" checked={formData.isMember} onChange={handleInputChange}
                   className="h-5 w-5 text-primary-500 border-gray-300 rounded focus:ring-primary-500" />
-                <span className={`ml-3 text-sm font-medium ${!formData.isMember ? 'text-red-600' : 'text-gray-800'}`}>
-                  Soy miembro de La Iglesia de Jesucristo de los Santos de los Últimos Días <span className="text-xs font-normal text-gray-500 ml-1">(Requisito obligatorio)</span>
+                <span className="ml-3 text-sm text-gray-700">
+                  Soy miembro de La Iglesia de Jesucristo de los Santos de los Últimos Días <span className="text-xs text-gray-500">(Requisito obligatorio)</span>
                 </span>
               </label>
 
@@ -149,7 +161,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                 <span className="ml-3 text-sm text-gray-700">Participé como voluntario en la feria anterior</span>
               </label>
 
-              <label className={`flex items-center p-2 rounded transition-colors cursor-pointer border ${!formData.isOver18 ? 'bg-white border-red-200' : 'border-transparent'}`}>
+              <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
                   name="isOver18"
@@ -157,8 +169,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                   onChange={handleInputChange}
                   className="h-5 w-5 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
                 />
-                <span className={`ml-3 text-sm font-medium ${!formData.isOver18 ? 'text-red-600' : 'text-gray-800'}`}>
-                  Confirmo que soy mayor de 18 años <span className="text-xs font-normal text-gray-500 ml-1">(Requisito obligatorio)</span>
+                <span className="ml-3 text-sm text-gray-700">
+                  Confirmo que soy mayor de 18 años <span className="text-xs text-gray-500">(Requisito obligatorio)</span>
                 </span>
               </label>
             </div>
@@ -169,7 +181,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
               <input name="agreement" type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)}
                 className="h-5 w-5 text-primary-500 border-gray-300 rounded focus:ring-primary-500 mt-0.5" />
               <div className="ml-3 text-sm text-gray-600 leading-snug">
-                He leído y acepto el <a href="#" className="text-fs-blue hover:underline font-medium">Acuerdo de Voluntariado</a>. Entiendo que al inscribirme asumo un compromiso de asistencia y puntualidad.
+                He leído y acepto el <button type="button" onClick={(e) => { e.preventDefault(); setIsModalOpen(true); }} className="text-fs-blue hover:underline font-medium">Acuerdo de Voluntariado</button>. Entiendo que al inscribirme asumo un compromiso de asistencia y puntualidad.
               </div>
             </label>
           </div>
@@ -193,6 +205,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
             </button>
           </div>
         </form>
+
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          title="Acuerdo de Voluntariado"
+        >
+          <div dangerouslySetInnerHTML={{ __html: termsContent }} />
+        </Modal>
       </div>
     );
   }

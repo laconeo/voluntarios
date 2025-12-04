@@ -61,7 +61,7 @@ button,
 input,
 select,
 textarea {
-  font-family: "Noto Sans", sans-serif;
+  font-family: "Not Sans", sans-serif;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -79,4 +79,35 @@ textarea {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #bbb;
+}
+
+/* Animaciones para Modal */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
 }
