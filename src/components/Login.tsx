@@ -26,23 +26,23 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
   });
   const [agreed, setAgreed] = useState(false);
 
-  // Detectar si el identificador parece ser de un admin
-  const isAdminIdentifier = (id: string) => {
-    return id === '99999999' || id === '11111111' ||
-      id.includes('admin') || id.includes('superadmin');
+  // Detectar si el identificador requiere contraseña (admin, superadmin o coordinator)
+  const requiresPassword = (id: string) => {
+    return id === '99999999' || id === '11111111' || id === '44444444' ||
+      id.includes('admin') || id.includes('superadmin') || id.includes('coord');
   };
 
   const handleIdentifierSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Si es admin, mostrar campo de contraseña
-    if (isAdminIdentifier(identifier) && !showPassword) {
+    // Si requiere contraseña, mostrar campo de contraseña
+    if (requiresPassword(identifier) && !showPassword) {
       setShowPassword(true);
       return;
     }
 
-    // Si ya mostró contraseña o no es admin, proceder con login
-    if (identifier.trim() === 'admin@feria.com' || isAdminIdentifier(identifier)) {
+    // Si ya mostró contraseña o no la requiere, proceder con login
+    if (identifier.trim() === 'admin@feria.com' || requiresPassword(identifier)) {
       onLogin(identifier, password);
     } else {
       // Para nuevos usuarios, solo mostrar el formulario de registro
@@ -217,13 +217,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Contraseña de administrador"
+                  placeholder="Contraseña"
                   className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-xl text-center text-fs-text placeholder-gray-400"
                   autoFocus
                 />
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                Contraseña por defecto: <code className="bg-gray-100 px-2 py-1 rounded">admin123</code>
+                Contraseña de administrador (admin123) o coordinador (coord123)
               </p>
             </div>
           )}

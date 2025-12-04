@@ -216,13 +216,22 @@ const createShiftsForDate = (eventId: string, date: string, roles: Role[]): Shif
 };
 
 // Generar shifts para event_1
-export const SHIFTS: Shift[] = [
+const generatedShifts = [
   ...createShiftsForDate('event_1', '2026-04-23', ROLES),
   ...createShiftsForDate('event_1', '2026-04-24', ROLES),
   ...createShiftsForDate('event_1', '2026-04-25', ROLES),
   ...createShiftsForDate('event_1', '2026-04-26', ROLES),
   ...createShiftsForDate('event_1', '2026-04-27', ROLES),
 ];
+
+// Asignar coordinador (user_4) a algunos turnos específicos
+export const SHIFTS: Shift[] = generatedShifts.map((shift, index) => {
+  // Asignar coordinador a los primeros 3 turnos (para testing)
+  if (index < 3) {
+    return { ...shift, coordinatorIds: ['user_4'] };
+  }
+  return shift;
+});
 
 export const BOOKINGS: Booking[] = [
   {

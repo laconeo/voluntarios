@@ -47,13 +47,19 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
         setIsLoading(true);
         try {
             const eventShifts = await mockApi.getShiftsByEvent(eventId);
+
+            // Filtrar solo los turnos donde este coordinador está asignado
+            const myShifts = eventShifts.filter(shift =>
+                shift.coordinatorIds.includes(user.id)
+            );
+
             // Sort shifts by date and time
-            eventShifts.sort((a, b) => {
+            myShifts.sort((a, b) => {
                 const dateCompare = a.date.localeCompare(b.date);
                 if (dateCompare !== 0) return dateCompare;
                 return a.timeSlot.localeCompare(b.timeSlot);
             });
-            setShifts(eventShifts);
+            setShifts(myShifts);
 
             const eventBookings = await mockApi.getBookingsByEvent(eventId);
             // Enrich bookings with user data
@@ -226,8 +232,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                                 <button
                                                                     onClick={() => handleAttendanceChange(booking.id, 'attended')}
                                                                     className={`p-1 rounded-full transition-colors ${booking.attendance === 'attended'
-                                                                            ? 'bg-green-100 text-green-600 ring-2 ring-green-500'
-                                                                            : 'text-gray-400 hover:bg-green-50 hover:text-green-500'
+                                                                        ? 'bg-green-100 text-green-600 ring-2 ring-green-500'
+                                                                        : 'text-gray-400 hover:bg-green-50 hover:text-green-500'
                                                                         }`}
                                                                     title="Presente"
                                                                 >
@@ -236,8 +242,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                                 <button
                                                                     onClick={() => handleAttendanceChange(booking.id, 'absent')}
                                                                     className={`p-1 rounded-full transition-colors ${booking.attendance === 'absent'
-                                                                            ? 'bg-red-100 text-red-600 ring-2 ring-red-500'
-                                                                            : 'text-gray-400 hover:bg-red-50 hover:text-red-500'
+                                                                        ? 'bg-red-100 text-red-600 ring-2 ring-red-500'
+                                                                        : 'text-gray-400 hover:bg-red-50 hover:text-red-500'
                                                                         }`}
                                                                     title="Ausente"
                                                                 >
@@ -259,7 +265,21 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                         );
                     })}
 
-                    {filteredShifts.length === 0 && (
+                    {filteredShifts.length === 0 && !searchTerm && (
+                        <div className="text-center py-12 bg-white rounded-lg shadow border border-gray-200">
+                            <div className="max-w-md mx-auto px-4">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-2">No tienes turnos asignados</h3>
+                                <p className="text-gray-600 text-sm">
+                                    Actualmente no estás asignado como  coordinador en ningún turno de este evento.
+                                </p>
+                                <p className="text-gray-500 text-xs mt-2">
+                                    Contacta al administrador si crees que esto es un error.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {filteredShifts.length === 0 && searchTerm && (
                         <div className="text-center py-12 text-gray-500">
                             No se encontraron turnos que coincidan con la búsqueda.
                         </div>

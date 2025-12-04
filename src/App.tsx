@@ -224,8 +224,11 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  // Usar basename solo en producción (GitHub Pages)
+  const basename = import.meta.env.MODE === 'production' ? '/voluntarios' : '/';
+
   return (
-    <BrowserRouter basename="/voluntarios">
+    <BrowserRouter basename={basename}>
       <AppContent />
     </BrowserRouter>
   );
