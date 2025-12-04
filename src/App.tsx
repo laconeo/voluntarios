@@ -222,7 +222,7 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/voluntarios">
       <AppContent />
     </BrowserRouter>
   );
