@@ -4,6 +4,7 @@ import type { User, Event } from './types';
 import { mockApi } from './services/mockApiService';
 import VolunteerPortal from './components/VolunteerPortal';
 import AdminDashboard from './components/AdminDashboard';
+import CoordinatorDashboard from './components/CoordinatorDashboard';
 import Login from './components/Login';
 import Header from './components/Header';
 import UserProfile from './components/UserProfile';
@@ -13,7 +14,7 @@ import { Toaster, toast } from 'react-hot-toast';
 const EventPortalWrapper: React.FC<{
   user: User | null,
   onLogout: () => void,
-  onLogin: (id: string) => void,
+  onLogin: (id: string, password?: string) => void,
   onRegister: (u: User) => void
 }> = ({ user, onLogout, onLogin, onRegister }) => {
   const { eventSlug } = useParams<{ eventSlug: string }>();
@@ -117,8 +118,8 @@ const AppContent: React.FC = () => {
         setCurrentUser(user);
         toast.success(`Bienvenido/a ${user.fullName.split(' ')[0]}!`);
 
-        // Redirigir a home para admin y superadmin
-        if (user.role === 'admin' || user.role === 'superadmin') {
+        // Redirigir a home para admin, superadmin y coordinator
+        if (user.role === 'admin' || user.role === 'superadmin' || user.role === 'coordinator') {
           navigate('/');
         }
       } else {
@@ -196,6 +197,8 @@ const AppContent: React.FC = () => {
                 <Login onLogin={handleLogin} onRegister={handleRegister} />
               ) : currentUser.role === 'superadmin' || currentUser.role === 'admin' ? (
                 <AdminDashboard user={currentUser} onLogout={handleLogout} />
+              ) : currentUser.role === 'coordinator' ? (
+                <CoordinatorDashboard user={currentUser} onLogout={handleLogout} />
               ) : (
                 // If regular volunteer at root, maybe show a list of events to choose from?
                 // For now, let's redirect to a default event or show a selection screen.

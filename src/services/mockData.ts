@@ -119,6 +119,7 @@ export const USERS: User[] = [
     isOver18: true,
     howTheyHeard: 'Iglesia',
     role: 'coordinator',
+    password: 'coord123',
     createdAt: new Date('2025-02-20').toISOString(),
   },
 ];

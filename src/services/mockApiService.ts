@@ -28,8 +28,8 @@ export const mockApi = {
     await delay(500);
     const user = users.find(u => u.dni === identifier || u.email === identifier);
     if (user) {
-      // Si el usuario es admin o superadmin, requiere contraseña
-      if (user.role === 'admin' || user.role === 'superadmin') {
+      // Si el usuario es admin, superadmin o coordinator, requiere contraseña
+      if (user.role === 'admin' || user.role === 'superadmin' || user.role === 'coordinator') {
         if (!password || user.password !== password) {
           console.log(`Invalid password for ${user.role}: ${user.fullName}`);
           throw new Error('Contraseña incorrecta');
@@ -70,6 +70,14 @@ export const mockApi = {
     await delay(300);
     // No devolver contraseñas
     return users.map(({ password, ...user }) => user as User);
+  },
+
+  getUserById: async (userId: string): Promise<User | null> => {
+    await delay(200);
+    const user = users.find(u => u.id === userId);
+    if (!user) return null;
+    const { password, ...userWithoutPassword } = user;
+    return userWithoutPassword as User;
   },
 
   // ==================== EVENTS ====================
@@ -443,6 +451,13 @@ export const mockApi = {
 
       console.log(`Processed waitlist: User ${nextEntry.userId} moved to confirmed for shift ${shiftId}`);
     }
+  },
+
+  updateBookingAttendance: async (bookingId: string, attendance: 'pending' | 'attended' | 'absent'): Promise<void> => {
+    await delay(300);
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking) throw new Error('Inscripción no encontrada');
+    booking.attendance = attendance;
   },
 
   // ==================== ADMIN FUNCTIONS ====================

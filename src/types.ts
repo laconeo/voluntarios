@@ -59,6 +59,7 @@ export interface Booking {
   shiftId: string;
   eventId: string;
   status: 'confirmed' | 'cancellation_requested' | 'cancelled' | 'waitlist';
+  attendance?: 'pending' | 'attended' | 'absent'; // Estado de asistencia
   requestedAt: string; // Timestamp de cuando se registró
   cancelledAt?: string; // Timestamp de cuando solicitó baja
   user?: User;
