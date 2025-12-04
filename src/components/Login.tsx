@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { User } from '../types';
 import { Lock } from 'lucide-react';
 import Modal from './Modal';
@@ -16,6 +16,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
   const [isRegistering, setIsRegistering] = useState(!!initialDni);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [termsContent, setTermsContent] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<Omit<User, 'id' | 'role'>>({
     dni: initialDni || '',
@@ -30,6 +31,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
   });
   const [agreed, setAgreed] = useState(false);
 
+  // Auto-focus en el campo de identificador al cargar
+  useEffect(() => {
+    if (inputRef.current && !isRegistering) {
+      inputRef.current.focus();
+    }
+  }, [isRegistering]);
+
   // Cargar términos y condiciones
   useEffect(() => {
     fetch('/terminos-voluntariado.html')
@@ -37,6 +45,16 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
       .then(html => setTermsContent(html))
       .catch(err => console.error('Error loading terms:', err));
   }, []);
+
+  // Función para detectar si es un email
+  const isEmail = (str: string): boolean => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
+  };
+
+  // Función para limpiar y normalizar documentos (quitar puntos, guiones, espacios)
+  const normalizeDocument = (doc: string): string => {
+    return doc.replace(/[\s.-]/g, '');
+  };
 
   // Detectar si el identificador requiere contraseña (admin, superadmin o coordinator)
   const requiresPassword = (id: string) => {
@@ -47,20 +65,41 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
   const handleIdentifierSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validar que el campo no esté vacío
+    if (!identifier.trim()) {
+      return;
+    }
+
+    // Normalizar el identificador (quitar puntos, guiones, espacios si no es email)
+    const normalizedId = isEmail(identifier) ? identifier : normalizeDocument(identifier);
+
     // Si requiere contraseña, mostrar campo de contraseña
-    if (requiresPassword(identifier) && !showPassword) {
+    if (requiresPassword(normalizedId) && !showPassword) {
       setShowPassword(true);
       return;
     }
 
     // Si ya mostró contraseña o no la requiere, proceder con login
-    if (identifier.trim() === 'admin@feria.com' || requiresPassword(identifier)) {
-      onLogin(identifier, password);
+    if (identifier.trim() === 'admin@feria.com' || requiresPassword(normalizedId)) {
+      onLogin(normalizedId, password);
     } else {
-      // Para nuevos usuarios, solo mostrar el formulario de registro
-      // NO llamar a onLogin hasta que completen el registro
+      // Para nuevos usuarios, mostrar el formulario de registro
       setIsRegistering(true);
-      setFormData(prev => ({ ...prev, dni: identifier }));
+
+      // Si es email, auto-completar el campo de email en el formulario
+      if (isEmail(identifier)) {
+        setFormData(prev => ({
+          ...prev,
+          dni: '', // Dejar DNI vacío si ingresó email
+          email: identifier
+        }));
+      } else {
+        // Si es documento, guardarlo en DNI
+        setFormData(prev => ({
+          ...prev,
+          dni: normalizedId
+        }));
+      }
     }
   };
 
@@ -90,7 +129,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
       <div className="max-w-3xl mx-auto mt-8 bg-white p-8 rounded-lg shadow-card border border-fs-border">
         <div className="border-b border-fs-border pb-4 mb-6">
           <h2 className="text-2xl font-serif text-fs-text">Registro de Voluntario</h2>
-          <p className="text-sm text-fs-meta mt-1">Completa tus datos para el DNI: <span className="font-bold text-fs-text">{formData.dni}</span></p>
+          <p className="text-sm text-fs-meta mt-1">
+            Completa tus datos{formData.dni && ` para el documento: `}
+            {formData.dni && <span className="font-bold text-fs-text">{formData.dni}</span>}
+            {formData.email && !formData.dni && ` usando el email: `}
+            {formData.email && !formData.dni && <span className="font-bold text-fs-text">{formData.email}</span>}
+          </p>
         </div>
 
         <form onSubmit={handleRegisterSubmit} className="space-y-6">
@@ -100,6 +144,16 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
               <input type="text" name="fullName" placeholder="Ej: Juan Pérez" value={formData.fullName} onChange={handleInputChange} required
                 className={inputClasses} />
             </div>
+
+            {/* Mostrar campo DNI si ingresó con email */}
+            {!formData.dni && (
+              <div>
+                <label className={labelClasses}>DNI / RUT / Cédula</label>
+                <input type="text" name="dni" placeholder="Sin puntos ni guiones" value={formData.dni} onChange={handleInputChange} required
+                  className={inputClasses} />
+              </div>
+            )}
+
             <div>
               <label className={labelClasses}>Correo Electrónico</label>
               <input type="email" name="email" placeholder="correo@ejemplo.com" value={formData.email} onChange={handleInputChange} required
@@ -229,11 +283,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
           <div>
             <label className="sr-only">DNI o Email</label>
             <input
+              ref={inputRef}
               type="text"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="Ingresa tu DNI"
+              placeholder="DNI, RUT, Cédula o Email"
               className="w-full px-4 py-3.5 bg-gray-50 border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-xl text-center text-fs-text placeholder-gray-400"
+              required
             />
           </div>
 
