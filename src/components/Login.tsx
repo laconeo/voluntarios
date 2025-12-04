@@ -55,6 +55,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.isOver18) return;
+    if (!formData.isMember) return;
     if (!agreed) return;
     onRegister({ ...formData, id: '', role: 'volunteer' });
   };
@@ -67,7 +68,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
     setFormData(prev => ({ ...prev, [name]: val }));
   };
 
-  const isFormValid = agreed && formData.isOver18;
+  const isFormValid = agreed && formData.isOver18 && formData.isMember;
 
   const inputClasses = "w-full px-3 py-2.5 bg-white border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-fs-text placeholder-gray-400 transition-colors";
   const labelClasses = "block text-sm font-semibold text-gray-600 mb-1.5";
@@ -134,10 +135,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
           <div className="bg-gray-50 p-5 rounded-fs border border-fs-border">
             <h3 className="text-md font-bold text-fs-text mb-3">Información Adicional</h3>
             <div className="space-y-3">
-              <label className="flex items-center cursor-pointer">
+              <label className={`flex items-center p-2 rounded transition-colors cursor-pointer border ${!formData.isMember ? 'bg-white border-red-200' : 'border-transparent'}`}>
                 <input type="checkbox" name="isMember" checked={formData.isMember} onChange={handleInputChange}
                   className="h-5 w-5 text-primary-500 border-gray-300 rounded focus:ring-primary-500" />
-                <span className="ml-3 text-sm text-gray-700">Soy miembro de La Iglesia de Jesucristo de los Santos de los Últimos Días</span>
+                <span className={`ml-3 text-sm font-medium ${!formData.isMember ? 'text-red-600' : 'text-gray-800'}`}>
+                  Soy miembro de La Iglesia de Jesucristo de los Santos de los Últimos Días <span className="text-xs font-normal text-gray-500 ml-1">(Requisito obligatorio)</span>
+                </span>
               </label>
 
               <label className="flex items-center cursor-pointer">
@@ -180,7 +183,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                 }`}
               disabled={!isFormValid}
             >
-              {formData.isOver18 ? "Finalizar Registro" : "Debes ser mayor de 18 años para continuar"}
+              {!formData.isOver18 && !formData.isMember
+                ? "Debes ser mayor de 18 años y miembro de la iglesia"
+                : !formData.isOver18
+                  ? "Debes ser mayor de 18 años para continuar"
+                  : !formData.isMember
+                    ? "Debes ser miembro de la iglesia para continuar"
+                    : "Finalizar Registro"}
             </button>
           </div>
         </form>
