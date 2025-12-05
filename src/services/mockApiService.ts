@@ -1,5 +1,6 @@
 import type { User, Role, Shift, Booking, Event, EventAdmin, DashboardMetrics, WaitlistEntry } from '../types';
 import { ROLES, USERS, SHIFTS, BOOKINGS, EVENTS, EVENT_ADMINS, WAITLIST } from './mockData';
+import { emailService } from './emailService';
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -53,6 +54,10 @@ export const mockApi = {
     };
     users.push(registeredUser);
     console.log(`Registered new user:`, registeredUser);
+
+    // Send welcome email
+    emailService.sendWelcomeEmail(registeredUser).catch(err => console.error('Failed to send welcome email', err));
+
     return registeredUser;
   },
 
@@ -260,6 +265,7 @@ export const mockApi = {
     await delay(500);
     const index = shifts.findIndex(s => s.id === shiftId);
     if (index === -1) throw new Error('Turno no encontrado');
+    const originalShift = { ...shifts[index] };
 
     // Si se reduce el cupo, verificar que no sea menor a los inscritos
     if (updates.totalVacancies !== undefined) {
@@ -272,8 +278,30 @@ export const mockApi = {
     shifts[index] = { ...shifts[index], ...updates };
 
     // Recalcular vacantes disponibles
-    const bookedCount = bookings.filter(b => b.shiftId === shiftId && b.status === 'confirmed').length;
-    shifts[index].availableVacancies = shifts[index].totalVacancies - bookedCount;
+    const bookedCountAfter = bookings.filter(b => b.shiftId === shiftId && b.status === 'confirmed').length;
+    shifts[index].availableVacancies = shifts[index].totalVacancies - bookedCountAfter;
+
+    // Check for critical changes (Date or Time)
+    if ((updates.timeSlot && updates.timeSlot !== originalShift.timeSlot) || (updates.date && updates.date !== originalShift.date)) {
+      const confirmedBookings = bookings.filter(b => b.shiftId === shiftId && b.status === 'confirmed');
+      const event = events.find(e => e.id === originalShift.eventId);
+
+      if (event) {
+        console.log(`Sending shift modification alerts to ${confirmedBookings.length} users`);
+        confirmedBookings.forEach(booking => {
+          const user = users.find(u => u.id === booking.userId);
+          if (user) {
+            emailService.sendShiftModificationAlert(
+              user,
+              event.nombre,
+              originalShift.timeSlot,
+              shifts[index].timeSlot,
+              shifts[index].date
+            ).catch(console.error);
+          }
+        });
+      }
+    }
 
     return shifts[index];
   },
@@ -379,6 +407,22 @@ export const mockApi = {
     };
     bookings.push(newBooking);
     console.log('New booking created:', newBooking);
+
+    // Send confirmation email
+    const event = events.find(e => e.id === shift.eventId);
+    const role = roles.find(r => r.id === shift.roleId);
+    const user = users.find(u => u.id === userId);
+
+    if (event && role && user) {
+      emailService.sendBookingConfirmation(
+        user,
+        event,
+        role.name,
+        shift.date,
+        shift.timeSlot
+      ).catch(err => console.error('Failed to send booking confirmation', err));
+    }
+
     return newBooking;
   },
 
@@ -429,6 +473,20 @@ export const mockApi = {
       // >24hs: requiere validación
       bookings[bookingIndex].status = 'cancellation_requested';
       bookings[bookingIndex].cancelledAt = cancelledAt;
+
+      // Send email acknowledging request
+      const user = users.find(u => u.id === booking.userId);
+      const event = events.find(e => e.id === shift.eventId);
+
+      if (user && event) {
+        emailService.sendCancellationRequestReceived(
+          user,
+          event.nombre,
+          shift.date,
+          shift.timeSlot
+        ).catch(console.error);
+      }
+
       return { ...bookings[bookingIndex] };
     }
   },
@@ -488,6 +546,16 @@ export const mockApi = {
     // Procesar lista de espera
     const shiftId = bookings[bookingIndex].shiftId;
     await mockApi.processWaitlist(shiftId);
+
+    // Send approval email
+    const booking = bookings[bookingIndex];
+    const shift = shifts.find(s => s.id === booking.shiftId);
+    const event = events.find(e => e.id === booking.eventId);
+    const user = users.find(u => u.id === booking.userId);
+
+    if (user && event && shift) {
+      emailService.sendCancellationApproved(user, event.nombre, shift.date).catch(console.error);
+    }
 
     return { ...bookings[bookingIndex] };
   },
