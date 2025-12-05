@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { User } from '../types';
 import { Lock } from 'lucide-react';
+import Modal from './Modal';
+import { toast } from 'react-hot-toast';
 
 interface LoginProps {
-  onLogin: (identifier: string, password?: string) => void;
+  onLogin: (identifier: string, password?: string) => Promise<boolean | 'password_required' | 'register'>;
   onRegister: (newUser: User) => void;
   initialDni?: string;
 }
@@ -13,6 +15,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isRegistering, setIsRegistering] = useState(!!initialDni);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [termsContent, setTermsContent] = useState('');
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const [formData, setFormData] = useState<Omit<User, 'id' | 'role'>>({
     dni: initialDni || '',
     fullName: '',
@@ -26,48 +33,93 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
   });
   const [agreed, setAgreed] = useState(false);
 
-  // Detectar si el identificador requiere contraseña (admin, superadmin o coordinator)
-  const requiresPassword = (id: string) => {
-    return id === '99999999' || id === '11111111' || id === '44444444' ||
-      id.includes('admin') || id.includes('superadmin') || id.includes('coord');
+  // Auto-focus en el campo de identificador al cargar
+  useEffect(() => {
+    if (inputRef.current && !isRegistering) {
+      inputRef.current.focus();
+    }
+  }, [isRegistering]);
+
+  // Cargar términos y condiciones
+  useEffect(() => {
+    fetch('/terminos-voluntariado.html')
+      .then(res => res.text())
+      .then(html => setTermsContent(html))
+      .catch(err => console.error('Error loading terms:', err));
+  }, []);
+
+  // Función para detectar si es un email
+  const isEmail = (str: string): boolean => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
   };
 
-  const handleIdentifierSubmit = (e: React.FormEvent) => {
+  // Función para limpiar y normalizar documentos (quitar puntos, guiones, espacios)
+  const normalizeDocument = (doc: string): string => {
+    return doc.replace(/[\s.-]/g, '');
+  };
+
+  const handleIdentifierSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Si requiere contraseña, mostrar campo de contraseña
-    if (requiresPassword(identifier) && !showPassword) {
-      setShowPassword(true);
+    // Validar que el campo no esté vacío
+    if (!identifier.trim()) {
       return;
     }
 
-    // Si ya mostró contraseña o no la requiere, proceder con login
-    if (identifier.trim() === 'admin@feria.com' || requiresPassword(identifier)) {
-      onLogin(identifier, password);
-    } else {
-      // Para nuevos usuarios, solo mostrar el formulario de registro
-      // NO llamar a onLogin hasta que completen el registro
-      setIsRegistering(true);
-      setFormData(prev => ({ ...prev, dni: identifier }));
+    setLoading(true);
+
+    // Normalizar el identificador (quitar puntos, guiones, espacios si no es email)
+    const normalizedId = isEmail(identifier) ? identifier : normalizeDocument(identifier);
+
+    try {
+      const result = await onLogin(normalizedId, showPassword ? password : undefined);
+
+      if (result === 'password_required') {
+        setShowPassword(true);
+      } else if (result === 'register') {
+        // Para nuevos usuarios, mostrar el formulario de registro
+        setIsRegistering(true);
+
+        // Si es email, auto-completar el campo de email en el formulario
+        if (isEmail(identifier)) {
+          setFormData(prev => ({
+            ...prev,
+            dni: '', // Dejar DNI vacío si ingresó email
+            email: identifier
+          }));
+        } else {
+          // Si es documento, guardarlo en DNI
+          setFormData(prev => ({
+            ...prev,
+            dni: normalizedId
+          }));
+        }
+      }
+      // If success, parent component handles redirection
+    } catch (error) {
+      console.error('Login error', error);
+      toast.error('Ocurrió un error al intentar ingresar');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.isOver18) return;
+    if (!formData.isMember) return;
     if (!agreed) return;
     onRegister({ ...formData, id: '', role: 'volunteer' });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    const isCheckbox = type === 'checkbox';
     // @ts-ignore
-    const val = isCheckbox ? e.target.checked : value;
+    const val = type === 'checkbox' ? e.target.checked : value;
     setFormData(prev => ({ ...prev, [name]: val }));
   };
 
-  const isFormValid = agreed && formData.isOver18;
+  const isFormValid = agreed && formData.isOver18 && formData.isMember;
 
   const inputClasses = "w-full px-3 py-2.5 bg-white border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-fs-text placeholder-gray-400 transition-colors";
   const labelClasses = "block text-sm font-semibold text-gray-600 mb-1.5";
@@ -77,7 +129,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
       <div className="max-w-3xl mx-auto mt-8 bg-white p-8 rounded-lg shadow-card border border-fs-border">
         <div className="border-b border-fs-border pb-4 mb-6">
           <h2 className="text-2xl font-serif text-fs-text">Registro de Voluntario</h2>
-          <p className="text-sm text-fs-meta mt-1">Completa tus datos para el DNI: <span className="font-bold text-fs-text">{formData.dni}</span></p>
+          <p className="text-sm text-fs-meta mt-1">
+            Completa tus datos{formData.dni && ` para el documento: `}
+            {formData.dni && <span className="font-bold text-fs-text">{formData.dni}</span>}
+            {formData.email && !formData.dni && ` usando el email: `}
+            {formData.email && !formData.dni && <span className="font-bold text-fs-text">{formData.email}</span>}
+          </p>
         </div>
 
         <form onSubmit={handleRegisterSubmit} className="space-y-6">
@@ -87,6 +144,16 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
               <input type="text" name="fullName" placeholder="Ej: Juan Pérez" value={formData.fullName} onChange={handleInputChange} required
                 className={inputClasses} />
             </div>
+
+            {/* Mostrar campo DNI si ingresó con email */}
+            {!formData.dni && (
+              <div>
+                <label className={labelClasses}>DNI / RUT / Cédula</label>
+                <input type="text" name="dni" placeholder="Sin puntos ni guiones" value={formData.dni} onChange={handleInputChange} required
+                  className={inputClasses} />
+              </div>
+            )}
+
             <div>
               <label className={labelClasses}>Correo Electrónico</label>
               <input type="email" name="email" placeholder="correo@ejemplo.com" value={formData.email} onChange={handleInputChange} required
@@ -137,7 +204,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
               <label className="flex items-center cursor-pointer">
                 <input type="checkbox" name="isMember" checked={formData.isMember} onChange={handleInputChange}
                   className="h-5 w-5 text-primary-500 border-gray-300 rounded focus:ring-primary-500" />
-                <span className="ml-3 text-sm text-gray-700">Soy miembro de La Iglesia de Jesucristo de los Santos de los Últimos Días</span>
+                <span className="ml-3 text-sm text-gray-700">
+                  Soy miembro de La Iglesia de Jesucristo de los Santos de los Últimos Días <span className="text-xs text-gray-500">(Requisito obligatorio)</span>
+                </span>
               </label>
 
               <label className="flex items-center cursor-pointer">
@@ -146,7 +215,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                 <span className="ml-3 text-sm text-gray-700">Participé como voluntario en la feria anterior</span>
               </label>
 
-              <label className={`flex items-center p-2 rounded transition-colors cursor-pointer border ${!formData.isOver18 ? 'bg-white border-red-200' : 'border-transparent'}`}>
+              <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
                   name="isOver18"
@@ -154,8 +223,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                   onChange={handleInputChange}
                   className="h-5 w-5 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
                 />
-                <span className={`ml-3 text-sm font-medium ${!formData.isOver18 ? 'text-red-600' : 'text-gray-800'}`}>
-                  Confirmo que soy mayor de 18 años <span className="text-xs font-normal text-gray-500 ml-1">(Requisito obligatorio)</span>
+                <span className="ml-3 text-sm text-gray-700">
+                  Confirmo que soy mayor de 18 años <span className="text-xs text-gray-500">(Requisito obligatorio)</span>
                 </span>
               </label>
             </div>
@@ -166,7 +235,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
               <input name="agreement" type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)}
                 className="h-5 w-5 text-primary-500 border-gray-300 rounded focus:ring-primary-500 mt-0.5" />
               <div className="ml-3 text-sm text-gray-600 leading-snug">
-                He leído y acepto el <a href="#" className="text-fs-blue hover:underline font-medium">Acuerdo de Voluntariado</a>. Entiendo que al inscribirme asumo un compromiso de asistencia y puntualidad.
+                He leído y acepto el <button type="button" onClick={(e) => { e.preventDefault(); setIsModalOpen(true); }} className="text-fs-blue hover:underline font-medium">Acuerdo de Voluntariado</button>. Entiendo que al inscribirme asumo un compromiso de asistencia y puntualidad.
               </div>
             </label>
           </div>
@@ -174,16 +243,30 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
           <div className="pt-4">
             <button
               type="submit"
-              className={`w-full py-3 px-6 font-bold text-base rounded-fs shadow-sm transition-all ${isFormValid
-                ? 'bg-primary-500 text-white hover:bg-primary-600 hover:shadow-md'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              className={`w-full btn-primary shadow-sm transition-all ${isFormValid
+                ? 'opacity-100 hover:shadow-md'
+                : 'opacity-50 cursor-not-allowed bg-gray-400 hover:bg-gray-400'
                 }`}
               disabled={!isFormValid}
             >
-              {formData.isOver18 ? "Finalizar Registro" : "Debes ser mayor de 18 años para continuar"}
+              {!formData.isOver18 && !formData.isMember
+                ? "Debes ser mayor de 18 años y miembro de la iglesia"
+                : !formData.isOver18
+                  ? "Debes ser mayor de 18 años para continuar"
+                  : !formData.isMember
+                    ? "Debes ser miembro de la iglesia para continuar"
+                    : "Finalizar Registro"}
             </button>
           </div>
         </form>
+
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          title="Acuerdo de Voluntariado"
+        >
+          <div dangerouslySetInnerHTML={{ __html: termsContent }} />
+        </Modal>
       </div>
     );
   }
@@ -200,16 +283,19 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
           <div>
             <label className="sr-only">DNI o Email</label>
             <input
+              ref={inputRef}
               type="text"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="Ingresa tu DNI"
+              placeholder="DNI, RUT, Cédula o Email"
               className="w-full px-4 py-3.5 bg-gray-50 border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-xl text-center text-fs-text placeholder-gray-400"
+              required
+              disabled={loading}
             />
           </div>
 
           {showPassword && (
-            <div className="animate-fade-in">
+            <div className="animate-fade-in relative">
               <label className="sr-only">Contraseña</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-4 text-gray-400" size={20} />
@@ -220,19 +306,22 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                   placeholder="Contraseña"
                   className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-xl text-center text-fs-text placeholder-gray-400"
                   autoFocus
+                  disabled={loading}
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Contraseña de administrador (admin123) o coordinador (coord123)
-              </p>
             </div>
           )}
 
           <button
             type="submit"
-            className="w-full py-3.5 px-4 bg-primary-500 text-white text-base font-bold rounded-fs hover:bg-primary-600 transition duration-200 shadow-sm hover:shadow-md"
+            className="w-full btn-primary shadow-sm hover:shadow-md flex justify-center items-center"
+            disabled={loading}
           >
-            {showPassword ? 'Iniciar Sesión' : 'Continuar'}
+            {loading ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+            ) : (
+              showPassword ? 'INICIAR SESIÓN' : 'CONTINUAR'
+            )}
           </button>
 
           {showPassword && (
@@ -242,7 +331,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                 setShowPassword(false);
                 setPassword('');
               }}
-              className="text-sm text-gray-500 hover:text-gray-700 underline"
+              className="text-sm text-fs-blue hover:text-fs-blue-hover underline mt-4 block mx-auto"
+              disabled={loading}
             >
               ← Volver
             </button>

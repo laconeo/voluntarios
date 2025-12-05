@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { User, Shift, Role, Booking } from '../types';
 import { mockApi } from '../services/mockApiService';
-import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus, Info, Mail, Phone } from 'lucide-react';
 import RoleDetailModal from './RoleDetailModal';
+import Modal from './Modal';
 import { toast } from 'react-hot-toast';
 
 interface VolunteerPortalProps {
@@ -20,6 +21,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [userBookings, setUserBookings] = useState<Booking[]>([]);
   const [event, setEvent] = useState<any>(null); // To store event details
+  const [showEventModal, setShowEventModal] = useState(false);
 
   useEffect(() => {
     const loadEventData = async () => {
@@ -129,6 +131,12 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
     return groups;
   }, [shifts]);
 
+  // Helper to parse date string "YYYY-MM-DD" to local Date object
+  const parseLocalDate = (dateString: string) => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   const renderCalendar = () => {
     const month = currentDate.getMonth();
     const year = currentDate.getFullYear();
@@ -153,7 +161,11 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
             const date = new Date(year, month, day);
             const isSelected = selectedDate.toDateString() === date.toDateString();
             const isInEvent = date >= eventStartDate && date <= eventEndDate;
-            const isBooked = userBookings.some(b => new Date(b.shift?.date!).toDateString() === date.toDateString());
+            const isBooked = userBookings.some(b => {
+              if (!b.shift?.date) return false;
+              const bookingDate = parseLocalDate(b.shift.date);
+              return bookingDate.toDateString() === date.toDateString();
+            });
 
             let classes = "w-8 h-8 mx-auto flex items-center justify-center rounded-full text-sm font-medium transition-colors ";
             if (isInEvent) {
@@ -191,8 +203,63 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pb-12">
       {selectedRole && <RoleDetailModal role={selectedRole} onClose={() => setSelectedRole(null)} />}
 
+      {/* Modal de Detalles del Evento */}
+      <Modal
+        isOpen={showEventModal}
+        onClose={() => setShowEventModal(false)}
+        title="Detalles del Evento"
+      >
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-lg font-bold text-fs-text mb-2">{event?.nombre}</h3>
+            <p className="text-gray-600">{event?.descripcion || "Sin descripción disponible."}</p>
+          </div>
+
+          <div className="flex items-start space-x-3">
+            <MapPin className="text-primary-500 mt-1 shrink-0" size={20} />
+            <div>
+              <h4 className="font-bold text-gray-900">Ubicación</h4>
+              <p className="text-gray-600">{event?.ubicacion || "Ubicación no especificada"}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start space-x-3">
+            <CalendarIcon className="text-primary-500 mt-1 shrink-0" size={20} />
+            <div>
+              <h4 className="font-bold text-gray-900">Fechas</h4>
+              <p className="text-gray-600">
+                Del {new Date(event?.fechaInicio + 'T00:00:00').toLocaleDateString()} al {new Date(event?.fechaFin + 'T00:00:00').toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <h4 className="font-bold text-gray-900 mb-3">Contacto del Administrador</h4>
+            <div className="space-y-2">
+              <div className="flex items-center text-gray-600">
+                <Mail size={18} className="mr-2 text-gray-400" />
+                <span>admin@feria.com</span>
+              </div>
+              <div className="flex items-center text-gray-600">
+                <Phone size={18} className="mr-2 text-gray-400" />
+                <span>+54 11 1234-5678</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
       <div className="lg:col-span-4 space-y-6">
         {renderCalendar()}
+
+        {/* Botón para ver detalles del evento */}
+        <button
+          onClick={() => setShowEventModal(true)}
+          className="w-full flex items-center justify-center px-4 py-3 bg-white border border-fs-border rounded-lg shadow-sm hover:shadow-md hover:border-primary-300 transition-all text-fs-blue font-medium"
+        >
+          <Info size={20} className="mr-2" />
+          Ver detalles del evento
+        </button>
 
         <div className="bg-white p-5 rounded-lg shadow-card border border-fs-border">
           <h3 className="font-serif text-lg text-fs-text mb-4 border-b border-fs-border pb-2">Mis Inscripciones</h3>
@@ -205,7 +272,10 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                       <p className="font-bold text-fs-text text-sm">{booking.shift?.role.name}</p>
                       <div className="flex items-center text-xs text-gray-500 mt-1">
                         <CalendarIcon size={12} className="mr-1" />
-                        <span className="capitalize mr-2">{new Date(booking.shift?.date!).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+                        {/* Fix: Use parseLocalDate to display correct date */}
+                        <span className="capitalize mr-2">
+                          {booking.shift?.date ? parseLocalDate(booking.shift.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : 'N/A'}
+                        </span>
                         <Clock size={12} className="mr-1" />
                         <span>{booking.shift?.timeSlot}</span>
                       </div>
