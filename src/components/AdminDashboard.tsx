@@ -28,7 +28,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   };
 
   if (selectedView === 'users') {
-    return <UserManagement onBack={handleBackToEvents} />;
+    return <UserManagement user={user} onBack={handleBackToEvents} />;
   }
 
   if (selectedView === 'metrics' && selectedEventId) {

@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { User } from '../types';
 import { Lock } from 'lucide-react';
 import Modal from './Modal';
+import { toast } from 'react-hot-toast';
 
 interface LoginProps {
-  onLogin: (identifier: string, password?: string) => void;
+  onLogin: (identifier: string, password?: string) => Promise<boolean | 'password_required' | 'register'>;
   onRegister: (newUser: User) => void;
   initialDni?: string;
 }
@@ -16,6 +17,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
   const [isRegistering, setIsRegistering] = useState(!!initialDni);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [termsContent, setTermsContent] = useState('');
+  const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<Omit<User, 'id' | 'role'>>({
@@ -56,13 +58,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
     return doc.replace(/[\s.-]/g, '');
   };
 
-  // Detectar si el identificador requiere contraseña (admin, superadmin o coordinator)
-  const requiresPassword = (id: string) => {
-    return id === '99999999' || id === '11111111' || id === '44444444' ||
-      id.includes('admin') || id.includes('superadmin') || id.includes('coord');
-  };
-
-  const handleIdentifierSubmit = (e: React.FormEvent) => {
+  const handleIdentifierSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validar que el campo no esté vacío
@@ -70,36 +66,41 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
       return;
     }
 
+    setLoading(true);
+
     // Normalizar el identificador (quitar puntos, guiones, espacios si no es email)
     const normalizedId = isEmail(identifier) ? identifier : normalizeDocument(identifier);
 
-    // Si requiere contraseña, mostrar campo de contraseña
-    if (requiresPassword(normalizedId) && !showPassword) {
-      setShowPassword(true);
-      return;
-    }
+    try {
+      const result = await onLogin(normalizedId, showPassword ? password : undefined);
 
-    // Si ya mostró contraseña o no la requiere, proceder con login
-    if (identifier.trim() === 'admin@feria.com' || requiresPassword(normalizedId)) {
-      onLogin(normalizedId, password);
-    } else {
-      // Para nuevos usuarios, mostrar el formulario de registro
-      setIsRegistering(true);
+      if (result === 'password_required') {
+        setShowPassword(true);
+      } else if (result === 'register') {
+        // Para nuevos usuarios, mostrar el formulario de registro
+        setIsRegistering(true);
 
-      // Si es email, auto-completar el campo de email en el formulario
-      if (isEmail(identifier)) {
-        setFormData(prev => ({
-          ...prev,
-          dni: '', // Dejar DNI vacío si ingresó email
-          email: identifier
-        }));
-      } else {
-        // Si es documento, guardarlo en DNI
-        setFormData(prev => ({
-          ...prev,
-          dni: normalizedId
-        }));
+        // Si es email, auto-completar el campo de email en el formulario
+        if (isEmail(identifier)) {
+          setFormData(prev => ({
+            ...prev,
+            dni: '', // Dejar DNI vacío si ingresó email
+            email: identifier
+          }));
+        } else {
+          // Si es documento, guardarlo en DNI
+          setFormData(prev => ({
+            ...prev,
+            dni: normalizedId
+          }));
+        }
       }
+      // If success, parent component handles redirection
+    } catch (error) {
+      console.error('Login error', error);
+      toast.error('Ocurrió un error al intentar ingresar');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -113,9 +114,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    const isCheckbox = type === 'checkbox';
     // @ts-ignore
-    const val = isCheckbox ? e.target.checked : value;
+    const val = type === 'checkbox' ? e.target.checked : value;
     setFormData(prev => ({ ...prev, [name]: val }));
   };
 
@@ -290,11 +290,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
               placeholder="DNI, RUT, Cédula o Email"
               className="w-full px-4 py-3.5 bg-gray-50 border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-xl text-center text-fs-text placeholder-gray-400"
               required
+              disabled={loading}
             />
           </div>
 
           {showPassword && (
-            <div className="animate-fade-in">
+            <div className="animate-fade-in relative">
               <label className="sr-only">Contraseña</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-4 text-gray-400" size={20} />
@@ -305,19 +306,22 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                   placeholder="Contraseña"
                   className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-xl text-center text-fs-text placeholder-gray-400"
                   autoFocus
+                  disabled={loading}
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Contraseña de administrador (admin123) o coordinador (coord123)
-              </p>
             </div>
           )}
 
           <button
             type="submit"
-            className="w-full btn-primary shadow-sm hover:shadow-md"
+            className="w-full btn-primary shadow-sm hover:shadow-md flex justify-center items-center"
+            disabled={loading}
           >
-            {showPassword ? 'INICIAR SESIÓN' : 'CONTINUAR'}
+            {loading ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+            ) : (
+              showPassword ? 'INICIAR SESIÓN' : 'CONTINUAR'
+            )}
           </button>
 
           {showPassword && (
@@ -328,6 +332,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                 setPassword('');
               }}
               className="text-sm text-fs-blue hover:text-fs-blue-hover underline mt-4 block mx-auto"
+              disabled={loading}
             >
               ← Volver
             </button>

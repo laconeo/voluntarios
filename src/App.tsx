@@ -14,7 +14,7 @@ import { Toaster, toast } from 'react-hot-toast';
 const EventPortalWrapper: React.FC<{
   user: User | null,
   onLogout: () => void,
-  onLogin: (id: string, password?: string) => void,
+  onLogin: (id: string, password?: string) => Promise<boolean | 'password_required' | 'register'>,
   onRegister: (u: User) => void
 }> = ({ user, onLogout, onLogin, onRegister }) => {
   const { eventSlug } = useParams<{ eventSlug: string }>();
@@ -111,7 +111,7 @@ const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<'portal' | 'profile' | 'admin'>('portal');
   const navigate = useNavigate();
 
-  const handleLogin = async (identifier: string, password?: string) => {
+  const handleLogin = async (identifier: string, password?: string): Promise<boolean | 'password_required' | 'register'> => {
     try {
       const user = await mockApi.login(identifier, password);
       if (user) {
@@ -122,25 +122,18 @@ const AppContent: React.FC = () => {
         if (user.role === 'admin' || user.role === 'superadmin' || user.role === 'coordinator') {
           navigate('/');
         }
+        return true;
       } else {
-        // New volunteer, show registration form
-        setCurrentUser({
-          id: '',
-          dni: identifier,
-          fullName: '',
-          email: '',
-          phone: '',
-          tshirtSize: 'M',
-          isMember: false,
-          attendedPrevious: false,
-          isOver18: false,
-          howTheyHeard: '',
-          role: 'volunteer',
-        });
+        // User not found, signal Login component to show registration
+        return 'register';
       }
     } catch (error: any) {
+      if (error.message === 'Contraseña incorrecta') {
+        return 'password_required';
+      }
       toast.error(error.message || 'Error al iniciar sesión.');
       console.error(error);
+      return false;
     }
   };
 

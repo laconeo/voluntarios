@@ -5,10 +5,11 @@ import type { User, Event, Booking } from '../types';
 import { toast } from 'react-hot-toast';
 
 interface UserManagementProps {
+    user: User;
     onBack: () => void;
 }
 
-const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
+const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBack }) => {
     const [users, setUsers] = useState<User[]>([]);
     const [events, setEvents] = useState<Event[]>([]);
     const [bookings, setBookings] = useState<Booking[]>([]);
@@ -18,6 +19,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
     const [filterEvent, setFilterEvent] = useState('todos');
     const [filterStatus, setFilterStatus] = useState('todos');
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [newPassword, setNewPassword] = useState('');
     const [showEditModal, setShowEditModal] = useState(false);
 
     useEffect(() => {
@@ -43,7 +45,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
     };
 
     const handleEditUser = (user: User) => {
+        // Validation: Admin cannot edit other Admins or SuperAdmins
+        if (currentUser.role === 'admin' && (user.role === 'admin' || user.role === 'superadmin')) {
+            toast.error('No tienes permisos para editar a este usuario');
+            return;
+        }
         setEditingUser({ ...user });
+        setNewPassword(''); // Reset password field
         setShowEditModal(true);
     };
 
@@ -51,7 +59,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
         if (!editingUser) return;
 
         try {
-            await mockApi.updateUser(editingUser);
+            const userToUpdate = { ...editingUser };
+            if (newPassword.trim()) {
+                userToUpdate.password = newPassword;
+            }
+            await mockApi.updateUser(userToUpdate);
             toast.success('Usuario actualizado correctamente');
             setShowEditModal(false);
             setEditingUser(null);
@@ -332,8 +344,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${(user.status || 'active') === 'active'
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : 'bg-red-100 text-red-800'
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-red-100 text-red-800'
                                                     }`}>
                                                     {(user.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
                                                 </span>
@@ -353,8 +365,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
                                                     <button
                                                         onClick={() => handleToggleStatus(user)}
                                                         className={`p-2 rounded-lg transition-colors ${(user.status || 'active') === 'active'
-                                                                ? 'text-red-600 hover:text-red-900 hover:bg-red-50'
-                                                                : 'text-green-600 hover:text-green-900 hover:bg-green-50'
+                                                            ? 'text-red-600 hover:text-red-900 hover:bg-red-50'
+                                                            : 'text-green-600 hover:text-green-900 hover:bg-green-50'
                                                             }`}
                                                         title={(user.status || 'active') === 'active' ? 'Suspender' : 'Activar'}
                                                     >
@@ -450,46 +462,73 @@ const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
                                     >
                                         <option value="volunteer">Voluntario</option>
                                         <option value="coordinator">Coordinador</option>
-                                        <option value="admin">Administrador</option>
-                                        <option value="superadmin">Super Admin</option>
+                                        {(currentUser.role === 'superadmin' || currentUser.role === 'admin') && (
+                                            // Admin can only see 'admin' if they are superadmin, wait.
+                                            // Requirement: "solo el super admin puede generar administradores"
+                                            // So Admin should NOT be able to select 'admin' or 'superadmin'
+                                            currentUser.role === 'superadmin' && (
+                                                <>
+                                                    <option value="admin">Administrador</option>
+                                                    <option value="superadmin">Super Admin</option>
+                                                </>
+                                            )
+                                        )}
                                     </select>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Estado
+                                        Nueva Contraseña {currentUser.role === 'admin' && editingUser.role === 'admin' && '(No permitido)'}
                                     </label>
-                                    <select
-                                        value={editingUser.status || 'active'}
-                                        onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value as any })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    >
-                                        <option value="active">Activo</option>
-                                        <option value="suspended">Suspendido</option>
-                                    </select>
+                                    <input
+                                        type="password"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        placeholder="Dejar en blanco para mantener actual"
+                                        disabled={currentUser.role === 'admin' && (editingUser.role === 'admin' || editingUser.role === 'superadmin')}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
+                                    />
                                 </div>
                             </div>
 
-                            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                                <p className="text-sm text-yellow-700">
-                                    <strong>Nota:</strong> Los cambios en el rol afectarán los permisos del usuario en el sistema.
-                                </p>
-                            </div>
-                        </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Estado
+                                        </label>
+                                        <select
+                                            value={editingUser.status || 'active'}
+                                            onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value as any })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        >
+                                            <option value="active">Activo</option>
+                                            <option value="suspended">Suspendido</option>
+                                        </select>
+                                    </div>
+                                </div>
 
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                onClick={() => setShowEditModal(false)}
-                                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleSaveUser}
-                                className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium flex items-center justify-center gap-2"
-                            >
-                                <Save size={18} />
-                                Guardar Cambios
-                            </button>
+                                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                                    <p className="text-sm text-yellow-700">
+                                        <strong>Nota:</strong> Los cambios en el rol afectarán los permisos del usuario en el sistema.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={() => setShowEditModal(false)}
+                                    className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleSaveUser}
+                                    className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium flex items-center justify-center gap-2"
+                                >
+                                    <Save size={18} />
+                                    Guardar Cambios
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
