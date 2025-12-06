@@ -1,8 +1,10 @@
 import type { User, Event, Role } from '../types';
 
-const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY; // User must create this in .env
-const SENDER_EMAIL = import.meta.env.VITE_SENDER_EMAIL || 'noreply@voluntariado-fs.org'; // Must be a verified sender in Brevo
-const SENDER_NAME = 'Voluntariado FamilySearch';
+// EmailJS Configuration
+// User provided Public Key: 3OJkvoQ7fpMgoTjra
+const PUBLIC_KEY = '3OJkvoQ7fpMgoTjra';
+const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID; // Must be in .env.local
+const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID; // Must be in .env.local
 
 interface EmailPayload {
     to: { email: string; name: string }[];
@@ -11,31 +13,39 @@ interface EmailPayload {
 }
 
 const sendEmail = async (payload: EmailPayload) => {
-    if (!BREVO_API_KEY) {
-        console.warn('⚠️ No Brevo API Key found. Email sending skipped.');
+    if (!SERVICE_ID || !TEMPLATE_ID) {
+        console.warn('⚠️ Falta configuración de EmailJS (SERVICE_ID o TEMPLATE_ID) en .env.local');
         return;
     }
 
+    const templateParams = {
+        email: payload.to[0].email, // Changed from to_email to match template {{email}}
+        to_name: payload.to[0].name,
+        subject: payload.subject,
+        html_content: payload.htmlContent,
+    };
+
     try {
-        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
             method: 'POST',
             headers: {
-                'accept': 'application/json',
-                'api-key': 'BREVO_API_KEY',
-                'content-type': 'application/json',
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                sender: { name: SENDER_NAME, email: SENDER_EMAIL },
-                ...payload,
+                service_id: SERVICE_ID,
+                template_id: TEMPLATE_ID,
+                user_id: PUBLIC_KEY,
+                template_params: templateParams,
             }),
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Error sending email: ${JSON.stringify(errorData)}`);
+            const errorText = await response.text();
+            throw new Error(`Error EmailJS: ${errorText}`);
         }
+
     } catch (error) {
-        console.error('❌ Failed to send email:', error);
+        console.error('❌ Error al enviar email:', error);
     }
 };
 
