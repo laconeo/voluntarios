@@ -19,7 +19,7 @@ const sendEmail = async (payload: EmailPayload) => {
     }
 
     const templateParams = {
-        email: payload.to[0].email, // Changed from to_email to match template {{email}}
+        email: payload.to[0].email,
         to_name: payload.to[0].name,
         subject: payload.subject,
         html_content: payload.htmlContent,
@@ -75,7 +75,6 @@ export const emailService = {
     },
 
     // 2. Confirmación de Turno (CU-04)
-    // 2. Confirmación de Turno (CU-04)
     sendBookingConfirmation: async (user: User, event: Event, roleName: string, date: string, time: string) => {
         const subject = `Confirmación de Turno - ${event.nombre}`;
 
@@ -87,6 +86,7 @@ export const emailService = {
             const parts = time.split(/-|–/).map(t => t.trim());
             const startTime = parts[0];
             const endTime = parts[1] || startTime; // Fallback if no end time
+
             // Construct Dates (assuming Local Time)
             const d = new Date(date + "T" + startTime + ":00");
             const dEnd = new Date(date + "T" + endTime + ":00");
