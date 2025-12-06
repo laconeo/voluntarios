@@ -3,8 +3,8 @@ import type { User, Event, Role } from '../types';
 // EmailJS Configuration
 // User provided Public Key: 3OJkvoQ7fpMgoTjra
 const PUBLIC_KEY = '3OJkvoQ7fpMgoTjra';
-const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID; // Must be in .env.local
-const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID; // Must be in .env.local
+const SERVICE_ID = 'service_yx5vrg8';
+const TEMPLATE_ID = 'template_hg6gecb';
 
 interface EmailPayload {
     to: { email: string; name: string }[];
