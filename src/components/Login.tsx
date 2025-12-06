@@ -42,7 +42,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
 
   // Cargar términos y condiciones
   useEffect(() => {
-    fetch('/terminos-voluntariado.html')
+    // Use BASE_URL to ensure correct path in production (GitHub Pages)
+    const baseUrl = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+    fetch(`${baseUrl}terminos-voluntariado.html`)
       .then(res => res.text())
       .then(html => setTermsContent(html))
       .catch(err => console.error('Error loading terms:', err));

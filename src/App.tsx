@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import type { User, Event } from './types';
 import { mockApi } from './services/mockApiService';
 import VolunteerPortal from './components/VolunteerPortal';
@@ -217,13 +217,10 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  // Usar basename solo en producción (GitHub Pages)
-  const basename = import.meta.env.MODE === 'production' ? '/voluntarios' : '/';
-
   return (
-    <BrowserRouter basename={basename}>
+    <HashRouter>
       <AppContent />
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
