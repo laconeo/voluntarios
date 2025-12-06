@@ -21,7 +21,7 @@ const sendEmail = async (payload: EmailPayload) => {
             method: 'POST',
             headers: {
                 'accept': 'application/json',
-                'api-key': BREVO_API_KEY,
+                'api-key': 'BREVO_API_KEY',
                 'content-type': 'application/json',
             },
             body: JSON.stringify({
