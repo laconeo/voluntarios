@@ -75,8 +75,46 @@ export const emailService = {
     },
 
     // 2. Confirmación de Turno (CU-04)
+    // 2. Confirmación de Turno (CU-04)
     sendBookingConfirmation: async (user: User, event: Event, roleName: string, date: string, time: string) => {
         const subject = `Confirmación de Turno - ${event.nombre}`;
+
+        // --- Helper Logic for Calendar Links ---
+        let googleUrl = "#";
+        let outlookUrl = "#";
+        try {
+            // Split using regex to handle "13:00-16:00" or "13:00 - 16:00"
+            const parts = time.split(/-|–/).map(t => t.trim());
+            const startTime = parts[0];
+            const endTime = parts[1] || startTime; // Fallback if no end time
+            // Construct Dates (assuming Local Time)
+            const d = new Date(date + "T" + startTime + ":00");
+            const dEnd = new Date(date + "T" + endTime + ":00");
+
+            // Format YYYYMMDDTHHMM00
+            const format = (dateObj: Date) => {
+                const pad = (n: number) => n < 10 ? '0' + n : n.toString();
+                return dateObj.getFullYear() +
+                    pad(dateObj.getMonth() + 1) +
+                    pad(dateObj.getDate()) + 'T' +
+                    pad(dateObj.getHours()) +
+                    pad(dateObj.getMinutes()) + '00';
+            };
+
+            const startStr = format(d);
+            const endStr = format(dEnd);
+
+            const title = encodeURIComponent(`Voluntariado: ${event.nombre} - ${roleName}`);
+            const details = encodeURIComponent(`Turno de voluntariado para ${event.nombre}.\nRol: ${roleName}\nUbicación: ${event.ubicacion}`);
+            const loc = encodeURIComponent(event.ubicacion);
+
+            googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${loc}`;
+            outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&body=${details}&startdt=${d.toISOString()}&enddt=${dEnd.toISOString()}&location=${loc}`;
+        } catch (e) {
+            console.error("Error generating calendar links", e);
+        }
+        // ---------------------------------------
+
         const htmlContent = `
       <h1>Turno Confirmado</h1>
       <p>Hola ${user.fullName.split(' ')[0]}, tu inscripción ha sido guardada con éxito.</p>
@@ -87,7 +125,12 @@ export const emailService = {
         <p><strong>Horario:</strong> ${time}</p>
         <p><strong>Ubicación:</strong> ${event.ubicacion}</p>
       </div>
-      <p><strong>Agendar:</strong> <a href="#">Agregar a Google Calendar</a> | <a href="#">Outlook</a></p>
+      <p><strong>Agendar:</strong> <a href="${googleUrl}" target="_blank">Agregar a Google Calendar</a> | <a href="${outlookUrl}" target="_blank">Outlook</a></p>
+      
+      <div style="margin: 20px 0;">
+        <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir a la Aplicación</a>
+      </div>
+
       <p>Por favor, llega 15 minutos antes de tu horario.</p>
     `;
         await sendEmail({
