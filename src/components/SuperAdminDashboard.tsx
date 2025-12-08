@@ -522,7 +522,10 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                                 <div className="flex-1 overflow-hidden">
                                                     <p className="text-xs text-blue-600 font-semibold mb-1">URL de acceso público:</p>
                                                     <p className="text-sm text-blue-900 font-mono break-all">
-                                                        {window.location.href.split('#')[0].replace(/\/$/, '')}/#/{formData.slug}
+                                                        {(() => {
+                                                            const baseUrl = window.location.href.split('#')[0].replace(/\/$/, '');
+                                                            return `${baseUrl}/#/${formData.slug}`;
+                                                        })()}
                                                     </p>
                                                 </div>
                                                 <button
