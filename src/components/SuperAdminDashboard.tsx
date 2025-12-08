@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, XCircle, CheckCircle, Users, Filter } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, XCircle, CheckCircle, Users, Filter, Info } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { Event, User } from '../types';
 import { toast } from 'react-hot-toast';
@@ -477,7 +477,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
             <div className="max-w-3xl mx-auto px-0 sm:px-6 py-0 sm:py-8 pb-32">
                 <div className="bg-white rounded-none sm:rounded-lg shadow-none sm:shadow-md border-x-0 sm:border border-gray-200 p-4 sm:p-8">
                     {eventoSeleccionado && (
-                        <div className="flex gap-2 sm:gap-4 mb-6 sm:mb-8 border-b border-gray-200 overflow-x-auto">
+                        <div className="hidden sm:flex gap-2 sm:gap-4 mb-6 sm:mb-8 border-b border-gray-200 overflow-x-auto">
                             <button
                                 onClick={() => setActiveTab('details')}
                                 className={`pb-3 sm:pb-4 px-3 sm:px-4 font-medium transition-colors relative whitespace-nowrap text-sm sm:text-base ${activeTab === 'details'
@@ -690,7 +690,42 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                     )}
                 </div>
             </div>
-        </div >
+            {/* Mobile Tab Navigation for Event Editing */}
+            {eventoSeleccionado && (
+                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 sm:hidden z-50 flex gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                    <button
+                        onClick={() => setActiveTab('details')}
+                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-colors ${activeTab === 'details'
+                            ? 'text-primary-600 bg-primary-50'
+                            : 'text-gray-500 hover:bg-gray-50'
+                            }`}
+                    >
+                        <Info size={20} />
+                        <span className="text-xs font-semibold">Detalles</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('roles')}
+                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-colors ${activeTab === 'roles'
+                            ? 'text-primary-600 bg-primary-50'
+                            : 'text-gray-500 hover:bg-gray-50'
+                            }`}
+                    >
+                        <Users size={20} />
+                        <span className="text-xs font-semibold">Roles</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('shifts')}
+                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-colors ${activeTab === 'shifts'
+                            ? 'text-primary-600 bg-primary-50'
+                            : 'text-gray-500 hover:bg-gray-50'
+                            }`}
+                    >
+                        <Calendar size={20} />
+                        <span className="text-xs font-semibold">Turnos</span>
+                    </button>
+                </div>
+            )}
+        </div>
     );
 };
 
