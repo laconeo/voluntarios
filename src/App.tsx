@@ -170,15 +170,17 @@ const AppContent: React.FC = () => {
           fontFamily: '"Noto Sans", sans-serif'
         }
       }} />
-      <Header
-        user={currentUser}
-        onLogout={currentUser ? handleLogout : undefined}
-        onProfileClick={() => setCurrentView('profile')}
-        onLogoClick={() => {
-          setCurrentView('portal');
-          navigate('/');
-        }}
-      />
+      <div className="print:hidden">
+        <Header
+          user={currentUser}
+          onLogout={currentUser ? handleLogout : undefined}
+          onProfileClick={() => setCurrentView('profile')}
+          onLogoClick={() => {
+            setCurrentView('portal');
+            navigate('/');
+          }}
+        />
+      </div>
       <main className="sm:p-6 lg:p-8 max-w-7xl mx-auto">
         {currentView === 'profile' && currentUser ? (
           <UserProfile user={currentUser} onUpdate={handleUpdateProfile} onCancel={() => setCurrentView('portal')} />

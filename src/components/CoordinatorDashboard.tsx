@@ -168,7 +168,16 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 </div>
             </div>
 
-            <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 pb-24">
+            <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 pb-32">
+                {/* Print Header */}
+                <div className="hidden print:block mb-8">
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Listado de Voluntarios</h1>
+                    <div className="flex flex-col gap-1 text-gray-700">
+                        <p><span className="font-semibold">Evento:</span> {events.find(e => e.id === selectedEventId)?.nombre}</p>
+                        <p><span className="font-semibold">Coordinador:</span> {user.fullName}</p>
+                    </div>
+                </div>
+
                 <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
                     <div className="w-full sm:w-64">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Seleccionar Evento</label>
