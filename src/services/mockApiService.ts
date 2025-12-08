@@ -527,10 +527,10 @@ export const mockApi = {
       if (user && event && shift && role) {
         if (attendance === 'attended') {
           console.log(`Sending Thank You email to ${user.email}`);
-          emailService.sendAttendanceThankYou(user, event.nombre, role.name).catch(console.error);
+          emailService.sendAttendanceThankYou(user, event.nombre, role.name, shift.date, shift.timeSlot).catch(console.error);
         } else if (attendance === 'absent') {
           console.log(`Sending Absence Follow-up email to ${user.email}`);
-          emailService.sendAbsenceFollowUp(user, event.nombre, shift.date).catch(console.error);
+          emailService.sendAbsenceFollowUp(user, event.nombre, shift.date, shift.timeSlot).catch(console.error);
         }
       }
     }

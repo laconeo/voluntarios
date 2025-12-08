@@ -213,14 +213,23 @@ export const emailService = {
     },
 
     // 7. Agradecimiento por Asistencia
-    sendAttendanceThankYou: async (user: User, eventName: string, roleName: string) => {
+    sendAttendanceThankYou: async (user: User, eventName: string, roleName: string, date: string, time: string) => {
         const subject = "¡Muchas gracias por tu servicio hoy!";
         const htmlContent = `
       <h1>¡Gracias ${user.fullName.split(' ')[0]}!</h1>
       <p>Queremos agradecerte sinceramente por tu tiempo y dedicación en el evento <strong>${eventName}</strong>.</p>
-      <p>Tu servicio como <strong>${roleName}</strong> ha sido fundamental para el éxito de hoy.</p>
+      <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
+        <p><strong>Detalles del Turno:</strong></p>
+        <p>Rol: ${roleName}</p>
+        <p>Fecha: ${date}</p>
+        <p>Horario: ${time}</p>
+      </div>
+      <p>Tu servicio ha sido fundamental para el éxito de hoy.</p>
       <p>Esperamos contar contigo nuevamente.</p>
       <p><em>"Cuando estamos al servicio de nuestros semejantes, solo estamos al servicio de nuestro Dios."</em></p>
+      <div style="margin: 20px 0;">
+         <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Portal</a>
+      </div>
      `;
         await sendEmail({
             to: [{ email: user.email, name: user.fullName }],
@@ -230,13 +239,20 @@ export const emailService = {
     },
 
     // 8. Seguimiento de Ausencia
-    sendAbsenceFollowUp: async (user: User, eventName: string, date: string) => {
+    sendAbsenceFollowUp: async (user: User, eventName: string, date: string, time: string) => {
         const subject = "Te extrañamos hoy";
         const htmlContent = `
       <h1>¡Hola ${user.fullName.split(' ')[0]}!</h1>
       <p>Notamos que no pudiste asistir a tu turno programado para hoy en <strong>${eventName}</strong>.</p>
-      <p>Esperamos que te encuentres bien y que no sea nada grave. Te echamos de menos en el equipo.</p>
-      <p>Esperamos verte en una próxima oportunidad. ¡Cuidate!</p>
+      <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
+        <p><strong>Detalles del Turno:</strong></p>
+        <p>Fecha: ${date}</p>
+        <p>Horario: ${time}</p>
+      </div>
+      <p>Te echamos de menos en el equipo y esperamos verte en una próxima oportunidad.</p>
+      <div style="margin: 20px 0;">
+         <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Revisar mis turnos</a>
+      </div>
      `;
         await sendEmail({
             to: [{ email: user.email, name: user.fullName }],
