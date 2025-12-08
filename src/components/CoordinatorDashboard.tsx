@@ -168,7 +168,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 </div>
             </div>
 
-            <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 pb-32">
+            <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 lg:pb-8 pb-32">
                 {/* Print Header */}
                 <div className="hidden print:block mb-8">
                     <h1 className="text-2xl font-bold text-gray-900 mb-2">Listado de Voluntarios</h1>
@@ -202,6 +202,24 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10 border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 w-full"
                             />
+                        </div>
+
+                        {/* Desktop Action Buttons */}
+                        <div className="hidden lg:flex gap-2">
+                            <button
+                                onClick={handlePrint}
+                                className="flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium shadow-sm"
+                            >
+                                <Printer size={18} className="mr-2" />
+                                Imprimir
+                            </button>
+                            <button
+                                onClick={exportToCSV}
+                                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm"
+                            >
+                                <Download size={18} className="mr-2" />
+                                Exportar
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -412,8 +430,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 </div>
             </main>
 
-            {/* Fixed Bottom Footer */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 flex gap-4 print:hidden">
+            {/* Fixed Bottom Footer - Mobile Only */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 flex gap-4 print:hidden lg:hidden">
                 <button
                     onClick={handlePrint}
                     className="flex-1 flex items-center justify-center px-4 py-3 bg-white text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium shadow-sm"
