@@ -24,6 +24,17 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   const [showEventModal, setShowEventModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'shifts' | 'bookings'>('shifts');
 
+  // Auto-scroll to selected date in mobile view
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollRef.current) {
+      const selectedElement = scrollRef.current.querySelector('[data-selected="true"]');
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }, [selectedDate, activeTab]);
+
   useEffect(() => {
     const loadEventData = async () => {
       if (eventId) {
@@ -204,16 +215,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    // Auto-scroll to selected date
-    const scrollRef = React.useRef<HTMLDivElement>(null);
-    useEffect(() => {
-      if (scrollRef.current) {
-        const selectedElement = scrollRef.current.querySelector('[data-selected="true"]');
-        if (selectedElement) {
-          selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        }
-      }
-    }, [selectedDate, activeTab]);
+    // Auto-scroll to selected date logic moved to top level hooks
 
     return (
       <div className="bg-white border-b border-fs-border shadow-sm sticky top-0 z-40">
