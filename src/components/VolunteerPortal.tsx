@@ -410,31 +410,41 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
             <h2 className="text-xl font-serif text-fs-text mb-6">Mis Inscripciones</h2>
             {userBookings.length > 0 ? (
               <ul className="space-y-4">
-                {userBookings.map(booking => (
-                  <li key={booking.id} className="bg-white p-4 rounded-lg shadow-sm border border-fs-border">
-                    <div className="flex justify-between mb-2">
-                      <span className="font-bold text-fs-text">{booking.shift?.role.name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                        {booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'}
-                      </span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600 mb-1">
-                      <CalendarIcon size={14} className="mr-2" />
-                      <span className="capitalize">
-                        {booking.shift?.date ? parseLocalDate(booking.shift.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) : 'N/A'}
-                      </span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600 mb-3">
-                      <Clock size={14} className="mr-2" />
-                      <span>{booking.shift?.timeSlot} hs</span>
-                    </div>
-                    {booking.status === 'confirmed' && (
-                      <button onClick={() => handleCancellationRequest(booking.id)} className="w-full py-2 text-center text-red-600 border border-red-200 rounded hover:bg-red-50 text-sm font-medium transition-colors">
-                        Solicitar Baja
-                      </button>
-                    )}
-                  </li>
-                ))}
+                {userBookings.map(booking => {
+                  const role = roles.find(r => r.id === booking.shift?.roleId);
+                  return (
+                    <li key={booking.id} className="bg-white p-4 rounded-lg shadow-sm border border-fs-border">
+                      <div className="flex justify-between mb-2">
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-fs-text">{booking.shift?.role.name}</span>
+                          {role && (
+                            <button onClick={() => setSelectedRole(role)} className="text-fs-blue text-xs font-medium hover:underline mt-0.5">
+                              Ver detalle
+                            </button>
+                          )}
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full h-fit ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                          {booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'}
+                        </span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600 mb-1">
+                        <CalendarIcon size={14} className="mr-2" />
+                        <span className="capitalize">
+                          {booking.shift?.date ? parseLocalDate(booking.shift.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600 mb-3">
+                        <Clock size={14} className="mr-2" />
+                        <span>{booking.shift?.timeSlot} hs</span>
+                      </div>
+                      {booking.status === 'confirmed' && (
+                        <button onClick={() => handleCancellationRequest(booking.id)} className="w-full py-2 text-center text-red-600 border border-red-200 rounded hover:bg-red-50 text-sm font-medium transition-colors">
+                          Solicitar Baja
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <div className="text-center py-12 px-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
@@ -496,38 +506,46 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
             <h3 className="font-serif text-lg text-fs-text mb-4 border-b border-fs-border pb-2">Mis Inscripciones</h3>
             {userBookings.length > 0 ? (
               <ul className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                {userBookings.map(booking => (
-                  <li key={booking.id} className="group p-3 rounded-fs border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-sm hover:border-gray-200 transition-all">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-bold text-fs-text text-sm">{booking.shift?.role.name}</p>
-                        <div className="flex items-center text-xs text-gray-500 mt-1">
-                          <CalendarIcon size={12} className="mr-1" />
-                          {/* Fix: Use parseLocalDate to display correct date */}
-                          <span className="capitalize mr-2">
-                            {booking.shift?.date ? parseLocalDate(booking.shift.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : 'N/A'}
-                          </span>
-                          <Clock size={12} className="mr-1" />
-                          <span>{booking.shift?.timeSlot}</span>
+                {userBookings.map(booking => {
+                  const role = roles.find(r => r.id === booking.shift?.roleId);
+                  return (
+                    <li key={booking.id} className="group p-3 rounded-fs border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-sm hover:border-gray-200 transition-all">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-fs-text text-sm">{booking.shift?.role.name}</p>
+                          {role && (
+                            <button onClick={() => setSelectedRole(role)} className="text-fs-blue text-xs font-medium hover:underline block mb-1">
+                              Ver detalle
+                            </button>
+                          )}
+                          <div className="flex items-center text-xs text-gray-500 mt-1">
+                            <CalendarIcon size={12} className="mr-1" />
+                            {/* Fix: Use parseLocalDate to display correct date */}
+                            <span className="capitalize mr-2">
+                              {booking.shift?.date ? parseLocalDate(booking.shift.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : 'N/A'}
+                            </span>
+                            <Clock size={12} className="mr-1" />
+                            <span>{booking.shift?.timeSlot}</span>
+                          </div>
                         </div>
+                        {booking.status === 'confirmed' && (
+                          <button
+                            onClick={() => handleCancellationRequest(booking.id)}
+                            className="text-xs font-medium text-fs-blue hover:text-red-600 hover:underline px-2 py-1"
+                          >
+                            Baja
+                          </button>
+                        )}
                       </div>
-                      {booking.status === 'confirmed' && (
-                        <button
-                          onClick={() => handleCancellationRequest(booking.id)}
-                          className="text-xs font-medium text-fs-blue hover:text-red-600 hover:underline px-2 py-1"
-                        >
-                          Baja
-                        </button>
-                      )}
-                    </div>
 
-                    {booking.status === 'cancellation_requested' && (
-                      <div className="mt-2 bg-yellow-50 text-yellow-800 text-xs px-2 py-1.5 rounded-fs inline-flex items-center w-full border border-yellow-100">
-                        <AlertTriangle size={12} className="mr-1.5" /> Solicitud pendiente
-                      </div>
-                    )}
-                  </li>
-                ))}
+                      {booking.status === 'cancellation_requested' && (
+                        <div className="mt-2 bg-yellow-50 text-yellow-800 text-xs px-2 py-1.5 rounded-fs inline-flex items-center w-full border border-yellow-100">
+                          <AlertTriangle size={12} className="mr-1.5" /> Solicitud pendiente
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <div className="text-center py-10 px-4 bg-gray-50 rounded-fs border border-dashed border-gray-200">
