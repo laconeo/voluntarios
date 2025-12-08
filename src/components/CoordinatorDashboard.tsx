@@ -312,7 +312,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
 
                                 {/* Mobile View */}
                                 <div className="sm:hidden">
-                                    <div className="bg-gray-100 rounded-xl p-4 mb-3 shadow-sm border border-gray-200 sticky top-16 z-10 backdrop-blur-md bg-opacity-95">
+                                    <div className="bg-gray-100 rounded-xl p-4 mb-3 shadow-sm border border-gray-200 sticky top-0 z-10 backdrop-blur-md bg-opacity-95">
                                         <div className="flex justify-between items-start mb-1">
                                             <div>
                                                 <h3 className="font-bold text-gray-900 flex items-center gap-2">
