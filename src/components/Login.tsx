@@ -7,13 +7,16 @@ import { toast } from 'react-hot-toast';
 interface LoginProps {
   onLogin: (identifier: string, password?: string) => Promise<boolean | 'password_required' | 'register'>;
   onRegister: (newUser: User) => void;
+  onRecoverPassword?: (email: string) => Promise<void>;
   initialDni?: string;
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, initialDni }) => {
   const [identifier, setIdentifier] = useState(initialDni || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
   const [isRegistering, setIsRegistering] = useState(!!initialDni);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [termsContent, setTermsContent] = useState('');
@@ -125,6 +128,69 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
 
   const inputClasses = "w-full px-3 py-2.5 bg-white border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-fs-text placeholder-gray-400 transition-colors";
   const labelClasses = "block text-sm font-semibold text-gray-600 mb-1.5";
+
+  const handleRecoverySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recoveryEmail || !onRecoverPassword) return;
+
+    setLoading(true);
+    try {
+      await onRecoverPassword(recoveryEmail);
+      toast.success("Si el correo existe, recibirás tu contraseña.");
+      setShowRecovery(false);
+      setRecoveryEmail('');
+      setShowPassword(false); // Go back to identifier input
+    } catch (error: any) {
+      toast.error(error.message || "Error al solicitar recuperación.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (showRecovery) {
+    return (
+      <div className="max-w-md mx-auto mt-16 px-4">
+        <div className="bg-white p-10 rounded-lg shadow-card border border-fs-border text-center">
+          <div className="mb-6">
+            <h2 className="text-2xl font-serif text-fs-text mb-2">Recuperar Contraseña</h2>
+            <p className="text-gray-500 text-sm">Ingresa tu correo electrónico para recibir tu contraseña.</p>
+          </div>
+
+          <form onSubmit={handleRecoverySubmit} className="space-y-6">
+            <div>
+              <input
+                type="email"
+                value={recoveryEmail}
+                onChange={(e) => setRecoveryEmail(e.target.value)}
+                placeholder="correo@ejemplo.com"
+                className="w-full px-4 py-3.5 bg-gray-50 border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-xl text-center text-fs-text placeholder-gray-400"
+                required
+                disabled={loading}
+                autoFocus
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full btn-primary shadow-sm hover:shadow-md flex justify-center items-center"
+              disabled={loading}
+            >
+              {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : 'ENVIAR CONTRASEÑA'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowRecovery(false)}
+              className="text-sm text-fs-blue hover:text-fs-blue-hover underline mt-4 block mx-auto"
+              disabled={loading}
+            >
+              Cancelar
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   if (isRegistering) {
     return (
@@ -310,6 +376,15 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
                   autoFocus
                   disabled={loading}
                 />
+              </div>
+              <div className="text-right mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRecovery(true)}
+                  className="text-xs text-fs-blue hover:underline"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
               </div>
             </div>
           )}

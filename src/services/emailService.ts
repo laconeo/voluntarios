@@ -259,5 +259,27 @@ export const emailService = {
             subject,
             htmlContent,
         });
+    },
+
+    // 9. Recuperación de Contraseña (Solicitado por User)
+    sendPasswordRecovery: async (user: User) => {
+        const subject = "Recuperación de Contraseña - Voluntarios";
+        const htmlContent = `
+            <h1>Hola ${user.fullName.split(' ')[0]}</h1>
+            <p>Has solicitado recuperar tu contraseña para acceder al sistema de gestión de voluntarios.</p>
+            <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center;">
+                <p>Tu contraseña actual es:</p>
+                <p style="font-size: 24px; font-weight: bold; letter-spacing: 2px;">${user.password}</p>
+            </div>
+            <p>Te recomendamos eliminar este correo después de iniciar sesión por seguridad.</p>
+            <div style="margin: 20px 0;">
+                 <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir a Iniciar Sesión</a>
+            </div>
+        `;
+        await sendEmail({
+            to: [{ email: user.email, name: user.fullName }],
+            subject,
+            htmlContent
+        });
     }
 };

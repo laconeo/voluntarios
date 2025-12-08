@@ -45,6 +45,26 @@ export const mockApi = {
     return null;
   },
 
+  recoverPassword: async (email: string): Promise<void> => {
+    await delay(1000);
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+    if (!user) {
+      throw new Error("No existe un usuario registrado con ese correo electrónico.");
+    }
+
+    if (!user.password && user.role === 'volunteer') {
+      throw new Error("Los voluntarios no utilizan contraseña, ingresan con su DNI/Email.");
+    }
+
+    if (!user.password) {
+      throw new Error("Este usuario no tiene contraseña configurada.");
+    }
+
+    console.log(`Sending password recovery email to ${user.email}`);
+    await emailService.sendPasswordRecovery(user);
+  },
+
   register: async (newUser: User): Promise<User> => {
     await delay(800);
     const registeredUser = {

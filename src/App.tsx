@@ -16,7 +16,8 @@ const EventPortalWrapper: React.FC<{
   onLogout: () => void,
   onLogin: (id: string, password?: string) => Promise<boolean | 'password_required' | 'register'>,
   onRegister: (u: User) => void
-}> = ({ user, onLogout, onLogin, onRegister }) => {
+  onRecoverPassword: (email: string) => Promise<void>
+}> = ({ user, onLogout, onLogin, onRegister, onRecoverPassword }) => {
   const { eventSlug } = useParams<{ eventSlug: string }>();
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,7 +98,7 @@ const EventPortalWrapper: React.FC<{
   }
 
   if (!user) {
-    return <Login onLogin={onLogin} onRegister={onRegister} />;
+    return <Login onLogin={onLogin} onRegister={onRegister} onRecoverPassword={onRecoverPassword} />;
   }
 
   // If user is admin/superadmin, they might want to see the admin dashboard instead
@@ -148,6 +149,10 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleRecoverPassword = async (email: string) => {
+    await mockApi.recoverPassword(email);
+  };
+
   const handleLogout = () => {
     setCurrentUser(null);
     setCurrentView('portal');
@@ -189,7 +194,7 @@ const AppContent: React.FC = () => {
             {/* Home Route - Lists events or redirects based on role */}
             <Route path="/" element={
               !currentUser ? (
-                <Login onLogin={handleLogin} onRegister={handleRegister} />
+                <Login onLogin={handleLogin} onRegister={handleRegister} onRecoverPassword={handleRecoverPassword} />
               ) : currentUser.role === 'superadmin' || currentUser.role === 'admin' ? (
                 <AdminDashboard user={currentUser} onLogout={handleLogout} />
               ) : currentUser.role === 'coordinator' ? (
@@ -209,6 +214,7 @@ const AppContent: React.FC = () => {
                 onLogout={handleLogout}
                 onLogin={handleLogin}
                 onRegister={handleRegister}
+                onRecoverPassword={handleRecoverPassword}
               />
             } />
           </Routes>
