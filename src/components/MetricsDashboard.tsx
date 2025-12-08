@@ -55,7 +55,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="bg-white p-6 rounded-lg shadow-card border border-fs-border">
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
                 <h2 className="text-2xl font-serif text-fs-text mb-2">{event.nombre}</h2>
                 <p className="text-sm text-fs-meta">
                     Dashboard de métricas y seguimiento de convocatoria
@@ -64,7 +64,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
 
             {/* KPIs Principales */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white p-6 rounded-lg shadow-card border border-fs-border">
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
                     <div className="flex items-center justify-between mb-4">
                         <div className="p-3 bg-primary-100 rounded-lg">
                             <TrendingUp className="text-primary-600" size={24} />
@@ -80,7 +80,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                     <p className="text-xs text-gray-500 mt-1">vacantes ocupadas</p>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg shadow-card border border-fs-border">
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
                     <div className="flex items-center justify-between mb-4">
                         <div className="p-3 bg-blue-100 rounded-lg">
                             <Users className="text-blue-600" size={24} />
@@ -93,7 +93,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                     </p>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg shadow-card border border-fs-border">
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
                     <div className="flex items-center justify-between mb-4">
                         <div className="p-3 bg-green-100 rounded-lg">
                             <Calendar className="text-green-600" size={24} />
@@ -104,7 +104,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                     <p className="text-xs text-gray-500 mt-1">de {metrics.totalVacancies} totales</p>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg shadow-card border border-fs-border">
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
                     <div className="flex items-center justify-between mb-4">
                         <div className="p-3 bg-yellow-100 rounded-lg">
                             <AlertCircle className="text-yellow-600" size={24} />
@@ -126,7 +126,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
 
             {/* Ocupación por Horario y Roles */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-lg shadow-card border border-fs-border">
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
                     <div className="flex items-center gap-2 mb-4">
                         <Clock size={20} className="text-gray-600" />
                         <h3 className="font-serif text-lg text-fs-text">Ocupación por Horario</h3>
@@ -141,8 +141,8 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                                 <div className="w-full bg-gray-200 rounded-full h-3">
                                     <div
                                         className={`h-3 rounded-full transition-all duration-500 ${percentage >= 80 ? 'bg-primary-500' :
-                                                percentage >= 50 ? 'bg-yellow-500' :
-                                                    'bg-blue-500'
+                                            percentage >= 50 ? 'bg-yellow-500' :
+                                                'bg-blue-500'
                                             }`}
                                         style={{ width: `${percentage}%` }}
                                     ></div>
@@ -155,7 +155,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg shadow-card border border-fs-border">
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
                     <div className="flex items-center gap-2 mb-4">
                         <PieChart size={20} className="text-gray-600" />
                         <h3 className="font-serif text-lg text-fs-text">Distribución por Rol</h3>
@@ -181,7 +181,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
             </div>
 
             {/* Ocupación Diaria */}
-            <div className="bg-white p-6 rounded-lg shadow-card border border-fs-border">
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
                 <h3 className="font-serif text-lg text-fs-text mb-6">Ocupación por Día</h3>
                 <div className="space-y-3">
                     {metrics.dailyOccupation.map((day) => {
@@ -215,7 +215,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
 
             {/* Alertas */}
             {(metrics.occupationPercentage < 30 || metrics.pendingCancellations > 5) && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-lg">
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 sm:p-6 rounded-lg">
                     <div className="flex items-start gap-3">
                         <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
                         <div>

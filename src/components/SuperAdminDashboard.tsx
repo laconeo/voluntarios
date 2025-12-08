@@ -69,7 +69,8 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
     };
 
     const copyEventUrl = () => {
-        const url = `${window.location.origin}/${formData.slug}`;
+        const baseUrl = window.location.href.split('#')[0].replace(/\/$/, '');
+        const url = `${baseUrl}/#/${formData.slug}`;
         navigator.clipboard.writeText(url);
         toast.success('URL copiada al portapapeles');
     };
@@ -166,11 +167,8 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                             <button
                                 onClick={() => {
-                                    console.log('Gestionar Usuarios clicked', onViewMetrics);
                                     if (onViewMetrics) {
                                         onViewMetrics('users');
-                                    } else {
-                                        console.error('onViewMetrics is not defined');
                                     }
                                 }}
                                 className="flex items-center justify-center gap-2 bg-white text-primary-600 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg hover:bg-gray-50 shadow-lg font-semibold text-sm sm:text-base"
@@ -190,7 +188,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                 </div>
 
                 {/* Stats Cards */}
-                <div className="max-w-7xl mx-auto px-6 -mt-6">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 -mt-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                         <div className="bg-white rounded-lg shadow-md border-l-4 border-primary-500 p-6">
                             <div className="flex items-center gap-4">
@@ -235,7 +233,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                 </div>
 
                 {/* Filters */}
-                <div className="max-w-7xl mx-auto px-6 mb-8">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-8">
                     <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
                         <div className="flex items-center gap-2 mb-4">
                             <Filter size={20} className="text-gray-600" />
@@ -291,7 +289,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                 </div>
 
                 {/* Event List */}
-                <div className="max-w-7xl mx-auto px-6 pb-12">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
                     {isLoading ? (
                         <div className="text-center py-12">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto"></div>
@@ -424,7 +422,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
     // Crear / Editar view
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="bg-white border-b border-gray-200 px-6 py-6">
+            <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-6">
                 <div className="max-w-3xl mx-auto">
                     <button
                         onClick={() => setVistaActual('listado')}
@@ -442,8 +440,8 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                     </p>
                 </div>
             </div>
-            <div className="max-w-3xl mx-auto px-6 py-8">
-                <div className="bg-white rounded-lg shadow-md border border-gray-200 p-8">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+                <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 sm:p-8">
                     {eventoSeleccionado && (
                         <div className="flex gap-2 sm:gap-4 mb-6 sm:mb-8 border-b border-gray-200 overflow-x-auto">
                             <button
@@ -520,17 +518,17 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                     </div>
                                     {formData.slug && (
                                         <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <div className="flex-1">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                <div className="flex-1 overflow-hidden">
                                                     <p className="text-xs text-blue-600 font-semibold mb-1">URL de acceso público:</p>
                                                     <p className="text-sm text-blue-900 font-mono break-all">
-                                                        {window.location.origin}/{formData.slug}
+                                                        {window.location.href.split('#')[0].replace(/\/$/, '')}/#/{formData.slug}
                                                     </p>
                                                 </div>
                                                 <button
                                                     type="button"
                                                     onClick={copyEventUrl}
-                                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm whitespace-nowrap flex items-center gap-2"
+                                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm whitespace-nowrap flex items-center justify-center gap-2 w-full sm:w-auto"
                                                 >
                                                     <Copy size={16} />
                                                     Copiar

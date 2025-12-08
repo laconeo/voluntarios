@@ -130,8 +130,8 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     }
 
     return (
-        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
-            <div className="flex justify-between items-start mb-6">
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">Voluntarios del Evento</h3>
                     <p className="text-sm text-gray-600">
@@ -141,7 +141,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                 <button
                     onClick={exportToCSV}
                     disabled={filteredVolunteers.length === 0}
-                    className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                 >
                     <Download size={18} />
                     Exportar CSV
@@ -189,8 +189,8 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                 </div>
             </div>
 
-            {/* Volunteers Table */}
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
@@ -275,6 +275,63 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                         })}
                     </tbody>
                 </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="sm:hidden divide-y divide-gray-200">
+                {filteredVolunteers.map((volunteer) => {
+                    const userBookings = bookings.filter(b => b.userId === volunteer.id);
+                    return (
+                        <div key={volunteer.id} className="p-4 bg-white flex flex-col gap-4">
+                            <div className="flex justify-between items-start">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
+                                        <span className="text-primary-700 font-semibold">
+                                            {volunteer.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <div className="font-medium text-gray-900">{volunteer.fullName}</div>
+                                        <div className="text-xs text-gray-500">DNI: {volunteer.dni}</div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleEditUser(volunteer)}
+                                    className="p-2 text-primary-600 bg-primary-50 rounded-lg"
+                                    title="Editar"
+                                >
+                                    <Edit2 size={18} />
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+                                <div>
+                                    <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Rol</div>
+                                    <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(volunteer.role)}`}>
+                                        {getRoleLabel(volunteer.role)}
+                                    </span>
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Estado</div>
+                                    <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${(volunteer.status || 'active') === 'active'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-red-100 text-red-800'
+                                        }`}>
+                                        {(volunteer.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
+                                    </span>
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Turnos</div>
+                                    <div className="font-medium">{userBookings.length} asignados</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Email</div>
+                                    <div className="truncate">{volunteer.email}</div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
 
             {/* Edit User Modal */}

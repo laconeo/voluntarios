@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Filter, Download, Edit2, Ban, CheckCircle, X, Save } from 'lucide-react';
+import { Users, Search, Filter, Download, Edit2, Ban, CheckCircle, X, Save, Upload } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { User, Event, Booking } from '../types';
 import { toast } from 'react-hot-toast';
@@ -143,7 +143,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
-            <div className="bg-white border-b border-gray-200 px-6 py-6">
+            <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-6">
                 <div className="max-w-7xl mx-auto">
                     <button
                         onClick={onBack}
@@ -151,7 +151,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                     >
                         ← Volver al dashboard
                     </button>
-                    <div className="flex justify-between items-start">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
                             <h1 className="text-3xl font-serif font-bold text-gray-900 mb-2">
                                 Gestión de Usuarios
@@ -160,19 +160,28 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                 Administra todos los usuarios del sistema
                             </p>
                         </div>
-                        <button
-                            onClick={exportToCSV}
-                            className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 font-semibold shadow-lg"
-                        >
-                            <Download size={20} />
-                            Exportar CSV
-                        </button>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <button
+                                onClick={() => toast.success('Funcionalidad de importación próximamente')}
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium"
+                            >
+                                <Upload size={16} />
+                                Importar
+                            </button>
+                            <button
+                                onClick={exportToCSV}
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 font-semibold shadow-lg text-sm"
+                            >
+                                <Download size={16} />
+                                Exportar
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Stats */}
-            <div className="max-w-7xl mx-auto px-6 py-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div className="bg-white rounded-lg shadow-md border-l-4 border-blue-500 p-6">
                         <div className="flex items-center gap-4">
@@ -293,92 +302,161 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto"></div>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50 border-b border-gray-200">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Usuario
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Contacto
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Rol
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Estado
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Registro
-                                        </th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Acciones
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {filteredUsers.map((user) => (
-                                        <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center">
-                                                    <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
-                                                        <span className="text-primary-700 font-semibold">
-                                                            {user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                                                        </span>
+                        <>
+                            {/* Desktop Table View */}
+                            <div className="hidden sm:block overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Usuario
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Contacto
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Rol
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Estado
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Registro
+                                            </th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Acciones
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {filteredUsers.map((user) => (
+                                            <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex items-center">
+                                                        <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
+                                                            <span className="text-primary-700 font-semibold">
+                                                                {user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="ml-4">
+                                                            <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
+                                                            <div className="text-sm text-gray-500">DNI: {user.dni}</div>
+                                                        </div>
                                                     </div>
-                                                    <div className="ml-4">
-                                                        <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
-                                                        <div className="text-sm text-gray-500">DNI: {user.dni}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm text-gray-900">{user.email}</div>
+                                                    <div className="text-sm text-gray-500">{user.phone}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(user.role)}`}>
+                                                        {getRoleLabel(user.role)}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${(user.status || 'active') === 'active'
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : 'bg-red-100 text-red-800'
+                                                        }`}>
+                                                        {(user.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : '-'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <div className="flex justify-end gap-2">
+                                                        <button
+                                                            onClick={() => handleEditUser(user)}
+                                                            className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
+                                                            title="Editar usuario"
+                                                        >
+                                                            <Edit2 size={18} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleToggleStatus(user)}
+                                                            className={`p-2 rounded-lg transition-colors ${(user.status || 'active') === 'active'
+                                                                ? 'text-red-600 hover:text-red-900 hover:bg-red-50'
+                                                                : 'text-green-600 hover:text-green-900 hover:bg-green-50'
+                                                                }`}
+                                                            title={(user.status || 'active') === 'active' ? 'Suspender' : 'Activar'}
+                                                        >
+                                                            {(user.status || 'active') === 'active' ? <Ban size={18} /> : <CheckCircle size={18} />}
+                                                        </button>
                                                     </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Mobile Card View */}
+                            <div className="sm:hidden divide-y divide-gray-200">
+                                {filteredUsers.map((user) => (
+                                    <div key={user.id} className="p-4 bg-white flex flex-col gap-4">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
+                                                    <span className="text-primary-700 font-semibold">
+                                                        {user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                                    </span>
                                                 </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm text-gray-900">{user.email}</div>
-                                                <div className="text-sm text-gray-500">{user.phone}</div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(user.role)}`}>
+                                                <div>
+                                                    <div className="font-medium text-gray-900">{user.fullName}</div>
+                                                    <div className="text-xs text-gray-500">DNI: {user.dni}</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => handleEditUser(user)}
+                                                    className="p-2 text-primary-600 bg-primary-50 rounded-lg"
+                                                    title="Editar"
+                                                >
+                                                    <Edit2 size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleToggleStatus(user)}
+                                                    className={`p-2 rounded-lg ${(user.status || 'active') === 'active'
+                                                        ? 'text-red-600 bg-red-50'
+                                                        : 'text-green-600 bg-green-50'
+                                                        }`}
+                                                    title={(user.status || 'active') === 'active' ? 'Suspender' : 'Activar'}
+                                                >
+                                                    {(user.status || 'active') === 'active' ? <Ban size={18} /> : <CheckCircle size={18} />}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+                                            <div>
+                                                <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Rol</div>
+                                                <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(user.role)}`}>
                                                     {getRoleLabel(user.role)}
                                                 </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${(user.status || 'active') === 'active'
+                                            </div>
+                                            <div>
+                                                <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Estado</div>
+                                                <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${(user.status || 'active') === 'active'
                                                     ? 'bg-green-100 text-green-800'
                                                     : 'bg-red-100 text-red-800'
                                                     }`}>
                                                     {(user.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
                                                 </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {user.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : '-'}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div className="flex justify-end gap-2">
-                                                    <button
-                                                        onClick={() => handleEditUser(user)}
-                                                        className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
-                                                        title="Editar usuario"
-                                                    >
-                                                        <Edit2 size={18} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleToggleStatus(user)}
-                                                        className={`p-2 rounded-lg transition-colors ${(user.status || 'active') === 'active'
-                                                            ? 'text-red-600 hover:text-red-900 hover:bg-red-50'
-                                                            : 'text-green-600 hover:text-green-900 hover:bg-green-50'
-                                                            }`}
-                                                        title={(user.status || 'active') === 'active' ? 'Suspender' : 'Activar'}
-                                                    >
-                                                        {(user.status || 'active') === 'active' ? <Ban size={18} /> : <CheckCircle size={18} />}
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Email</div>
+                                                <div className="truncate">{user.email}</div>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Teléfono</div>
+                                                <div>{user.phone}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </div>
             </div>
@@ -533,7 +611,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                     </div>
                 </div>
             )}
-        </div>
+        </div >
     );
 };
 
