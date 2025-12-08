@@ -210,5 +210,38 @@ export const emailService = {
             subject,
             htmlContent,
         });
+    },
+
+    // 7. Agradecimiento por Asistencia
+    sendAttendanceThankYou: async (user: User, eventName: string, roleName: string) => {
+        const subject = "¡Muchas gracias por tu servicio hoy!";
+        const htmlContent = `
+      <h1>¡Gracias ${user.fullName.split(' ')[0]}!</h1>
+      <p>Queremos agradecerte sinceramente por tu tiempo y dedicación en el evento <strong>${eventName}</strong>.</p>
+      <p>Tu servicio como <strong>${roleName}</strong> ha sido fundamental para el éxito de hoy.</p>
+      <p>Esperamos contar contigo nuevamente.</p>
+      <p><em>"Cuando estamos al servicio de nuestros semejantes, solo estamos al servicio de nuestro Dios."</em></p>
+     `;
+        await sendEmail({
+            to: [{ email: user.email, name: user.fullName }],
+            subject,
+            htmlContent,
+        });
+    },
+
+    // 8. Seguimiento de Ausencia
+    sendAbsenceFollowUp: async (user: User, eventName: string, date: string) => {
+        const subject = "Te extrañamos hoy";
+        const htmlContent = `
+      <h1>¡Hola ${user.fullName.split(' ')[0]}!</h1>
+      <p>Notamos que no pudiste asistir a tu turno programado para hoy en <strong>${eventName}</strong>.</p>
+      <p>Esperamos que te encuentres bien y que no sea nada grave. Te echamos de menos en el equipo.</p>
+      <p>Esperamos verte en una próxima oportunidad. ¡Cuidate!</p>
+     `;
+        await sendEmail({
+            to: [{ email: user.email, name: user.fullName }],
+            subject,
+            htmlContent,
+        });
     }
 };

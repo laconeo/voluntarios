@@ -516,6 +516,24 @@ export const mockApi = {
     const booking = bookings.find(b => b.id === bookingId);
     if (!booking) throw new Error('Inscripción no encontrada');
     booking.attendance = attendance;
+
+    // Send emails based on attendance
+    if (attendance !== 'pending') {
+      const user = users.find(u => u.id === booking.userId);
+      const shift = shifts.find(s => s.id === booking.shiftId);
+      const event = events.find(e => e.id === booking.eventId);
+      const role = roles.find(r => r.id === shift?.roleId);
+
+      if (user && event && shift && role) {
+        if (attendance === 'attended') {
+          console.log(`Sending Thank You email to ${user.email}`);
+          emailService.sendAttendanceThankYou(user, event.nombre, role.name).catch(console.error);
+        } else if (attendance === 'absent') {
+          console.log(`Sending Absence Follow-up email to ${user.email}`);
+          emailService.sendAbsenceFollowUp(user, event.nombre, shift.date).catch(console.error);
+        }
+      }
+    }
   },
 
   // ==================== ADMIN FUNCTIONS ====================
