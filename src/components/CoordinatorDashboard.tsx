@@ -260,46 +260,53 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                         </div>
 
                                         {/* Mobile Card View */}
-                                        <div className="sm:hidden divide-y divide-gray-200">
+                                        <div className="sm:hidden space-y-4">
                                             {shiftBookings.map(booking => (
-                                                <div key={booking.id} className="p-4 bg-white flex flex-col gap-3">
+                                                <div key={booking.id} className="p-4 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col gap-4">
                                                     <div className="flex justify-between items-start">
-                                                        <div>
-                                                            <div className="font-medium text-gray-900">{booking.user?.fullName}</div>
-                                                            <div className="text-sm text-gray-500">DNI: {booking.user?.dni}</div>
-                                                        </div>
-                                                        <div className="flex gap-1">
-                                                            <button
-                                                                onClick={() => handleAttendanceChange(booking.id, 'attended')}
-                                                                className={`p-2 rounded-full transition-colors ${booking.attendance === 'attended'
-                                                                    ? 'bg-green-100 text-green-600 ring-2 ring-green-500'
-                                                                    : 'text-gray-400 hover:bg-green-50 hover:text-green-500'
-                                                                    }`}
-                                                                title="Presente"
-                                                            >
-                                                                <CheckCircle size={24} />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleAttendanceChange(booking.id, 'absent')}
-                                                                className={`p-2 rounded-full transition-colors ${booking.attendance === 'absent'
-                                                                    ? 'bg-red-100 text-red-600 ring-2 ring-red-500'
-                                                                    : 'text-gray-400 hover:bg-red-50 hover:text-red-500'
-                                                                    }`}
-                                                                title="Ausente"
-                                                            >
-                                                                <XCircle size={24} />
-                                                            </button>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-lg">
+                                                                {booking.user?.fullName.charAt(0)}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-semibold text-gray-900 text-lg">{booking.user?.fullName}</div>
+                                                                <div className="text-sm text-gray-500 font-mono">DNI: {booking.user?.dni}</div>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                    <div className="text-sm text-gray-600 flex flex-col gap-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-semibold text-gray-500 uppercase w-16">Email:</span>
-                                                            <span className="truncate">{booking.user?.email}</span>
+
+                                                    <div className="grid grid-cols-1 gap-2 bg-gray-50 p-3 rounded-md">
+                                                        <div className="flex items-center gap-2 text-sm text-gray-700">
+                                                            <span className="font-semibold w-16 text-gray-500 uppercase text-xs">Email:</span>
+                                                            <span className="truncate flex-1">{booking.user?.email}</span>
                                                         </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-semibold text-gray-500 uppercase w-16">Tel:</span>
-                                                            <span>{booking.user?.phone}</span>
+                                                        <div className="flex items-center gap-2 text-sm text-gray-700">
+                                                            <span className="font-semibold w-16 text-gray-500 uppercase text-xs">Tel:</span>
+                                                            <span className="flex-1">{booking.user?.phone}</span>
                                                         </div>
+                                                    </div>
+
+                                                    <div className="flex gap-2 pt-2 border-t border-gray-100">
+                                                        <button
+                                                            onClick={() => handleAttendanceChange(booking.id, 'attended')}
+                                                            className={`flex-1 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${booking.attendance === 'attended'
+                                                                ? 'bg-green-100 text-green-700 ring-1 ring-green-600'
+                                                                : 'bg-white border border-gray-200 text-gray-600 hover:bg-green-50 hover:text-green-600'
+                                                                }`}
+                                                        >
+                                                            <CheckCircle size={18} />
+                                                            Presente
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleAttendanceChange(booking.id, 'absent')}
+                                                            className={`flex-1 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${booking.attendance === 'absent'
+                                                                ? 'bg-red-100 text-red-700 ring-1 ring-red-600'
+                                                                : 'bg-white border border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600'
+                                                                }`}
+                                                        >
+                                                            <XCircle size={18} />
+                                                            Ausente
+                                                        </button>
                                                     </div>
                                                 </div>
                                             ))}

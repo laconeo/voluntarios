@@ -160,7 +160,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                 Administra todos los usuarios del sistema
                             </p>
                         </div>
-                        <div className="flex gap-2 w-full sm:w-auto">
+                        <div className="flex gap-2 w-full sm:w-auto hidden sm:flex">
                             <button
                                 onClick={() => toast.success('Funcionalidad de importación próximamente')}
                                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium"
@@ -178,441 +178,459 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Stats */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div className="bg-white rounded-lg shadow-md border-l-4 border-blue-500 p-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-blue-100 rounded-lg">
-                                <Users className="text-blue-600" size={28} />
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-600 mb-1">Total Usuarios</p>
-                                <p className="text-3xl font-bold text-gray-900">{users.length}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white rounded-lg shadow-md border-l-4 border-green-500 p-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-green-100 rounded-lg">
-                                <CheckCircle className="text-green-600" size={28} />
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-600 mb-1">Activos</p>
-                                <p className="text-3xl font-bold text-gray-900">
-                                    {users.filter(u => (u.status || 'active') === 'active').length}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white rounded-lg shadow-md border-l-4 border-purple-500 p-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-purple-100 rounded-lg">
-                                <Users className="text-purple-600" size={28} />
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-600 mb-1">Administradores</p>
-                                <p className="text-3xl font-bold text-gray-900">
-                                    {users.filter(u => u.role === 'admin' || u.role === 'superadmin').length}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white rounded-lg shadow-md border-l-4 border-gray-500 p-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-gray-100 rounded-lg">
-                                <Users className="text-gray-600" size={28} />
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-600 mb-1">Voluntarios</p>
-                                <p className="text-3xl font-bold text-gray-900">
-                                    {users.filter(u => u.role === 'volunteer').length}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                {/* Mobile Bottom Action Bar */}
+                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 sm:hidden z-50 flex gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                    <button
+                        onClick={() => toast.success('Funcionalidad de importación próximamente')}
+                        className="flex-1 flex flex-col items-center justify-center gap-1 bg-gray-50 text-gray-700 py-2 rounded-lg border border-gray-200 active:bg-gray-100"
+                    >
+                        <Upload size={20} />
+                        <span className="text-xs font-semibold">Importar</span>
+                    </button>
+                    <button
+                        onClick={exportToCSV}
+                        className="flex-1 flex flex-col items-center justify-center gap-1 bg-primary-600 text-white py-2 rounded-lg active:bg-primary-700 shadow-md"
+                    >
+                        <Download size={20} />
+                        <span className="text-xs font-semibold">Exportar CSV</span>
+                    </button>
                 </div>
 
-                {/* Filtros */}
-                <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Filter size={20} className="text-gray-600" />
-                        <h3 className="font-semibold text-gray-900">Filtros y Búsqueda</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Buscar usuario
-                            </label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-                                <input
-                                    type="text"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    placeholder="Nombre, DNI o email..."
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                />
+                {/* Stats */}
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-24">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                        {/* ... stats content same as before ... */}
+                        <div className="bg-white rounded-lg shadow-md border-l-4 border-blue-500 p-6">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-blue-100 rounded-lg">
+                                    <Users className="text-blue-600" size={28} />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600 mb-1">Total Usuarios</p>
+                                    <p className="text-3xl font-bold text-gray-900">{users.length}</p>
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Rol
-                            </label>
-                            <select
-                                value={filterRole}
-                                onChange={(e) => setFilterRole(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
-                            >
-                                <option value="todos">Todos los roles</option>
-                                <option value="superadmin">Super Admin</option>
-                                <option value="admin">Administrador</option>
-                                <option value="coordinator">Coordinador</option>
-                                <option value="volunteer">Voluntario</option>
-                            </select>
+                        <div className="bg-white rounded-lg shadow-md border-l-4 border-green-500 p-6">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-green-100 rounded-lg">
+                                    <CheckCircle className="text-green-600" size={28} />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600 mb-1">Activos</p>
+                                    <p className="text-3xl font-bold text-gray-900">
+                                        {users.filter(u => (u.status || 'active') === 'active').length}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Estado
-                            </label>
-                            <select
-                                value={filterStatus}
-                                onChange={(e) => setFilterStatus(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
-                            >
-                                <option value="todos">Todos</option>
-                                <option value="active">Activos</option>
-                                <option value="suspended">Suspendidos</option>
-                            </select>
+                        <div className="bg-white rounded-lg shadow-md border-l-4 border-purple-500 p-6">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-purple-100 rounded-lg">
+                                    <Users className="text-purple-600" size={28} />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600 mb-1">Administradores</p>
+                                    <p className="text-3xl font-bold text-gray-900">
+                                        {users.filter(u => u.role === 'admin' || u.role === 'superadmin').length}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-lg shadow-md border-l-4 border-gray-500 p-6">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-gray-100 rounded-lg">
+                                    <Users className="text-gray-600" size={28} />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600 mb-1">Voluntarios</p>
+                                    <p className="text-3xl font-bold text-gray-900">
+                                        {users.filter(u => u.role === 'volunteer').length}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                        <p className="text-sm text-gray-600">
-                            Mostrando <span className="font-semibold text-gray-900">{filteredUsers.length}</span> de {users.length} usuarios
-                        </p>
-                    </div>
-                </div>
 
-                {/* Tabla de usuarios */}
-                <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
-                    {isLoading ? (
-                        <div className="text-center py-12">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto"></div>
+                    {/* Filtros */}
+                    <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Filter size={20} className="text-gray-600" />
+                            <h3 className="font-semibold text-gray-900">Filtros y Búsqueda</h3>
                         </div>
-                    ) : (
-                        <>
-                            {/* Desktop Table View */}
-                            <div className="hidden sm:block overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Usuario
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Contacto
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Rol
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Estado
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Registro
-                                            </th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Acciones
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {filteredUsers.map((user) => (
-                                            <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center">
-                                                        <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
-                                                            <span className="text-primary-700 font-semibold">
-                                                                {user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                                                            </span>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Buscar usuario
+                                </label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+                                    <input
+                                        type="text"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        placeholder="Nombre, DNI o email..."
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Rol
+                                </label>
+                                <select
+                                    value={filterRole}
+                                    onChange={(e) => setFilterRole(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+                                >
+                                    <option value="todos">Todos los roles</option>
+                                    <option value="superadmin">Super Admin</option>
+                                    <option value="admin">Administrador</option>
+                                    <option value="coordinator">Coordinador</option>
+                                    <option value="volunteer">Voluntario</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Estado
+                                </label>
+                                <select
+                                    value={filterStatus}
+                                    onChange={(e) => setFilterStatus(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+                                >
+                                    <option value="todos">Todos</option>
+                                    <option value="active">Activos</option>
+                                    <option value="suspended">Suspendidos</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <p className="text-sm text-gray-600">
+                                Mostrando <span className="font-semibold text-gray-900">{filteredUsers.length}</span> de {users.length} usuarios
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Tabla de usuarios */}
+                    <div className="bg-transparent sm:bg-white sm:rounded-lg sm:shadow-md sm:border sm:border-gray-200 overflow-hidden">
+                        {isLoading ? (
+                            <div className="text-center py-12">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto"></div>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Desktop Table View */}
+                                <div className="hidden sm:block overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50 border-b border-gray-200">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Usuario
+                                                </th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Contacto
+                                                </th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Rol
+                                                </th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Estado
+                                                </th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Registro
+                                                </th>
+                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Acciones
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {filteredUsers.map((user) => (
+                                                <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center">
+                                                            <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
+                                                                <span className="text-primary-700 font-semibold">
+                                                                    {user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                                                </span>
+                                                            </div>
+                                                            <div className="ml-4">
+                                                                <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
+                                                                <div className="text-sm text-gray-500">DNI: {user.dni}</div>
+                                                            </div>
                                                         </div>
-                                                        <div className="ml-4">
-                                                            <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
-                                                            <div className="text-sm text-gray-500">DNI: {user.dni}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm text-gray-900">{user.email}</div>
+                                                        <div className="text-sm text-gray-500">{user.phone}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(user.role)}`}>
+                                                            {getRoleLabel(user.role)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${(user.status || 'active') === 'active'
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-red-100 text-red-800'
+                                                            }`}>
+                                                            {(user.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : '-'}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        <div className="flex justify-end gap-2">
+                                                            <button
+                                                                onClick={() => handleEditUser(user)}
+                                                                className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
+                                                                title="Editar usuario"
+                                                            >
+                                                                <Edit2 size={18} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleToggleStatus(user)}
+                                                                className={`p-2 rounded-lg transition-colors ${(user.status || 'active') === 'active'
+                                                                    ? 'text-red-600 hover:text-red-900 hover:bg-red-50'
+                                                                    : 'text-green-600 hover:text-green-900 hover:bg-green-50'
+                                                                    }`}
+                                                                title={(user.status || 'active') === 'active' ? 'Suspender' : 'Activar'}
+                                                            >
+                                                                {(user.status || 'active') === 'active' ? <Ban size={18} /> : <CheckCircle size={18} />}
+                                                            </button>
                                                         </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Mobile Card View */}
+                                <div className="sm:hidden space-y-4">
+                                    {filteredUsers.map((user) => (
+                                        <div key={user.id} className="p-4 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col gap-4">
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
+                                                        <span className="text-primary-700 font-semibold">
+                                                            {user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                                        </span>
                                                     </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm text-gray-900">{user.email}</div>
-                                                    <div className="text-sm text-gray-500">{user.phone}</div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(user.role)}`}>
+                                                    <div>
+                                                        <div className="font-semibold text-gray-900 text-lg">{user.fullName}</div>
+                                                        <div className="text-sm text-gray-500">DNI: {user.dni}</div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <button
+                                                        onClick={() => handleEditUser(user)}
+                                                        className="p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100"
+                                                        title="Editar"
+                                                    >
+                                                        <Edit2 size={20} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleToggleStatus(user)}
+                                                        className={`p-2 rounded-lg ${(user.status || 'active') === 'active'
+                                                            ? 'text-red-600 bg-red-50'
+                                                            : 'text-green-600 bg-green-50'
+                                                            }`}
+                                                        title={(user.status || 'active') === 'active' ? 'Suspender' : 'Activar'}
+                                                    >
+                                                        {(user.status || 'active') === 'active' ? <Ban size={20} /> : <CheckCircle size={20} />}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm bg-gray-50 p-3 rounded-md">
+                                                <div>
+                                                    <div className="text-xs text-gray-500 uppercase font-bold mb-1">Rol</div>
+                                                    <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(user.role)}`}>
                                                         {getRoleLabel(user.role)}
                                                     </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${(user.status || 'active') === 'active'
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs text-gray-500 uppercase font-bold mb-1">Estado</div>
+                                                    <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${(user.status || 'active') === 'active'
                                                         ? 'bg-green-100 text-green-800'
                                                         : 'bg-red-100 text-red-800'
                                                         }`}>
                                                         {(user.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
                                                     </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : '-'}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    <div className="flex justify-end gap-2">
-                                                        <button
-                                                            onClick={() => handleEditUser(user)}
-                                                            className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
-                                                            title="Editar usuario"
-                                                        >
-                                                            <Edit2 size={18} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleToggleStatus(user)}
-                                                            className={`p-2 rounded-lg transition-colors ${(user.status || 'active') === 'active'
-                                                                ? 'text-red-600 hover:text-red-900 hover:bg-red-50'
-                                                                : 'text-green-600 hover:text-green-900 hover:bg-green-50'
-                                                                }`}
-                                                            title={(user.status || 'active') === 'active' ? 'Suspender' : 'Activar'}
-                                                        >
-                                                            {(user.status || 'active') === 'active' ? <Ban size={18} /> : <CheckCircle size={18} />}
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Mobile Card View */}
-                            <div className="sm:hidden divide-y divide-gray-200">
-                                {filteredUsers.map((user) => (
-                                    <div key={user.id} className="p-4 bg-white flex flex-col gap-4">
-                                        <div className="flex justify-between items-start">
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
-                                                    <span className="text-primary-700 font-semibold">
-                                                        {user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                                                    </span>
                                                 </div>
-                                                <div>
-                                                    <div className="font-medium text-gray-900">{user.fullName}</div>
-                                                    <div className="text-xs text-gray-500">DNI: {user.dni}</div>
+                                                <div className="col-span-2">
+                                                    <div className="text-xs text-gray-500 uppercase font-bold mb-1">Email</div>
+                                                    <div className="truncate font-medium text-gray-700">{user.email}</div>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <div className="text-xs text-gray-500 uppercase font-bold mb-1">Teléfono</div>
+                                                    <div className="font-medium text-gray-700">{user.phone}</div>
                                                 </div>
                                             </div>
-                                            <div className="flex gap-1">
-                                                <button
-                                                    onClick={() => handleEditUser(user)}
-                                                    className="p-2 text-primary-600 bg-primary-50 rounded-lg"
-                                                    title="Editar"
-                                                >
-                                                    <Edit2 size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleToggleStatus(user)}
-                                                    className={`p-2 rounded-lg ${(user.status || 'active') === 'active'
-                                                        ? 'text-red-600 bg-red-50'
-                                                        : 'text-green-600 bg-green-50'
-                                                        }`}
-                                                    title={(user.status || 'active') === 'active' ? 'Suspender' : 'Activar'}
-                                                >
-                                                    {(user.status || 'active') === 'active' ? <Ban size={18} /> : <CheckCircle size={18} />}
-                                                </button>
-                                            </div>
                                         </div>
-
-                                        <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
-                                            <div>
-                                                <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Rol</div>
-                                                <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(user.role)}`}>
-                                                    {getRoleLabel(user.role)}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Estado</div>
-                                                <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${(user.status || 'active') === 'active'
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : 'bg-red-100 text-red-800'
-                                                    }`}>
-                                                    {(user.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
-                                                </span>
-                                            </div>
-                                            <div className="col-span-2">
-                                                <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Email</div>
-                                                <div className="truncate">{user.email}</div>
-                                            </div>
-                                            <div className="col-span-2">
-                                                <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Teléfono</div>
-                                                <div>{user.phone}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </>
-                    )}
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
-            </div>
 
-            {/* Modal de Edición */}
-            {showEditModal && editingUser && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-start mb-6">
-                            <h3 className="text-2xl font-serif font-bold text-gray-900">
-                                Editar Usuario
-                            </h3>
-                            <button
-                                onClick={() => setShowEditModal(false)}
-                                className="text-gray-400 hover:text-gray-600"
-                            >
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Nombre Completo
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={editingUser.fullName}
-                                        onChange={(e) => setEditingUser({ ...editingUser, fullName: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        DNI
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={editingUser.dni}
-                                        onChange={(e) => setEditingUser({ ...editingUser, dni: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Email
-                                    </label>
-                                    <input
-                                        type="email"
-                                        value={editingUser.email}
-                                        onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Teléfono
-                                    </label>
-                                    <input
-                                        type="tel"
-                                        value={editingUser.phone}
-                                        onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Rol
-                                    </label>
-                                    <select
-                                        value={editingUser.role}
-                                        onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as any })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    >
-                                        <option value="volunteer">Voluntario</option>
-                                        <option value="coordinator">Coordinador</option>
-                                        {(currentUser.role === 'superadmin' || currentUser.role === 'admin') && (
-                                            // Admin can only see 'admin' if they are superadmin, wait.
-                                            // Requirement: "solo el super admin puede generar administradores"
-                                            // So Admin should NOT be able to select 'admin' or 'superadmin'
-                                            currentUser.role === 'superadmin' && (
-                                                <>
-                                                    <option value="admin">Administrador</option>
-                                                    <option value="superadmin">Super Admin</option>
-                                                </>
-                                            )
-                                        )}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Nueva Contraseña {currentUser.role === 'admin' && editingUser.role === 'admin' && '(No permitido)'}
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={newPassword}
-                                        onChange={(e) => setNewPassword(e.target.value)}
-                                        placeholder="Dejar en blanco para mantener actual"
-                                        disabled={currentUser.role === 'admin' && (editingUser.role === 'admin' || editingUser.role === 'superadmin')}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                            Estado
-                                        </label>
-                                        <select
-                                            value={editingUser.status || 'active'}
-                                            onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value as any })}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                        >
-                                            <option value="active">Activo</option>
-                                            <option value="suspended">Suspendido</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                                    <p className="text-sm text-yellow-700">
-                                        <strong>Nota:</strong> Los cambios en el rol afectarán los permisos del usuario en el sistema.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 mt-6">
+                {/* Modal de Edición */}
+                {showEditModal && editingUser && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                            <div className="flex justify-between items-start mb-6">
+                                <h3 className="text-2xl font-serif font-bold text-gray-900">
+                                    Editar Usuario
+                                </h3>
                                 <button
                                     onClick={() => setShowEditModal(false)}
-                                    className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                                    className="text-gray-400 hover:text-gray-600"
                                 >
-                                    Cancelar
+                                    <X size={24} />
                                 </button>
-                                <button
-                                    onClick={handleSaveUser}
-                                    className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium flex items-center justify-center gap-2"
-                                >
-                                    <Save size={18} />
-                                    Guardar Cambios
-                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Nombre Completo
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={editingUser.fullName}
+                                            onChange={(e) => setEditingUser({ ...editingUser, fullName: e.target.value })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            DNI
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={editingUser.dni}
+                                            onChange={(e) => setEditingUser({ ...editingUser, dni: e.target.value })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Email
+                                        </label>
+                                        <input
+                                            type="email"
+                                            value={editingUser.email}
+                                            onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Teléfono
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            value={editingUser.phone}
+                                            onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Rol
+                                        </label>
+                                        <select
+                                            value={editingUser.role}
+                                            onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value as any })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        >
+                                            <option value="volunteer">Voluntario</option>
+                                            <option value="coordinator">Coordinador</option>
+                                            {(currentUser.role === 'superadmin' || currentUser.role === 'admin') && (
+                                                // Admin can only see 'admin' if they are superadmin, wait.
+                                                // Requirement: "solo el super admin puede generar administradores"
+                                                // So Admin should NOT be able to select 'admin' or 'superadmin'
+                                                currentUser.role === 'superadmin' && (
+                                                    <>
+                                                        <option value="admin">Administrador</option>
+                                                        <option value="superadmin">Super Admin</option>
+                                                    </>
+                                                )
+                                            )}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Nueva Contraseña {currentUser.role === 'admin' && editingUser.role === 'admin' && '(No permitido)'}
+                                        </label>
+                                        <input
+                                            type="password"
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                            placeholder="Dejar en blanco para mantener actual"
+                                            disabled={currentUser.role === 'admin' && (editingUser.role === 'admin' || editingUser.role === 'superadmin')}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                Estado
+                                            </label>
+                                            <select
+                                                value={editingUser.status || 'active'}
+                                                onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value as any })}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                            >
+                                                <option value="active">Activo</option>
+                                                <option value="suspended">Suspendido</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                                        <p className="text-sm text-yellow-700">
+                                            <strong>Nota:</strong> Los cambios en el rol afectarán los permisos del usuario en el sistema.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3 mt-6">
+                                    <button
+                                        onClick={() => setShowEditModal(false)}
+                                        className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleSaveUser}
+                                        className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium flex items-center justify-center gap-2"
+                                    >
+                                        <Save size={18} />
+                                        Guardar Cambios
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div >
-    );
+                )}
+            </div >
+            );
 };
 
-export default UserManagement;
+            export default UserManagement;

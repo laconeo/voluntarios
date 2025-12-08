@@ -158,13 +158,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         return (
             <div className="min-h-screen bg-gray-50">
                 {/* Header */}
-                <div className="bg-primary-500 text-white px-4 sm:px-6 py-6 sm:py-8">
+                <div className="bg-primary-500 text-white px-4 sm:px-6 py-6 sm:py-9">
                     <div className="max-w-7xl mx-auto">
-                        <div className="mb-4 sm:mb-6">
+                        <div className="mb-0 sm:mb-6">
                             <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif mb-2 sm:mb-3">Gestión de eventos</h1>
                             <p className="text-sm sm:text-base md:text-lg opacity-90">Administra eventos de voluntariado multi-organización</p>
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                        <div className="hidden sm:flex flex-col sm:flex-row gap-2 sm:gap-3">
                             <button
                                 onClick={() => {
                                     if (onViewMetrics) {
@@ -185,6 +185,28 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                             </button>
                         </div>
                     </div>
+                </div>
+
+                {/* Mobile Bottom Navigation Bar */}
+                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 sm:hidden z-50 flex gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                    <button
+                        onClick={() => {
+                            if (onViewMetrics) {
+                                onViewMetrics('users');
+                            }
+                        }}
+                        className="flex-1 flex flex-col items-center justify-center gap-1 bg-gray-50 text-gray-700 py-2 rounded-lg border border-gray-200 active:bg-gray-100"
+                    >
+                        <Users size={20} />
+                        <span className="text-xs font-semibold">Usuarios</span>
+                    </button>
+                    <button
+                        onClick={iniciarCrearEvento}
+                        className="flex-[2] flex items-center justify-center gap-2 bg-primary-600 text-white py-2 rounded-lg active:bg-primary-700 shadow-md"
+                    >
+                        <Plus size={20} />
+                        <span className="font-semibold">Crear Evento</span>
+                    </button>
                 </div>
 
                 {/* Stats Cards */}
@@ -289,7 +311,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                 </div>
 
                 {/* Event List */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-32">
                     {isLoading ? (
                         <div className="text-center py-12">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto"></div>
@@ -422,7 +444,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
     // Crear / Editar view
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-6">
+            <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-6 sticky top-0 z-40 shadow-sm">
                 <div className="max-w-3xl mx-auto">
                     <button
                         onClick={() => setVistaActual('listado')}
@@ -430,18 +452,18 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                     >
                         ← Volver al listado
                     </button>
-                    <h1 className="text-3xl font-serif font-bold text-gray-900 mb-2">
+                    <h1 className="text-2xl sm:text-3xl font-serif font-bold text-gray-900 mb-2">
                         {vistaActual === 'crear' ? 'Crear nuevo evento' : 'Editar evento'}
                     </h1>
-                    <p className="text-gray-600">
+                    <p className="text-gray-600 text-sm sm:text-base">
                         {vistaActual === 'crear'
                             ? 'Completa la información del nuevo evento de voluntariado'
                             : 'Modifica los datos del evento existente'}
                     </p>
                 </div>
             </div>
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-                <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 sm:p-8">
+            <div className="max-w-3xl mx-auto px-0 sm:px-6 py-0 sm:py-8 pb-32">
+                <div className="bg-white rounded-none sm:rounded-lg shadow-none sm:shadow-md border-x-0 sm:border border-gray-200 p-4 sm:p-8">
                     {eventoSeleccionado && (
                         <div className="flex gap-2 sm:gap-4 mb-6 sm:mb-8 border-b border-gray-200 overflow-x-auto">
                             <button
