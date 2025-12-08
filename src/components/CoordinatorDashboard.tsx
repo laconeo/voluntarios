@@ -130,6 +130,26 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
         );
     });
 
+    // Group shifts by date and time
+    const groupedShifts = filteredShifts.reduce((acc, shift) => {
+        const key = `${shift.date}-${shift.timeSlot}`;
+        if (!acc[key]) {
+            acc[key] = {
+                date: shift.date,
+                timeSlot: shift.timeSlot,
+                shifts: []
+            };
+        }
+        acc[key].shifts.push(shift);
+        return acc;
+    }, {} as Record<string, { date: string, timeSlot: string, shifts: Shift[] }>);
+
+    const sortedGroups = Object.values(groupedShifts).sort((a, b) => {
+        const dateCompare = a.date.localeCompare(b.date);
+        if (dateCompare !== 0) return dateCompare;
+        return a.timeSlot.localeCompare(b.timeSlot);
+    });
+
     if (isLoading) return <div className="p-8 text-center">Cargando...</div>;
 
     return (
@@ -181,52 +201,68 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 </div>
 
                 <div className="space-y-6">
-                    {filteredShifts.map(shift => {
-                        const shiftBookings = bookings.filter(b => b.shiftId === shift.id && b.status === 'confirmed');
-                        if (shiftBookings.length === 0 && searchTerm) return null; // Hide empty shifts when searching
+                    {sortedGroups.map(group => {
+                        // Gather all bookings for this time slot (across all roles)
+                        const groupBookings = group.shifts.flatMap(s =>
+                            bookings
+                                .filter(b => b.shiftId === s.id && b.status === 'confirmed')
+                                .map(b => ({ ...b, roleName: getRoleName(s.roleId) }))
+                        );
 
-                        const roleName = getRoleName(shift.roleId);
-                        const dateStr = new Date(shift.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
+                        // If searching, filter bookings
+                        const displayBookings = searchTerm
+                            ? groupBookings.filter(b =>
+                                b.user?.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                b.user?.dni.includes(searchTerm)
+                            )
+                            : groupBookings;
+
+                        if (displayBookings.length === 0 && searchTerm) return null;
+
+                        const dateStr = new Date(group.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
 
                         return (
-                            <div key={shift.id} className="mb-6 last:mb-0">
+                            <div key={`${group.date}-${group.timeSlot}`} className="mb-6 last:mb-0">
                                 {/* Desktop View */}
                                 <div className="hidden sm:block bg-white shadow rounded-lg overflow-hidden border border-gray-200">
                                     <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
                                         <div className="flex items-center gap-4">
                                             <div className="flex items-center text-gray-700 font-medium">
                                                 <Calendar size={18} className="mr-2 text-primary-500" />
-                                                {new Date(shift.date).toLocaleDateString()}
+                                                {new Date(group.date).toLocaleDateString()}
                                             </div>
                                             <div className="flex items-center text-gray-700 font-medium">
                                                 <Clock size={18} className="mr-2 text-primary-500" />
-                                                {shift.timeSlot}
+                                                {group.timeSlot}
                                             </div>
-                                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
-                                                {roleName}
-                                            </span>
                                         </div>
                                         <span className="text-sm text-gray-500">
-                                            {shiftBookings.length} voluntarios confirmados
+                                            {displayBookings.length} voluntarios confirmados
                                         </span>
                                     </div>
 
-                                    {shiftBookings.length > 0 ? (
+                                    {displayBookings.length > 0 ? (
                                         <div className="overflow-x-auto">
                                             <table className="min-w-full divide-y divide-gray-200">
                                                 <thead className="bg-gray-50">
                                                     <tr>
                                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Voluntario</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
                                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
                                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asistencia</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="bg-white divide-y divide-gray-200">
-                                                    {shiftBookings.map(booking => (
+                                                    {displayBookings.map(booking => (
                                                         <tr key={booking.id}>
                                                             <td className="px-6 py-4 whitespace-nowrap">
                                                                 <div className="text-sm font-medium text-gray-900">{booking.user?.fullName}</div>
                                                                 <div className="text-sm text-gray-500">DNI: {booking.user?.dni}</div>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                                    {booking.roleName}
+                                                                </span>
                                                             </td>
                                                             <td className="px-6 py-4 whitespace-nowrap">
                                                                 <div className="text-sm text-gray-900">{booking.user?.email}</div>
@@ -263,7 +299,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                         </div>
                                     ) : (
                                         <div className="p-4 text-center text-gray-500 text-sm">
-                                            No hay voluntarios confirmados para este turno.
+                                            No hay voluntarios confirmados para este horario.
                                         </div>
                                     )}
                                 </div>
@@ -275,30 +311,29 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                             <div>
                                                 <h3 className="font-bold text-gray-900 flex items-center gap-2">
                                                     <Clock size={16} className="text-primary-600" />
-                                                    {shift.timeSlot}
+                                                    {group.timeSlot}
                                                 </h3>
                                                 <p className="text-sm text-gray-600 capitalize">{dateStr}</p>
                                             </div>
                                             <div className="text-right">
-                                                <span className="inline-block px-2 py-0.5 bg-white text-primary-700 text-xs font-bold rounded border border-primary-100 shadow-sm mb-1">
-                                                    {roleName}
-                                                </span>
                                                 <p className="text-xs text-gray-500 font-medium">
-                                                    {shiftBookings.length} Voluntarios
+                                                    {displayBookings.length} Voluntarios
                                                 </p>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div className="space-y-3 pl-2">
-                                        {shiftBookings.length > 0 ? (
-                                            shiftBookings.map(booking => (
+                                        {displayBookings.length > 0 ? (
+                                            displayBookings.map(booking => (
                                                 <div key={booking.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 relative overflow-hidden">
                                                     <div className={`absolute left-0 top-0 bottom-0 w-1 ${booking.attendance === 'attended' ? 'bg-green-500' : booking.attendance === 'absent' ? 'bg-red-500' : 'bg-gray-200'}`}></div>
                                                     <div className="flex justify-between items-start pl-2 mb-3">
                                                         <div>
                                                             <div className="font-bold text-gray-900">{booking.user?.fullName}</div>
-                                                            <div className="text-xs text-gray-500 font-mono mt-0.5">DNI: {booking.user?.dni}</div>
+                                                            <span className="inline-block mt-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded border border-blue-100">
+                                                                {booking.roleName}
+                                                            </span>
                                                         </div>
                                                         <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-sm">
                                                             {booking.user?.fullName.charAt(0)}
@@ -306,6 +341,10 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                     </div>
 
                                                     <div className="pl-2 grid grid-cols-1 gap-1 mb-4">
+                                                        <div className="text-sm text-gray-600 flex items-center gap-2">
+                                                            <span className="text-xs font-semibold text-gray-400 uppercase w-12">DNI:</span>
+                                                            <span className="font-mono">{booking.user?.dni}</span>
+                                                        </div>
                                                         <div className="text-sm text-gray-600 flex items-center gap-2">
                                                             <span className="text-xs font-semibold text-gray-400 uppercase w-12">Email:</span>
                                                             <span className="truncate">{booking.user?.email}</span>
@@ -351,21 +390,18 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                         );
                     })}
 
-                    {filteredShifts.length === 0 && !searchTerm && (
+                    {sortedGroups.length === 0 && !searchTerm && (
                         <div className="text-center py-12 bg-white rounded-lg shadow border border-gray-200">
                             <div className="max-w-md mx-auto px-4">
                                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No tienes turnos asignados</h3>
                                 <p className="text-gray-600 text-sm">
-                                    Actualmente no estás asignado como  coordinador en ningún turno de este evento.
-                                </p>
-                                <p className="text-gray-500 text-xs mt-2">
-                                    Contacta al administrador si crees que esto es un error.
+                                    Actualmente no estás asignado como coordinadores en ningún turno de este evento.
                                 </p>
                             </div>
                         </div>
                     )}
 
-                    {filteredShifts.length === 0 && searchTerm && (
+                    {sortedGroups.length === 0 && searchTerm && (
                         <div className="text-center py-12 text-gray-500">
                             No se encontraron turnos que coincidan con la búsqueda.
                         </div>
