@@ -15,19 +15,14 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onProfileClick, onLogoC
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={onLogoClick}>
-            {/* Logo FS Simplificado */}
-            <div className="text-primary-500">
-              <TreePine size={26} strokeWidth={2} />
+            {/* Logo Custom */}
+            <div className="mr-3">
+              <img src="/logo_tree.png" alt="Logo" className="h-10 w-auto object-contain" />
             </div>
-            <div className="flex flex-col leading-none justify-center pt-1">
-              <div className="flex items-baseline gap-1.5">
-                <h1 className="text-[20px] text-fs-text font-serif tracking-tight">
-                  FamilySearch
-                </h1>
-                <span className="text-[10px] font-bold text-fs-meta font-sans uppercase tracking-widest translate-y-[-1px]">
-                  Voluntarios
-                </span>
-              </div>
+            <div className="flex flex-col justify-center">
+              <h1 className="text-[20px] text-fs-text font-serif tracking-tight font-medium">
+                Voluntarios
+              </h1>
             </div>
 
           </div>
