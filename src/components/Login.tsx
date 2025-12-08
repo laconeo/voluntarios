@@ -233,9 +233,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, initialDni }) => {
           </div>
 
           <div className="pt-2">
-            <label className="flex items-start cursor-pointer">
+            <label className="flex items-center cursor-pointer">
               <input name="agreement" type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)}
-                className="h-5 w-5 text-primary-500 border-gray-300 rounded focus:ring-primary-500 mt-0.5" />
+                className="h-5 w-5 text-primary-500 border-gray-300 rounded focus:ring-primary-500" />
               <div className="ml-3 text-sm text-gray-600 leading-snug">
                 He leído y acepto el <button type="button" onClick={(e) => { e.preventDefault(); setIsModalOpen(true); }} className="text-fs-blue hover:underline font-medium">Acuerdo de Voluntariado</button>. Entiendo que al inscribirme asumo un compromiso de asistencia y puntualidad.
               </div>

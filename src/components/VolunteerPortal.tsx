@@ -204,10 +204,19 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-    // Auto-scroll to selected date could be added here with a ref
+    // Auto-scroll to selected date
+    const scrollRef = React.useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (scrollRef.current) {
+        const selectedElement = scrollRef.current.querySelector('[data-selected="true"]');
+        if (selectedElement) {
+          selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }
+    }, [selectedDate, activeTab]);
 
     return (
-      <div className="bg-white border-b border-fs-border shadow-sm sticky top-[60px] z-40">
+      <div className="bg-white border-b border-fs-border shadow-sm sticky top-0 z-40">
         <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
           <button onClick={() => changeMonth(-1)} className="p-1 rounded-full hover:bg-white text-gray-600"><ChevronLeft size={18} /></button>
           <span className="font-serif text-sm font-medium capitalize text-fs-text">
@@ -215,7 +224,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
           </span>
           <button onClick={() => changeMonth(1)} className="p-1 rounded-full hover:bg-white text-gray-600"><ChevronRight size={18} /></button>
         </div>
-        <div className="overflow-x-auto flex gap-2 p-3 custom-scrollbar hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div ref={scrollRef} className="overflow-x-auto flex gap-2 p-3 custom-scrollbar hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {days.map(day => {
             const date = new Date(year, month, day);
             const isSelected = selectedDate.toDateString() === date.toDateString();
@@ -232,15 +241,16 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
             return (
               <button
                 key={day}
+                data-selected={isSelected}
                 onClick={() => isInEvent && handleDateChange(date)}
                 disabled={!isInEvent}
                 className={`flex flex-col items-center justify-center min-w-[3.5rem] h-14 rounded-lg transition-all flex-shrink-0 ${isSelected
-                    ? 'bg-primary-500 text-white shadow-md transform scale-105'
-                    : isInEvent
-                      ? isBooked
-                        ? 'bg-primary-50 border border-primary-200 text-primary-700'
-                        : 'bg-white border border-gray-200 text-fs-text hover:border-primary-300'
-                      : 'bg-gray-50 text-gray-300 border border-transparent'
+                  ? 'bg-primary-500 text-white shadow-md transform scale-105'
+                  : isInEvent
+                    ? isBooked
+                      ? 'bg-primary-50 border border-primary-200 text-primary-700'
+                      : 'bg-white border border-gray-200 text-fs-text hover:border-primary-300'
+                    : 'bg-gray-50 text-gray-300 border border-transparent'
                   }`}
               >
                 <span className="text-[10px] uppercase font-bold leading-none mb-1 opacity-80">{dateLabel.slice(0, 3)}</span>
@@ -345,8 +355,18 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                           return (
                             <div key={shift.id} className={`bg-white border rounded-lg p-4 shadow-sm ${isAlreadyBooked ? 'border-primary-300 bg-primary-50/30' : 'border-gray-200'}`}>
                               <div className="flex justify-between items-start mb-2">
-                                <h4 className="font-bold text-fs-text">{role?.name}</h4>
-                                {isAlreadyBooked && <CheckCircle2 size={18} className="text-primary-600" />}
+                                <div className="flex items-center">
+                                  <h4 className="font-bold text-fs-text mr-2">{role?.name}</h4>
+                                  {isAlreadyBooked && <CheckCircle2 size={18} className="text-primary-600 shrink-0" />}
+                                </div>
+                                {role?.youtubeUrl && (
+                                  <button
+                                    onClick={() => setSelectedRole(role)}
+                                    className="text-fs-blue text-xs font-medium shrink-0"
+                                  >
+                                    Ver detalle
+                                  </button>
+                                )}
                               </div>
                               <p className="text-sm text-gray-600 mb-3 line-clamp-2">{role?.description}</p>
 
