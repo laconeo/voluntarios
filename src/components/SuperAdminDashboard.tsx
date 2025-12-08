@@ -35,6 +35,18 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         estado: 'Inactivo' as 'Activo' | 'Inactivo' | 'Archivado',
     });
 
+    const nombreEventoInputRef = React.useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (vistaActual === 'crear') {
+            setTimeout(() => {
+                if (nombreEventoInputRef.current) {
+                    nombreEventoInputRef.current.focus();
+                }
+            }, 100);
+        }
+    }, [vistaActual]);
+
     useEffect(() => {
         fetchEventos();
     }, []);
@@ -510,6 +522,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">Nombre del evento *</label>
                                     <input
+                                        ref={nombreEventoInputRef}
                                         type="text"
                                         name="nombre"
                                         value={formData.nombre}
