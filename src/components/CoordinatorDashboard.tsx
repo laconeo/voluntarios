@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { mockApi } from '../services/mockApiService';
 import type { User, Event, Shift, Booking, Role } from '../types';
-import { Download, CheckCircle, XCircle, Clock, Calendar, Search } from 'lucide-react';
+import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 interface CoordinatorDashboardProps {
@@ -119,6 +119,10 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
         document.body.removeChild(link);
     };
 
+    const handlePrint = () => {
+        window.print();
+    };
+
     const getRoleName = (roleId: string) => roles.find(r => r.id === roleId)?.name || 'Desconocido';
 
     const filteredShifts = shifts.filter(shift => {
@@ -154,7 +158,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="bg-white shadow">
+            <div className="bg-white shadow print:hidden">
                 <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
                     <h1 className="text-2xl font-bold text-gray-900">Panel de Coordinador</h1>
                     <div className="flex items-center gap-4">
@@ -164,8 +168,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 </div>
             </div>
 
-            <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8">
-                <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 pb-24">
+                <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
                     <div className="w-full sm:w-64">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Seleccionar Evento</label>
                         <select
@@ -190,13 +194,6 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                 className="pl-10 border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 w-full"
                             />
                         </div>
-                        <button
-                            onClick={exportToCSV}
-                            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                        >
-                            <Download size={18} className="mr-2" />
-                            Exportar Excel
-                        </button>
                     </div>
                 </div>
 
@@ -335,9 +332,6 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                                 {booking.roleName}
                                                             </span>
                                                         </div>
-                                                        <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-sm">
-                                                            {booking.user?.fullName.charAt(0)}
-                                                        </div>
                                                     </div>
 
                                                     <div className="pl-2 grid grid-cols-1 gap-1 mb-4">
@@ -408,6 +402,24 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                     )}
                 </div>
             </main>
+
+            {/* Fixed Bottom Footer */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 flex gap-4 print:hidden">
+                <button
+                    onClick={handlePrint}
+                    className="flex-1 flex items-center justify-center px-4 py-3 bg-white text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium shadow-sm"
+                >
+                    <Printer size={20} className="mr-2" />
+                    Imprimir
+                </button>
+                <button
+                    onClick={exportToCSV}
+                    className="flex-1 flex items-center justify-center px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium shadow-md"
+                >
+                    <Download size={20} className="mr-2" />
+                    Exportar Excel
+                </button>
+            </div>
         </div>
     );
 };
