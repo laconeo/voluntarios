@@ -11,7 +11,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ user, onLogout, onProfileClick, onLogoClick }) => {
   return (
-    <header className="bg-white border-b border-fs-border sticky top-0 z-50 h-[60px] flex items-center shadow-sm">
+    <header className="bg-white border-b border-fs-border sticky top-0 z-50 h-14 sm:h-[60px] flex items-center shadow-sm">
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={onLogoClick}>

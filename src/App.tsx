@@ -179,7 +179,7 @@ const AppContent: React.FC = () => {
           navigate('/');
         }}
       />
-      <main className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      <main className="sm:p-6 lg:p-8 max-w-7xl mx-auto">
         {currentView === 'profile' && currentUser ? (
           <UserProfile user={currentUser} onUpdate={handleUpdateProfile} onCancel={() => setCurrentView('portal')} />
         ) : (
