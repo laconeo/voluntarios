@@ -185,31 +185,34 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                         const shiftBookings = bookings.filter(b => b.shiftId === shift.id && b.status === 'confirmed');
                         if (shiftBookings.length === 0 && searchTerm) return null; // Hide empty shifts when searching
 
+                        const roleName = getRoleName(shift.roleId);
+                        const dateStr = new Date(shift.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
+
                         return (
-                            <div key={shift.id} className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
-                                <div className="bg-gray-50 px-3 sm:px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex items-center text-gray-700 font-medium">
-                                            <Calendar size={18} className="mr-2 text-primary-500" />
-                                            {new Date(shift.date).toLocaleDateString()}
+                            <div key={shift.id} className="mb-6 last:mb-0">
+                                {/* Desktop View */}
+                                <div className="hidden sm:block bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+                                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex items-center text-gray-700 font-medium">
+                                                <Calendar size={18} className="mr-2 text-primary-500" />
+                                                {new Date(shift.date).toLocaleDateString()}
+                                            </div>
+                                            <div className="flex items-center text-gray-700 font-medium">
+                                                <Clock size={18} className="mr-2 text-primary-500" />
+                                                {shift.timeSlot}
+                                            </div>
+                                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
+                                                {roleName}
+                                            </span>
                                         </div>
-                                        <div className="flex items-center text-gray-700 font-medium">
-                                            <Clock size={18} className="mr-2 text-primary-500" />
-                                            {shift.timeSlot}
-                                        </div>
-                                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
-                                            {getRoleName(shift.roleId)}
+                                        <span className="text-sm text-gray-500">
+                                            {shiftBookings.length} voluntarios confirmados
                                         </span>
                                     </div>
-                                    <span className="text-sm text-gray-500">
-                                        {shiftBookings.length} voluntarios confirmados
-                                    </span>
-                                </div>
 
-                                {shiftBookings.length > 0 ? (
-                                    <>
-                                        {/* Desktop Table View */}
-                                        <div className="hidden sm:block overflow-x-auto">
+                                    {shiftBookings.length > 0 ? (
+                                        <div className="overflow-x-auto">
                                             <table className="min-w-full divide-y divide-gray-200">
                                                 <thead className="bg-gray-50">
                                                     <tr>
@@ -258,65 +261,92 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                 </tbody>
                                             </table>
                                         </div>
+                                    ) : (
+                                        <div className="p-4 text-center text-gray-500 text-sm">
+                                            No hay voluntarios confirmados para este turno.
+                                        </div>
+                                    )}
+                                </div>
 
-                                        {/* Mobile Card View */}
-                                        <div className="sm:hidden space-y-4">
-                                            {shiftBookings.map(booking => (
-                                                <div key={booking.id} className="p-4 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col gap-4">
-                                                    <div className="flex justify-between items-start">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-lg">
-                                                                {booking.user?.fullName.charAt(0)}
-                                                            </div>
-                                                            <div>
-                                                                <div className="font-semibold text-gray-900 text-lg">{booking.user?.fullName}</div>
-                                                                <div className="text-sm text-gray-500 font-mono">DNI: {booking.user?.dni}</div>
-                                                            </div>
+                                {/* Mobile View */}
+                                <div className="sm:hidden">
+                                    <div className="bg-gray-100 rounded-xl p-4 mb-3 shadow-sm border border-gray-200 sticky top-16 z-10 backdrop-blur-md bg-opacity-95">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <div>
+                                                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                                                    <Clock size={16} className="text-primary-600" />
+                                                    {shift.timeSlot}
+                                                </h3>
+                                                <p className="text-sm text-gray-600 capitalize">{dateStr}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="inline-block px-2 py-0.5 bg-white text-primary-700 text-xs font-bold rounded border border-primary-100 shadow-sm mb-1">
+                                                    {roleName}
+                                                </span>
+                                                <p className="text-xs text-gray-500 font-medium">
+                                                    {shiftBookings.length} Voluntarios
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3 pl-2">
+                                        {shiftBookings.length > 0 ? (
+                                            shiftBookings.map(booking => (
+                                                <div key={booking.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 relative overflow-hidden">
+                                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${booking.attendance === 'attended' ? 'bg-green-500' : booking.attendance === 'absent' ? 'bg-red-500' : 'bg-gray-200'}`}></div>
+                                                    <div className="flex justify-between items-start pl-2 mb-3">
+                                                        <div>
+                                                            <div className="font-bold text-gray-900">{booking.user?.fullName}</div>
+                                                            <div className="text-xs text-gray-500 font-mono mt-0.5">DNI: {booking.user?.dni}</div>
+                                                        </div>
+                                                        <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-sm">
+                                                            {booking.user?.fullName.charAt(0)}
                                                         </div>
                                                     </div>
 
-                                                    <div className="grid grid-cols-1 gap-2 bg-gray-50 p-3 rounded-md">
-                                                        <div className="flex items-center gap-2 text-sm text-gray-700">
-                                                            <span className="font-semibold w-16 text-gray-500 uppercase text-xs">Email:</span>
-                                                            <span className="truncate flex-1">{booking.user?.email}</span>
+                                                    <div className="pl-2 grid grid-cols-1 gap-1 mb-4">
+                                                        <div className="text-sm text-gray-600 flex items-center gap-2">
+                                                            <span className="text-xs font-semibold text-gray-400 uppercase w-12">Email:</span>
+                                                            <span className="truncate">{booking.user?.email}</span>
                                                         </div>
-                                                        <div className="flex items-center gap-2 text-sm text-gray-700">
-                                                            <span className="font-semibold w-16 text-gray-500 uppercase text-xs">Tel:</span>
-                                                            <span className="flex-1">{booking.user?.phone}</span>
+                                                        <div className="text-sm text-gray-600 flex items-center gap-2">
+                                                            <span className="text-xs font-semibold text-gray-400 uppercase w-12">Tel:</span>
+                                                            <span>{booking.user?.phone}</span>
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex gap-2 pt-2 border-t border-gray-100">
+                                                    <div className="flex gap-2 pl-2">
                                                         <button
                                                             onClick={() => handleAttendanceChange(booking.id, 'attended')}
-                                                            className={`flex-1 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${booking.attendance === 'attended'
-                                                                ? 'bg-green-100 text-green-700 ring-1 ring-green-600'
-                                                                : 'bg-white border border-gray-200 text-gray-600 hover:bg-green-50 hover:text-green-600'
+                                                            className={`flex-1 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all ${booking.attendance === 'attended'
+                                                                ? 'bg-green-100 text-green-700 shadow-inner'
+                                                                : 'bg-gray-50 text-gray-600 hover:bg-green-50 hover:text-green-600 border border-gray-100'
                                                                 }`}
                                                         >
-                                                            <CheckCircle size={18} />
+                                                            <CheckCircle size={16} className={booking.attendance === 'attended' ? 'fill-current' : ''} />
                                                             Presente
                                                         </button>
                                                         <button
                                                             onClick={() => handleAttendanceChange(booking.id, 'absent')}
-                                                            className={`flex-1 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${booking.attendance === 'absent'
-                                                                ? 'bg-red-100 text-red-700 ring-1 ring-red-600'
-                                                                : 'bg-white border border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600'
+                                                            className={`flex-1 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all ${booking.attendance === 'absent'
+                                                                ? 'bg-red-100 text-red-700 shadow-inner'
+                                                                : 'bg-gray-50 text-gray-600 hover:bg-red-50 hover:text-red-600 border border-gray-100'
                                                                 }`}
                                                         >
-                                                            <XCircle size={18} />
+                                                            <XCircle size={16} className={booking.attendance === 'absent' ? 'fill-current' : ''} />
                                                             Ausente
                                                         </button>
                                                     </div>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="p-4 text-center text-gray-500 text-sm">
-                                        No hay voluntarios confirmados para este turno.
+                                            ))
+                                        ) : (
+                                            <div className="p-6 bg-white rounded-xl border border-dashed border-gray-300 text-center text-gray-500 text-sm">
+                                                No hay voluntarios confirmados en este turno.
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+                                </div>
                             </div>
                         );
                     })}
