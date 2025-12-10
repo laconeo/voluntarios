@@ -170,6 +170,24 @@ export const emailService = {
         });
     },
 
+    sendCancellationRejected: async (user: User, eventName: string, date: string, time: string) => {
+        const subject = "Información sobre tu solicitud de baja";
+        const htmlContent = `
+            <p>Hola ${user.fullName.split(' ')[0]},</p>
+            <p>Te informamos que tu solicitud de baja para el evento <strong>${eventName}</strong> del día ${date} a las ${time} no ha podido ser procesada en este momento.</p>
+            <p><strong>Por lo tanto, tu turno sigue vigente.</strong></p>
+            <p>Si tienes alguna duda, por favor comunícate con tu coordinador.</p>
+            <div style="margin: 20px 0;">
+                <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Revisar mis Turnos</a>
+            </div>
+        `;
+        await sendEmail({
+            to: [{ email: user.email, name: user.fullName }],
+            subject,
+            htmlContent
+        });
+    },
+
     // 5. Modificación Crítica de Turno (CU-02)
     sendShiftModificationAlert: async (user: User, eventName: string, oldTime: string, newTime: string, date: string) => {
         const subject = "URGENTE: Cambio en tu turno programado";
@@ -274,6 +292,31 @@ export const emailService = {
             <p>Te recomendamos eliminar este correo después de iniciar sesión por seguridad.</p>
             <div style="margin: 20px 0;">
                  <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir a Iniciar Sesión</a>
+            </div>
+        `;
+        await sendEmail({
+            to: [{ email: user.email, name: user.fullName }],
+            subject,
+            htmlContent
+        });
+    },
+
+    // 10. Envío de credenciales para Admin/Coordinador
+    sendAdminCredentials: async (user: User, passwordStr: string) => {
+        const subject = "Asignación de Rol y Credenciales - Voluntarios";
+        const roleLabel = user.role === 'admin' ? 'Administrador' : user.role === 'coordinator' ? 'Coordinador' : 'Usuario';
+
+        const htmlContent = `
+            <h1>Hola ${user.fullName.split(' ')[0]}</h1>
+            <p>Se te ha asignado el rol de <strong>${roleLabel}</strong> en la plataforma de voluntarios.</p>
+            <p>A continuación tus credenciales para ingresar:</p>
+            <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                <p><strong>Usuario (DNI o Email):</strong> ${user.dni || user.email}</p>
+                <p><strong>Contraseña:</strong> ${passwordStr}</p>
+            </div>
+            <p>Por favor, ingresa al sistema y gestiona tus tareas.</p>
+            <div style="margin: 20px 0;">
+                 <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ingresar al Sistema</a>
             </div>
         `;
         await sendEmail({

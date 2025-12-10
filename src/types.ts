@@ -98,4 +98,6 @@ export interface DashboardMetrics {
   roleDistribution: { roleName: string; count: number }[];
   dailyOccupation: { date: string; occupation: number }[];
   shiftOccupation: Record<string, number>; // Ocupación por franja horaria (timeSlot -> cantidad)
+  attendancePercentage?: number;
+  previousExperiencePercentage?: number;
 }

@@ -17,7 +17,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onProfileClick, onLogoC
           <div className="flex items-center gap-2 cursor-pointer" onClick={onLogoClick}>
             {/* Logo Custom */}
             <div className="mr-3">
-              <img src="/logo_tree.png" alt="Logo" className="h-10 w-auto object-contain" />
+              <img src={`${import.meta.env.BASE_URL}logo_tree.png`} alt="Logo" className="h-10 w-auto object-contain" />
             </div>
             <div className="flex flex-col justify-center">
               <h1 className="text-[20px] text-fs-text font-serif tracking-tight font-medium">

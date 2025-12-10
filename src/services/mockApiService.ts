@@ -598,6 +598,27 @@ export const mockApi = {
     return { ...bookings[bookingIndex] };
   },
 
+  rejectCancellation: async (bookingId: string): Promise<Booking> => {
+    await delay(700);
+    const bookingIndex = bookings.findIndex(b => b.id === bookingId);
+    if (bookingIndex === -1) throw new Error("Inscripción no encontrada.");
+
+    bookings[bookingIndex].status = 'confirmed';
+    console.log(`Cancellation for Booking ${bookingId} rejected. Status reverted to confirmed.`);
+
+    // Send rejection email
+    const booking = bookings[bookingIndex];
+    const shift = shifts.find(s => s.id === booking.shiftId);
+    const event = events.find(e => e.id === booking.eventId);
+    const user = users.find(u => u.id === booking.userId);
+
+    if (user && event && shift) {
+      emailService.sendCancellationRejected(user, event.nombre, shift.date, shift.timeSlot).catch(console.error);
+    }
+
+    return { ...bookings[bookingIndex] };
+  },
+
   getPrintableRoster: async (eventId: string, date: string, timeSlot: string): Promise<any[]> => {
     await delay(800);
     const targetShifts = shifts.filter(s => s.eventId === eventId && s.date === date && s.timeSlot === timeSlot);
@@ -677,6 +698,17 @@ export const mockApi = {
       shiftOccupation[slot] = slotVacancies > 0 ? Math.round((slotBookings.length / slotVacancies) * 100) : 0;
     });
 
+    // Attendance Metrics
+    const attendedCount = eventBookings.filter(b => b.attendance === 'attended').length;
+    const absentCount = eventBookings.filter(b => b.attendance === 'absent').length;
+    const totalMarked = attendedCount + absentCount;
+    const attendancePercentage = totalMarked > 0 ? Math.round((attendedCount / totalMarked) * 100) : 0;
+
+    // Experience Metrics
+    const uniqueUserIds = [...new Set(eventBookings.map(b => b.userId))];
+    const uniqueUsersWithExperience = users.filter(u => uniqueUserIds.includes(u.id) && u.attendedPrevious).length;
+    const previousExperiencePercentage = uniqueVolunteers > 0 ? Math.round((uniqueUsersWithExperience / uniqueVolunteers) * 100) : 0;
+
     return {
       eventId,
       totalVacancies,
@@ -692,6 +724,8 @@ export const mockApi = {
       roleDistribution,
       dailyOccupation,
       shiftOccupation,
+      attendancePercentage,
+      previousExperiencePercentage,
     };
   },
 };

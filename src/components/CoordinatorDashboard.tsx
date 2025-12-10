@@ -11,6 +11,7 @@ interface CoordinatorDashboardProps {
 
 const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLogout }) => {
     const [events, setEvents] = useState<Event[]>([]);
+    const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('all');
     const [selectedEventId, setSelectedEventId] = useState<string>('');
     const [shifts, setShifts] = useState<Shift[]>([]);
     const [bookings, setBookings] = useState<Booking[]>([]);
@@ -22,9 +23,19 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
         const loadInitialData = async () => {
             try {
                 const allEvents = await mockApi.getAllEvents();
-                setEvents(allEvents);
-                if (allEvents.length > 0) {
-                    setSelectedEventId(allEvents[0].id);
+
+                // Filter events where the user is a coordinator
+                const coordinatorEvents: Event[] = [];
+                for (const event of allEvents) {
+                    const eventShifts = await mockApi.getShiftsByEvent(event.id);
+                    if (eventShifts.some(s => s.coordinatorIds.includes(user.id))) {
+                        coordinatorEvents.push(event);
+                    }
+                }
+
+                setEvents(coordinatorEvents);
+                if (coordinatorEvents.length > 0) {
+                    setSelectedEventId(coordinatorEvents[0].id);
                 }
                 const allRoles = await mockApi.getAllRoles();
                 setRoles(allRoles);
@@ -35,11 +46,12 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             }
         };
         loadInitialData();
-    }, []);
+    }, [user.id]);
 
     useEffect(() => {
         if (selectedEventId) {
             loadEventData(selectedEventId);
+            setSelectedTimeSlot('all'); // Reset time slot selection when event changes
         }
     }, [selectedEventId]);
 
@@ -89,7 +101,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
         const headers = ['Fecha', 'Horario', 'Rol', 'Nombre', 'DNI', 'Email', 'Teléfono', 'Estado', 'Asistencia'];
         const csvRows = [headers.join(',')];
 
-        shifts.forEach(shift => {
+        filteredShifts.forEach(shift => {
             const shiftBookings = bookings.filter(b => b.shiftId === shift.id && b.status === 'confirmed');
             const role = roles.find(r => r.id === shift.roleId);
 
@@ -126,6 +138,12 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
     const getRoleName = (roleId: string) => roles.find(r => r.id === roleId)?.name || 'Desconocido';
 
     const filteredShifts = shifts.filter(shift => {
+        // Filter by selected time slot
+        if (selectedTimeSlot !== 'all') {
+            const [date, time] = selectedTimeSlot.split('|');
+            if (shift.date !== date || shift.timeSlot !== time) return false;
+        }
+
         if (!searchTerm) return true;
         const shiftBookings = bookings.filter(b => b.shiftId === shift.id);
         return shiftBookings.some(b =>
@@ -133,6 +151,14 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             b.user?.dni.includes(searchTerm)
         );
     });
+
+    // Helper to get unique time slots for dropdown
+    const uniqueTimeSlots = Array.from(new Set(shifts.map(s => `${s.date}|${s.timeSlot}`)))
+        .sort((a, b) => {
+            const [dateA, timeA] = a.split('|');
+            const [dateB, timeB] = b.split('|');
+            return dateA.localeCompare(dateB) || timeA.localeCompare(timeB);
+        });
 
     // Group shifts by date and time
     const groupedShifts = filteredShifts.reduce((acc, shift) => {
@@ -179,19 +205,41 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 </div>
 
                 <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
-                    <div className="w-full sm:w-64">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Seleccionar Evento</label>
-                        <select
-                            value={selectedEventId}
-                            onChange={(e) => setSelectedEventId(e.target.value)}
-                            className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                        >
-                            {events.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-                        </select>
+                    <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-4">
+                        <div className="w-full sm:w-64">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Seleccionar Evento</label>
+                            <select
+                                value={selectedEventId}
+                                onChange={(e) => setSelectedEventId(e.target.value)}
+                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-white cursor-pointer"
+                            >
+                                {events.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="w-full sm:w-64">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Horario</label>
+                            <select
+                                value={selectedTimeSlot}
+                                onChange={(e) => setSelectedTimeSlot(e.target.value)}
+                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-white cursor-pointer"
+                            >
+                                <option value="all">Todos los horarios</option>
+                                {uniqueTimeSlots.map(slotKey => {
+                                    const [date, time] = slotKey.split('|');
+                                    const dateStr = new Date(date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                                    return (
+                                        <option key={slotKey} value={slotKey}>
+                                            {dateStr} - {time}
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
                     </div>
 
-                    <div className="flex gap-2 w-full sm:w-auto">
-                        <div className="relative flex-grow sm:flex-grow-0">
+                    <div className="flex gap-2 w-full sm:w-auto justify-end">
+                        <div className="relative flex-grow sm:flex-grow-0 sm:w-64">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <Search size={18} className="text-gray-400" />
                             </div>

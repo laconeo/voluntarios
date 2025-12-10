@@ -85,7 +85,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
     };
 
     const exportToCSV = () => {
-        const headers = ['DNI', 'Nombre', 'Email', 'Teléfono', 'Rol', 'Estado', 'Miembro', 'Fecha Registro'];
+        const headers = ['DNI', 'Nombre', 'Email', 'Teléfono', 'Rol', 'Estado', 'Miembro', 'Experiencia', 'Fecha Registro'];
         const rows = filteredUsers.map(u => [
             u.dni,
             u.fullName,
@@ -94,6 +94,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
             u.role,
             u.status || 'active',
             u.isMember ? 'Sí' : 'No',
+            u.attendedPrevious ? 'Sí' : 'No',
             u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'
         ]);
 
@@ -340,6 +341,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                                 Estado
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Participo feria anterior
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Registro
                                             </th>
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -379,6 +383,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                                         }`}>
                                                         {(user.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
                                                     </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                    {user.attendedPrevious ? (
+                                                        <span className="text-green-600">SI</span>
+                                                    ) : (
+                                                        <span className="text-gray-400">NO</span>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {user.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : '-'}
@@ -470,6 +481,16 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                             <div className="col-span-2">
                                                 <div className="text-xs text-gray-500 uppercase font-bold mb-1">Teléfono</div>
                                                 <div className="font-medium text-gray-700">{user.phone}</div>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <div className="text-xs text-gray-500 uppercase font-bold mb-1">Experiencia previa</div>
+                                                <div className="font-medium text-gray-700">
+                                                    {user.attendedPrevious ? (
+                                                        <span className="text-green-600 bg-green-50 px-2 py-0.5 rounded text-xs font-semibold">Participó anteriormente</span>
+                                                    ) : (
+                                                        <span className="text-gray-500">Sin experiencia previa</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

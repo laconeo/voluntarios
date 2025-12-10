@@ -3,6 +3,7 @@ import { Users, Search, Filter, Download, Mail, Phone, Edit2, X, Save } from 'lu
 import { mockApi } from '../services/mockApiService';
 import type { User, Booking } from '../types';
 import { toast } from 'react-hot-toast';
+import { emailService } from '../services/emailService';
 
 interface EventVolunteersListProps {
     eventId: string;
@@ -15,6 +16,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     const [searchTerm, setSearchTerm] = useState('');
     const [filterRole, setFilterRole] = useState('todos');
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [newPassword, setNewPassword] = useState('');
     const [showEditModal, setShowEditModal] = useState(false);
 
     useEffect(() => {
@@ -45,6 +47,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
     const handleEditUser = (user: User) => {
         setEditingUser({ ...user });
+        setNewPassword('');
         setShowEditModal(true);
     };
 
@@ -52,7 +55,19 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         if (!editingUser) return;
 
         try {
-            await mockApi.updateUser(editingUser);
+            const userToUpdate = { ...editingUser };
+            if (newPassword.trim()) {
+                userToUpdate.password = newPassword;
+            }
+
+            await mockApi.updateUser(userToUpdate);
+
+            // Send email if password was updated and role is admin/coord
+            if (newPassword.trim() && (userToUpdate.role === 'admin' || userToUpdate.role === 'coordinator')) {
+                await emailService.sendAdminCredentials(userToUpdate, newPassword);
+                toast.success('Credenciales enviadas por correo');
+            }
+
             toast.success('Usuario actualizado correctamente');
             setShowEditModal(false);
             setEditingUser(null);
@@ -80,7 +95,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         const csvContent = [
             headers.join(','),
             ...rows.map(row => row.join(','))
-        ].join('\\n');
+        ].join('\n');
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -200,6 +215,9 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Contacto
                             </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Participo feria anterior
+                            </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Rol
                             </th>
@@ -241,6 +259,13 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                             <Phone size={14} className="text-gray-400" />
                                             {volunteer.phone}
                                         </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                        {volunteer.attendedPrevious ? (
+                                            <span className="text-green-600">SI</span>
+                                        ) : (
+                                            <span className="text-gray-400">NO</span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(volunteer.role)}`}>
@@ -319,6 +344,16 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                         }`}>
                                         {(volunteer.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
                                     </span>
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Experiencia</div>
+                                    {volunteer.attendedPrevious ? (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                                            Participó en Anterior
+                                        </span>
+                                    ) : (
+                                        <span className="text-xs text-gray-500">Primera vez</span>
+                                    )}
                                 </div>
                                 <div>
                                     <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Turnos</div>
@@ -431,6 +466,25 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                     </select>
                                 </div>
                             </div>
+
+                            {/* Password Field for Admins/Coordinators */}
+                            {(editingUser.role === 'admin' || editingUser.role === 'coordinator' || editingUser.role === 'superadmin') && (
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                        Asignar Nueva Contraseña
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        placeholder="Nueva contraseña (dejar vacío si no desea cambiar)"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Si ingresa una contraseña, se enviarán las credenciales por correo al usuario.
+                                    </p>
+                                </div>
+                            )}
 
                             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
                                 <p className="text-sm text-yellow-700">

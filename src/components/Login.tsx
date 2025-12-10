@@ -344,7 +344,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
       <div className="bg-white p-10 rounded-lg shadow-card border border-fs-border text-center">
         <div className="mb-8">
           <h2 className="text-3xl font-serif text-fs-text mb-3">Bienvenido</h2>
-          <p className="text-fs-meta text-sm">Portal de Voluntarios de FamilySearch</p>
+          <p className="text-fs-meta text-sm">Portal de Voluntarios para servir en evento</p>
         </div>
 
         <form onSubmit={handleIdentifierSubmit} className="space-y-6">
@@ -417,7 +417,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
         </form>
 
         <p className="mt-8 text-xs text-gray-400">
-          Sirviendo Juntos 2026 &bull; Buenos Aires
+          Laconeo 2026 - Buenos Aires
         </p>
       </div>
     </div>
