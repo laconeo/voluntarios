@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Filter, Download, Mail, Phone, Edit2, X, Save } from 'lucide-react';
-import { mockApi } from '../services/mockApiService';
+import { Users, Search, Filter, Download, Mail, Phone, Edit2, X, Save, Eye, CheckCircle, XCircle, Calendar } from 'lucide-react';
+import { supabaseApi as mockApi } from '../services/supabaseApiService'; // Using Supabase API now
 import type { User, Booking } from '../types';
 import { toast } from 'react-hot-toast';
 import { emailService } from '../services/emailService';
@@ -16,8 +16,12 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     const [searchTerm, setSearchTerm] = useState('');
     const [filterRole, setFilterRole] = useState('todos');
     const [editingUser, setEditingUser] = useState<User | null>(null);
-    const [newPassword, setNewPassword] = useState('');
     const [showEditModal, setShowEditModal] = useState(false);
+
+    // New state for viewing user shifts
+    const [viewingUser, setViewingUser] = useState<User | null>(null);
+    const [viewingUserBookings, setViewingUserBookings] = useState<Booking[]>([]);
+    const [isLoadingShifts, setIsLoadingShifts] = useState(false);
 
     useEffect(() => {
         fetchVolunteers();
@@ -47,7 +51,6 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
     const handleEditUser = (user: User) => {
         setEditingUser({ ...user });
-        setNewPassword('');
         setShowEditModal(true);
     };
 
@@ -56,17 +59,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
         try {
             const userToUpdate = { ...editingUser };
-            if (newPassword.trim()) {
-                userToUpdate.password = newPassword;
-            }
-
             await mockApi.updateUser(userToUpdate);
-
-            // Send email if password was updated and role is admin/coord
-            if (newPassword.trim() && (userToUpdate.role === 'admin' || userToUpdate.role === 'coordinator')) {
-                await emailService.sendAdminCredentials(userToUpdate, newPassword);
-                toast.success('Credenciales enviadas por correo');
-            }
 
             toast.success('Usuario actualizado correctamente');
             setShowEditModal(false);
@@ -74,6 +67,22 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             fetchVolunteers();
         } catch (error: any) {
             toast.error(error.message || 'Error al actualizar usuario');
+        }
+    };
+
+    const handleViewShifts = async (user: User) => {
+        setViewingUser(user);
+        setIsLoadingShifts(true);
+        setViewingUserBookings([]); // clear previous
+
+        try {
+            const userShifts = await mockApi.getUserBookings(user.id, eventId);
+            setViewingUserBookings(userShifts);
+        } catch (error) {
+            console.error('Error fetching user shifts', error);
+            toast.error('Error al cargar turnos del voluntario');
+        } finally {
+            setIsLoadingShifts(false);
         }
     };
 
@@ -288,6 +297,13 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <button
+                                            onClick={() => handleViewShifts(volunteer)}
+                                            className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded-lg transition-colors mr-1"
+                                            title="Ver historial de turnos"
+                                        >
+                                            <Calendar size={18} />
+                                        </button>
+                                        <button
                                             onClick={() => handleEditUser(volunteer)}
                                             className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
                                             title="Editar usuario"
@@ -320,13 +336,22 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                         <div className="text-xs text-gray-500">DNI: {volunteer.dni}</div>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => handleEditUser(volunteer)}
-                                    className="p-2 text-primary-600 bg-primary-50 rounded-lg"
-                                    title="Editar"
-                                >
-                                    <Edit2 size={18} />
-                                </button>
+                                <div className="flex gap-1">
+                                    <button
+                                        onClick={() => handleViewShifts(volunteer)}
+                                        className="p-2 text-blue-600 bg-blue-50 rounded-lg"
+                                        title="Ver historial"
+                                    >
+                                        <Calendar size={18} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleEditUser(volunteer)}
+                                        className="p-2 text-primary-600 bg-primary-50 rounded-lg"
+                                        title="Editar"
+                                    >
+                                        <Edit2 size={18} />
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
@@ -467,24 +492,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                 </div>
                             </div>
 
-                            {/* Password Field for Admins/Coordinators */}
-                            {(editingUser.role === 'admin' || editingUser.role === 'coordinator' || editingUser.role === 'superadmin') && (
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Asignar Nueva Contraseña
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={newPassword}
-                                        onChange={(e) => setNewPassword(e.target.value)}
-                                        placeholder="Nueva contraseña (dejar vacío si no desea cambiar)"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Si ingresa una contraseña, se enviarán las credenciales por correo al usuario.
-                                    </p>
-                                </div>
-                            )}
+
 
                             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
                                 <p className="text-sm text-yellow-700">
@@ -518,8 +526,153 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     <p className="text-gray-500">No se encontraron voluntarios con los filtros seleccionados</p>
                 </div>
             )}
+            {/* View Shifts Modal */}
+            {viewingUser && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-start mb-6">
+                            <div>
+                                <h3 className="text-2xl font-serif font-bold text-gray-900">
+                                    Historial de Turnos
+                                </h3>
+                                <p className="text-gray-600">
+                                    Voluntario: <span className="font-semibold text-primary-600">{viewingUser.fullName}</span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setViewingUser(null)}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {isLoadingShifts ? (
+                            <div className="flex justify-center py-12">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                            </div>
+                        ) : viewingUserBookings.length === 0 ? (
+                            <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
+                                <p className="text-gray-500">Este voluntario no tiene turnos asignados en este evento.</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Desktop View */}
+                                <div className="hidden sm:block overflow-hidden bg-white border border-gray-200 rounded-lg">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Horario</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asistencia</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {viewingUserBookings.map((booking) => (
+                                                <tr key={booking.id} className="hover:bg-gray-50">
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                        {booking.shift?.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString('es-AR') : '-'}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                        {booking.shift?.timeSlot || '-'}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(booking.shift?.role?.name || '')}`}>
+                                                            {booking.shift?.role?.name || '-'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                                            ${booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                                                                booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                                                    'bg-yellow-100 text-yellow-800'}`}>
+                                                            {booking.status === 'confirmed' ? 'Confirmado' :
+                                                                booking.status === 'cancelled' ? 'Cancelado' : 'Pendiente'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        {booking.attendance === 'attended' ? (
+                                                            <span className="flex items-center gap-1 text-green-600 font-medium">
+                                                                <CheckCircle size={16} /> Asistió
+                                                            </span>
+                                                        ) : booking.attendance === 'absent' ? (
+                                                            <span className="flex items-center gap-1 text-red-600 font-medium">
+                                                                <XCircle size={16} /> Ausente
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-gray-400 italic">Pendiente</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Mobile View */}
+                                <div className="sm:hidden space-y-4">
+                                    {viewingUserBookings.map((booking) => (
+                                        <div key={booking.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-900">
+                                                        {booking.shift?.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) : '-'}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500">{booking.shift?.timeSlot || '-'}</p>
+                                                </div>
+                                                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(booking.shift?.role?.name || '')}`}>
+                                                    {booking.shift?.role?.name || '-'}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-2">
+                                                <div>
+                                                    <div className="text-xs text-gray-500 mb-1">Estado</div>
+                                                    <span className={`px-2 py-0.5 inline-flex text-xs font-semibold rounded-full 
+                                                        ${booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                                                            booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                                                'bg-yellow-100 text-yellow-800'}`}>
+                                                        {booking.status === 'confirmed' ? 'Confirmado' :
+                                                            booking.status === 'cancelled' ? 'Cancelado' : 'Pendiente'}
+                                                    </span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-xs text-gray-500 mb-1">Asistencia</div>
+                                                    {booking.attendance === 'attended' ? (
+                                                        <span className="flex items-center gap-1 text-green-600 text-sm font-medium">
+                                                            <CheckCircle size={14} /> Asistió
+                                                        </span>
+                                                    ) : booking.attendance === 'absent' ? (
+                                                        <span className="flex items-center gap-1 text-red-600 text-sm font-medium">
+                                                            <XCircle size={14} /> Ausente
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-gray-400 italic text-sm">Pendiente</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                onClick={() => setViewingUser(null)}
+                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
 export default EventVolunteersList;
+

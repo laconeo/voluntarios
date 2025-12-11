@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { mockApi } from '../services/mockApiService';
+import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { User, Event, Shift, Booking, Role } from '../types';
 import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -24,11 +24,16 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             try {
                 const allEvents = await mockApi.getAllEvents();
 
-                // Filter events where the user is a coordinator
+                const userBookings = await mockApi.getUserBookings(user.id);
+                const coordinatorBookingEventIds = userBookings
+                    .filter(b => b.status === 'confirmed' && b.shift?.role?.requiresApproval)
+                    .map(b => b.eventId);
+
+                // Filter events where the user is a coordinator (via shift assignment or booking)
                 const coordinatorEvents: Event[] = [];
                 for (const event of allEvents) {
                     const eventShifts = await mockApi.getShiftsByEvent(event.id);
-                    if (eventShifts.some(s => s.coordinatorIds.includes(user.id))) {
+                    if (eventShifts.some(s => s.coordinatorIds.includes(user.id)) || coordinatorBookingEventIds.includes(event.id)) {
                         coordinatorEvents.push(event);
                     }
                 }
@@ -60,9 +65,14 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
         try {
             const eventShifts = await mockApi.getShiftsByEvent(eventId);
 
-            // Filtrar solo los turnos donde este coordinador está asignado
+            const userBookings = await mockApi.getUserBookings(user.id, eventId);
+            const coordinatorBookingShiftIds = userBookings
+                .filter(b => b.status === 'confirmed' && b.shift?.role?.requiresApproval)
+                .map(b => b.shiftId);
+
+            // Filtrar solo los turnos donde este coordinador está asignado directo o por booking
             const myShifts = eventShifts.filter(shift =>
-                shift.coordinatorIds.includes(user.id)
+                shift.coordinatorIds.includes(user.id) || coordinatorBookingShiftIds.includes(shift.id)
             );
 
             // Sort shifts by date and time

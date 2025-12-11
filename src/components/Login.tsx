@@ -9,9 +9,10 @@ interface LoginProps {
   onRegister: (newUser: User) => void;
   onRecoverPassword?: (email: string) => Promise<void>;
   initialDni?: string;
+  onGoToRegister?: () => void;
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, initialDni }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, initialDni, onGoToRegister }) => {
   const [identifier, setIdentifier] = useState(initialDni || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

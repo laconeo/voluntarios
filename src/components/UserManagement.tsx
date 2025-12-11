@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Filter, Download, Edit2, Ban, CheckCircle, X, Save, Upload } from 'lucide-react';
-import { mockApi } from '../services/mockApiService';
+import { Users, Search, Filter, Download, Edit2, Ban, CheckCircle, X, Save, Upload, Trash2 } from 'lucide-react';
+import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { User, Event, Booking } from '../types';
 import { toast } from 'react-hot-toast';
 
@@ -10,6 +10,7 @@ interface UserManagementProps {
 }
 
 const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBack }) => {
+    // ... existing state ...
     const [users, setUsers] = useState<User[]>([]);
     const [events, setEvents] = useState<Event[]>([]);
     const [bookings, setBookings] = useState<Booking[]>([]);
@@ -19,7 +20,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
     const [filterEvent, setFilterEvent] = useState('todos');
     const [filterStatus, setFilterStatus] = useState('todos');
     const [editingUser, setEditingUser] = useState<User | null>(null);
-    const [newPassword, setNewPassword] = useState('');
     const [showEditModal, setShowEditModal] = useState(false);
 
     useEffect(() => {
@@ -51,7 +51,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
             return;
         }
         setEditingUser({ ...user });
-        setNewPassword(''); // Reset password field
         setShowEditModal(true);
     };
 
@@ -60,9 +59,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
 
         try {
             const userToUpdate = { ...editingUser };
-            if (newPassword.trim()) {
-                userToUpdate.password = newPassword;
-            }
             await mockApi.updateUser(userToUpdate);
             toast.success('Usuario actualizado correctamente');
             setShowEditModal(false);
@@ -84,7 +80,28 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
         }
     };
 
+    const handleDeleteUser = async (user: User) => {
+        if (!confirm(`¿Estás seguro de eliminar al usuario ${user.fullName}? Esta acción no se puede deshacer.`)) {
+            return;
+        }
+
+        // Additional safety check for Admin deleting SuperAdmin
+        if (user.role === 'superadmin') {
+            toast.error('No puedes eliminar a un Super Administrador');
+            return;
+        }
+
+        try {
+            await mockApi.deleteUser(user.id);
+            toast.success('Usuario eliminado correctamente');
+            fetchData();
+        } catch (error: any) {
+            toast.error(error.message || 'Error al eliminar usuario');
+        }
+    };
+
     const exportToCSV = () => {
+        // ... existing export logic ...
         const headers = ['DNI', 'Nombre', 'Email', 'Teléfono', 'Rol', 'Estado', 'Miembro', 'Experiencia', 'Fecha Registro'];
         const rows = filteredUsers.map(u => [
             u.dni,
@@ -328,25 +345,26 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                 <table className="w-full">
                                     <thead className="bg-gray-50 border-b border-gray-200">
                                         <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
                                                 Usuario
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Contacto
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Rol
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Estado
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Participo feria anterior
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
+                                                ¿Feria Anterior?
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            {/* Adjusted Register column visibility could be done if needed, keeping for now with less padding */}
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Registro
                                             </th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Acciones
                                             </th>
                                         </tr>
@@ -354,64 +372,71 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {filteredUsers.map((user) => (
                                             <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                <td className="px-4 py-2.5 whitespace-nowrap">
                                                     <div className="flex items-center">
-                                                        <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
+                                                        <div className="flex-shrink-0 h-9 w-9 bg-primary-100 rounded-full flex items-center justify-center text-sm">
                                                             <span className="text-primary-700 font-semibold">
                                                                 {user.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
                                                             </span>
                                                         </div>
-                                                        <div className="ml-4">
-                                                            <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
-                                                            <div className="text-sm text-gray-500">DNI: {user.dni}</div>
+                                                        <div className="ml-3 truncate max-w-[180px]" title={user.fullName}>
+                                                            <div className="text-sm font-medium text-gray-900 truncate">{user.fullName}</div>
+                                                            <div className="text-xs text-gray-500">DNI: {user.dni}</div>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm text-gray-900">{user.email}</div>
-                                                    <div className="text-sm text-gray-500">{user.phone}</div>
+                                                <td className="px-4 py-2.5 whitespace-nowrap">
+                                                    <div className="text-sm text-gray-900 truncate max-w-[150px]" title={user.email}>{user.email}</div>
+                                                    <div className="text-xs text-gray-500">{user.phone}</div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(user.role)}`}>
+                                                <td className="px-4 py-2.5 whitespace-nowrap">
+                                                    <span className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full border ${getRoleBadge(user.role)}`}>
                                                         {getRoleLabel(user.role)}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${(user.status || 'active') === 'active'
+                                                <td className="px-4 py-2.5 whitespace-nowrap">
+                                                    <span className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full ${(user.status || 'active') === 'active'
                                                         ? 'bg-green-100 text-green-800'
                                                         : 'bg-red-100 text-red-800'
                                                         }`}>
                                                         {(user.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <td className="px-4 py-2.5 whitespace-nowrap text-sm font-medium text-center">
                                                     {user.attendedPrevious ? (
-                                                        <span className="text-green-600">SI</span>
+                                                        <span className="text-green-600 bg-green-50 px-2 py-0.5 rounded text-xs">SI</span>
                                                     ) : (
-                                                        <span className="text-gray-400">NO</span>
+                                                        <span className="text-gray-400 text-xs">NO</span>
                                                     )}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-500">
                                                     {user.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : '-'}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    <div className="flex justify-end gap-2">
+                                                <td className="px-4 py-2.5 whitespace-nowrap text-right text-sm font-medium">
+                                                    <div className="flex justify-end gap-1">
                                                         <button
                                                             onClick={() => handleEditUser(user)}
-                                                            className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
+                                                            className="text-primary-600 hover:text-primary-900 p-1.5 hover:bg-primary-50 rounded transition-colors"
                                                             title="Editar usuario"
                                                         >
-                                                            <Edit2 size={18} />
+                                                            <Edit2 size={16} />
                                                         </button>
                                                         <button
                                                             onClick={() => handleToggleStatus(user)}
-                                                            className={`p-2 rounded-lg transition-colors ${(user.status || 'active') === 'active'
-                                                                ? 'text-red-600 hover:text-red-900 hover:bg-red-50'
+                                                            className={`p-1.5 rounded transition-colors ${(user.status || 'active') === 'active'
+                                                                ? 'text-yellow-600 hover:text-yellow-900 hover:bg-yellow-50'
                                                                 : 'text-green-600 hover:text-green-900 hover:bg-green-50'
                                                                 }`}
                                                             title={(user.status || 'active') === 'active' ? 'Suspender' : 'Activar'}
                                                         >
-                                                            {(user.status || 'active') === 'active' ? <Ban size={18} /> : <CheckCircle size={18} />}
+                                                            {(user.status || 'active') === 'active' ? <Ban size={16} /> : <CheckCircle size={16} />}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteUser(user)}
+                                                            className="text-red-600 hover:text-red-900 p-1.5 hover:bg-red-50 rounded transition-colors ml-1"
+                                                            title="Eliminar usuario permanentemente"
+                                                        >
+                                                            <Trash2 size={16} />
                                                         </button>
                                                     </div>
                                                 </td>
@@ -581,9 +606,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                         <option value="volunteer">Voluntario</option>
                                         <option value="coordinator">Coordinador</option>
                                         {(currentUser.role === 'superadmin' || currentUser.role === 'admin') && (
-                                            // Admin can only see 'admin' if they are superadmin, wait.
-                                            // Requirement: "solo el super admin puede generar administradores"
-                                            // So Admin should NOT be able to select 'admin' or 'superadmin'
                                             currentUser.role === 'superadmin' && (
                                                 <>
                                                     <option value="admin">Administrador</option>
@@ -595,41 +617,21 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Nueva Contraseña {currentUser.role === 'admin' && editingUser.role === 'admin' && '(No permitido)'}
+                                        Estado
                                     </label>
-                                    <input
-                                        type="password"
-                                        value={newPassword}
-                                        onChange={(e) => setNewPassword(e.target.value)}
-                                        placeholder="Dejar en blanco para mantener actual"
-                                        disabled={currentUser.role === 'admin' && (editingUser.role === 'admin' || editingUser.role === 'superadmin')}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
-                                    />
+                                    <select
+                                        value={editingUser.status || 'active'}
+                                        onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value as any })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    >
+                                        <option value="active">Activo</option>
+                                        <option value="suspended">Suspendido</option>
+                                    </select>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                            Estado
-                                        </label>
-                                        <select
-                                            value={editingUser.status || 'active'}
-                                            onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value as any })}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                        >
-                                            <option value="active">Activo</option>
-                                            <option value="suspended">Suspendido</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                                    <p className="text-sm text-yellow-700">
-                                        <strong>Nota:</strong> Los cambios en el rol afectarán los permisos del usuario en el sistema.
-                                    </p>
-                                </div>
+                            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded text-sm text-yellow-700">
+                                <strong>Nota:</strong> Los cambios en el rol afectarán los permisos del usuario en el sistema.
                             </div>
 
                             <div className="flex gap-3 mt-6">

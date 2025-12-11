@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Users, Calendar, AlertCircle, Clock, PieChart, CheckCircle, XCircle, Star } from 'lucide-react';
+import { TrendingUp, Users, Calendar, AlertCircle, Clock, PieChart, CheckCircle, XCircle, Star, Shield, UserCheck } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { DashboardMetrics, Event, Booking } from '../types';
 import { toast } from 'react-hot-toast';
@@ -16,6 +16,8 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [showCancellationsModal, setShowCancellationsModal] = useState(false);
     const [pendingCancellations, setPendingCancellations] = useState<any[]>([]);
+    const [showCoordinatorRequestsModal, setShowCoordinatorRequestsModal] = useState(false);
+    const [pendingCoordinatorRequests, setPendingCoordinatorRequests] = useState<any[]>([]);
 
     useEffect(() => {
         fetchMetrics();
@@ -72,6 +74,29 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
             if (updatedCancellations.length === 0) setShowCancellationsModal(false);
         } catch (error) {
             toast.error('Error al rechazar baja');
+        }
+    };
+    const handleViewCoordinatorRequests = async () => {
+        try {
+            const requests = await mockApi.getPendingCoordinatorRequests(eventId);
+            setPendingCoordinatorRequests(requests);
+            setShowCoordinatorRequestsModal(true);
+        } catch (error) {
+            toast.error('Error al cargar solicitudes de coordinación');
+        }
+    };
+
+    const handleApproveCoordinator = async (bookingId: string) => {
+        try {
+            await mockApi.approveCoordinatorRequest(bookingId);
+            toast.success('Solicitud aprobada y rol asignado');
+            // Refresh
+            const updatedRequests = await mockApi.getPendingCoordinatorRequests(eventId);
+            setPendingCoordinatorRequests(updatedRequests);
+            fetchMetrics();
+            if (updatedRequests.length === 0) setShowCoordinatorRequestsModal(false);
+        } catch (error) {
+            toast.error('Error al aprobar solicitud');
         }
     };
 
@@ -192,6 +217,23 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                         </div>
                     </div>
                 </div>
+                {/* Coordinator Requests Widget */}
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-orange-100 rounded-lg">
+                            <Shield className="text-orange-600" size={24} />
+                        </div>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-1">Solicitudes Coordinación</p>
+                    <div className="flex items-baseline gap-3">
+                        <div className="cursor-pointer hover:opacity-80 transition-opacity" onClick={handleViewCoordinatorRequests} role="button">
+                            <p className="text-2xl font-bold text-gray-900 underline decoration-dotted">
+                                {metrics.pendingCoordinatorRequests || 0}
+                            </p>
+                            <p className="text-xs text-gray-500">pendientes (ver)</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Ocupación por Horario y Roles */}
@@ -255,7 +297,8 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                 <h3 className="font-serif text-lg text-fs-text mb-6">Ocupación por Día</h3>
                 <div className="space-y-3">
                     {metrics.dailyOccupation.map((day) => {
-                        const date = new Date(day.date);
+                        // Fix timezone issue by appending time explicitly to ensure it falls on the correct day
+                        const date = new Date(day.date + 'T12:00:00');
                         const dayName = date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
 
                         return (
@@ -284,7 +327,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
             </div>
 
             {/* Alertas */}
-            {(metrics.occupationPercentage < 30 || metrics.pendingCancellations > 0) && (
+            {(metrics.occupationPercentage < 30 || metrics.pendingCancellations > 0 || (metrics.pendingCoordinatorRequests || 0) > 0) && (
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 sm:p-6 rounded-lg">
                     <div className="flex items-start gap-3">
                         <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
@@ -298,6 +341,14 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                                     <li>
                                         • Hay {metrics.pendingCancellations} solicitudes de baja pendientes.{' '}
                                         <button onClick={handleViewCancellations} className="underline font-semibold hover:text-yellow-900">
+                                            Revisar ahora
+                                        </button>
+                                    </li>
+                                )}
+                                {(metrics.pendingCoordinatorRequests || 0) > 0 && (
+                                    <li>
+                                        • Hay {metrics.pendingCoordinatorRequests} solicitudes de rol Coordinador pendientes.{' '}
+                                        <button onClick={handleViewCoordinatorRequests} className="underline font-semibold hover:text-yellow-900">
                                             Revisar ahora
                                         </button>
                                     </li>
@@ -347,6 +398,44 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                                             Confirmar Baja
                                         </button>
                                     </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </Modal>
+
+            <Modal
+                isOpen={showCoordinatorRequestsModal}
+                onClose={() => setShowCoordinatorRequestsModal(false)}
+                title="Aprobar Coordinadores"
+            >
+                <div>
+                    {pendingCoordinatorRequests.length === 0 ? (
+                        <p className="text-center text-gray-500 py-8">No hay solicitudes pendientes.</p>
+                    ) : (
+                        <div className="space-y-4">
+                            <p className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded border border-blue-100">
+                                Al aprobar, el usuario quedará inscrito en el turno y se le asignará el rol de <strong>Coordinador</strong> en el sistema global.
+                            </p>
+                            {pendingCoordinatorRequests.map((req) => (
+                                <div key={req.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div>
+                                        <h4 className="font-bold text-gray-900">{req.user?.fullName}</h4>
+                                        <div className="text-sm text-gray-600 space-y-1 mt-1">
+                                            <p><strong>Rol Evento:</strong> {req.shift?.role?.name}</p>
+                                            <p><strong>Turno:</strong> {new Date(req.shift?.date).toLocaleDateString()} - {req.shift?.timeSlot}</p>
+                                            <p><strong>Solicitado:</strong> {new Date(req.requestedAt).toLocaleDateString()}</p>
+                                            <p className="text-xs text-gray-500 mt-1">Email: {req.user?.email}</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleApproveCoordinator(req.id)}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors font-medium w-full sm:w-auto"
+                                    >
+                                        <UserCheck size={18} />
+                                        Aprobar y Asignar
+                                    </button>
                                 </div>
                             ))}
                         </div>

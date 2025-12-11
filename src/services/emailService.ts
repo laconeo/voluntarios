@@ -51,20 +51,27 @@ const sendEmail = async (payload: EmailPayload) => {
 
 export const emailService = {
     // 1. Registro (CU-01)
-    sendWelcomeEmail: async (user: User) => {
+    sendWelcomeEmail: async (user: User, password?: string) => {
         const subject = "¡Bienvenido al equipo de voluntarios de FamilySearch!";
         const htmlContent = `
-      <h1>¡Hola ${user.fullName.split(' ')[0]}!</h1>
-      <p>Tu registro ha sido exitoso. Estamos muy felices de que te unas a nosotros.</p>
-      <p><strong>Tus datos registrados:</strong></p>
-      <ul>
-        <li>DNI: ${user.dni}</li>
-        <li>Email: ${user.email}</li>
-        <li>Teléfono: ${user.phone}</li>
-      </ul>
-      <p>Puedes ingresar al portal para empezar a tomar turnos en nuestros eventos.</p>
-      <div style="margin: 20px 0;">
-        <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Portal</a>
+      <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #4f46e5;">¡Bienvenido, ${user.fullName.split(' ')[0]}!</h1>
+        <p>Gracias por unirte a nuestro equipo de voluntarios. Estamos emocionados de contar contigo.</p>
+        
+        ${password ? `
+        <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0; font-weight: bold;">Tus credenciales de acceso:</p>
+          <p style="margin: 10px 0;">📧 Email: ${user.email}</p>
+          <p style="margin: 0;">🔑 Contraseña: <strong style="font-size: 1.2em; color: #4f46e5;">${password}</strong></p>
+        </div>
+        <p>Por favor, guarda esta contraseña en un lugar seguro. Podrás usarla para ingresar al portal y gestionar tus turnos.</p>
+        ` : `
+        <p>Tu registro ha sido exitoso.</p>
+        `}
+
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${window.location.origin}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Ir al Portal</a>
+        </div>
       </div>
     `;
         await sendEmail({

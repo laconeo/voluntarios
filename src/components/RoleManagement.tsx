@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Briefcase, Youtube, Info, AlertCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Briefcase, Youtube, Info, AlertCircle, Shield } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { Role } from '../types';
 import { toast } from 'react-hot-toast';
@@ -20,6 +20,7 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
         detailedTasks: '',
         youtubeUrl: '',
         experienceLevel: 'nueva' as 'nueva' | 'intermedia' | 'avanzada',
+        requiresApproval: false,
     });
 
     useEffect(() => {
@@ -44,6 +45,11 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, checked } = e.target;
+        setFormData(prev => ({ ...prev, [name]: checked }));
+    };
+
     const openCreateModal = () => {
         setEditingRole(null);
         setFormData({
@@ -52,6 +58,7 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
             detailedTasks: '',
             youtubeUrl: '',
             experienceLevel: 'nueva',
+            requiresApproval: false,
         });
         setShowModal(true);
     };
@@ -64,6 +71,7 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
             detailedTasks: role.detailedTasks,
             youtubeUrl: role.youtubeUrl || '',
             experienceLevel: role.experienceLevel,
+            requiresApproval: role.requiresApproval || false,
         });
         setShowModal(true);
     };
@@ -172,6 +180,12 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
                                         <span className={`text-xs px-2 py-1 rounded-full ${getExperienceColor(role.experienceLevel)}`}>
                                             {getExperienceLabel(role.experienceLevel)}
                                         </span>
+                                        {role.requiresApproval && (
+                                            <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full flex items-center gap-1 border border-orange-200">
+                                                <Shield size={12} />
+                                                Requiere Aprobación
+                                            </span>
+                                        )}
                                     </h4>
                                 </div>
                                 <div className="flex gap-2">
@@ -289,6 +303,28 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
                                         />
                                     </div>
                                 </div>
+                            </div>
+
+                            <div className="flex items-start gap-3 p-4 bg-orange-50 rounded-lg border border-orange-100">
+                                <div className="flex items-center h-5">
+                                    <input
+                                        type="checkbox"
+                                        id="requiresApproval"
+                                        name="requiresApproval"
+                                        checked={formData.requiresApproval}
+                                        onChange={handleCheckboxChange}
+                                        className="h-5 w-5 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                                    />
+                                </div>
+                                <label htmlFor="requiresApproval" className="flex flex-col cursor-pointer">
+                                    <span className="font-semibold text-gray-900 flex items-center gap-2">
+                                        <Shield size={16} className="text-orange-600" />
+                                        Requiere Aprobación de Administrador
+                                    </span>
+                                    <span className="text-sm text-gray-600">
+                                        Si se activa, los voluntarios que se inscriban en este rol quedarán en estado "Pendiente" y necesitarán aprobación manual desde el panel de métricas. Ideal para roles de coordinación o liderazgo.
+                                    </span>
+                                </label>
                             </div>
 
                             <div className="flex gap-4 pt-4 border-t border-gray-100">

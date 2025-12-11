@@ -3,7 +3,7 @@ import type { User, Role, Shift, Booking, Event, EventAdmin, WaitlistEntry } fro
 export const EVENTS: Event[] = [
   {
     id: 'event_1',
-    slug: 'feriadellibrobuenosaires',
+    slug: 'feriadellibrobuenosaires2026',
     nombre: 'Feria del Libro Buenos Aires 2026',
     ubicacion: 'Buenos Aires, Argentina',
     pais: 'Argentina',
@@ -172,6 +172,16 @@ export const ROLES: Role[] = [
     description: 'Asistir a personas mayores, leerles o simplemente acompañarlos.',
     detailedTasks: 'Crear un ambiente amigable y tranquilo, ofrecer ayuda para moverse, leer fragmentos de libros en voz alta.',
     experienceLevel: 'nueva',
+    createdAt: new Date('2025-03-10').toISOString(),
+  },
+  {
+    id: 'role_e1_coord',
+    eventId: 'event_1',
+    name: 'Coordinador de Sector',
+    description: 'Supervisar voluntarios y actividades.',
+    detailedTasks: 'Asignar tareas, manejar incidencias.',
+    experienceLevel: 'avanzada',
+    requiresApproval: true,
     createdAt: new Date('2025-03-10').toISOString(),
   },
   // Event 3 - Feria Santiago (ejemplo)

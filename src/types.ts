@@ -39,6 +39,7 @@ export interface Role {
   detailedTasks: string;
   youtubeUrl?: string;
   experienceLevel: 'nueva' | 'intermedia' | 'avanzada';
+  requiresApproval?: boolean; // Indica si el rol requiere aprobación de admin (ej: Coordinador)
   createdAt: string;
 }
 
@@ -58,7 +59,7 @@ export interface Booking {
   userId: string;
   shiftId: string;
   eventId: string;
-  status: 'confirmed' | 'cancellation_requested' | 'cancelled' | 'waitlist';
+  status: 'confirmed' | 'cancellation_requested' | 'cancelled' | 'waitlist' | 'pending_approval';
   attendance?: 'pending' | 'attended' | 'absent'; // Estado de asistencia
   requestedAt: string; // Timestamp de cuando se registró
   cancelledAt?: string; // Timestamp de cuando solicitó baja
@@ -94,6 +95,7 @@ export interface DashboardMetrics {
   avgShiftsPerVolunteer: number;
   totalShifts: number;
   pendingCancellations: number;
+  pendingCoordinatorRequests?: number; // Nuevas solicitudes de coordinación pendientes
   waitlistCount: number;
   roleDistribution: { roleName: string; count: number }[];
   dailyOccupation: { date: string; occupation: number }[];

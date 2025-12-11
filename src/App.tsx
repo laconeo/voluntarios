@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import type { User, Event } from './types';
-import { mockApi } from './services/mockApiService';
+import { supabaseApi as mockApi } from './services/supabaseApiService';
 import VolunteerPortal from './components/VolunteerPortal';
 import AdminDashboard from './components/AdminDashboard';
 import CoordinatorDashboard from './components/CoordinatorDashboard';
 import Login from './components/Login';
+import ResetPassword from './components/ResetPassword';
+import { supabase } from './lib/supabaseClient';
 import Header from './components/Header';
 import UserProfile from './components/UserProfile';
 import { Toaster, toast } from 'react-hot-toast';
@@ -112,6 +114,25 @@ const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<'portal' | 'profile' | 'admin'>('portal');
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Listen for Password Recovery event
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        navigate('/reset-password');
+      } else if (event === 'SIGNED_IN' && session) {
+        // Optional: Auto-login if session exists
+        // But we already handle login via mockApi.login manually in handleLogin.
+        // If we want auto-persistence logic here:
+        // const user = await mockApi.getUserById(session.user.id);
+        // if (user) setCurrentUser(user);
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [navigate]);
+
   const handleLogin = async (identifier: string, password?: string): Promise<boolean | 'password_required' | 'register'> => {
     try {
       const user = await mockApi.login(identifier, password);
@@ -130,7 +151,17 @@ const AppContent: React.FC = () => {
       }
     } catch (error: any) {
       if (error.message === 'Contraseña incorrecta') {
+        if (password) {
+          toast.error('Email o contraseña incorrectos');
+        }
         return 'password_required';
+      }
+      if (error.message === 'Contraseña requerida') {
+        return 'password_required';
+      }
+      if (error.message === 'Usuario no encontrado' || error.message.includes('Invalid login credentials')) {
+        // If user not found by DNI search, ask to register
+        return 'register';
       }
       toast.error(error.message || 'Error al iniciar sesión.');
       console.error(error);
@@ -203,9 +234,11 @@ const AppContent: React.FC = () => {
                 // If regular volunteer at root, maybe show a list of events to choose from?
                 // For now, let's redirect to a default event or show a selection screen.
                 // Since we don't have a "Select Event" screen yet, let's default to event_1
-                <Navigate to="/feriadellibrobuenosaires" replace />
+                <Navigate to="/feriadellibrobuenosaires2026" replace />
               )
             } />
+
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Dynamic Event Route */}
             <Route path="/:eventSlug" element={

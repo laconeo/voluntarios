@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { User, Shift, Role, Booking } from '../types';
 import { mockApi } from '../services/mockApiService';
-import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus, Info, Mail, Phone } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus, Info, Mail, Phone, Shield } from 'lucide-react';
 import RoleDetailModal from './RoleDetailModal';
 import Modal from './Modal';
 import { toast } from 'react-hot-toast';
@@ -106,11 +106,26 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   };
 
   const handleSignUp = async (shiftId: string) => {
-    const confirmation = window.confirm("¿Confirmas tu inscripción? Recuerda que es un compromiso de asistencia.");
+    // Find role to check if approval is needed
+    const shift = shifts.find(s => s.id === shiftId);
+    const role = roles.find(r => r.id === shift?.roleId);
+
+    let message = "¿Confirmas tu inscripción? Recuerda que es un compromiso de asistencia.";
+    if (role?.requiresApproval) {
+      message = "⚠️ IMPORTANTE: Este rol requiere aprobación de un administrador. Tu inscripción quedará PENDIENTE hasta ser revisada. ¿Deseas continuar?";
+    }
+
+    const confirmation = window.confirm(message);
     if (confirmation) {
       try {
         await mockApi.createBooking(user.id, shiftId);
-        toast.success('¡Inscripción exitosa!');
+
+        if (role?.requiresApproval) {
+          toast.success('Solicitud enviada. Pendiente de aprobación.');
+        } else {
+          toast.success('¡Inscripción exitosa!');
+        }
+
         fetchShifts(selectedDate);
         fetchUserBookings();
       } catch (error: any) {
@@ -372,19 +387,32 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                               </div>
                               <p className="text-sm text-gray-600 mb-3 line-clamp-2">{role?.description}</p>
 
+                              {role?.requiresApproval && (
+                                <div className="mb-3">
+                                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                                    <Shield size={12} className="mr-1" />
+                                    Requiere Aprobación Admin
+                                  </span>
+                                </div>
+                              )}
+
                               <div className="flex justify-between items-center">
                                 <div className="text-xs text-gray-500">
                                   <span className={`font-bold text-sm ${shift.availableVacancies < 3 ? 'text-orange-600' : 'text-gray-700'}`}>{shift.availableVacancies}</span> vacantes
                                 </div>
                                 {isAlreadyBooked ? (
-                                  <span className="text-xs font-bold text-primary-700 bg-primary-100 px-2 py-1 rounded">Inscripto</span>
+                                  userBookings.find(b => b.shiftId === shift.id && b.status === 'pending_approval') ? (
+                                    <span className="text-xs font-bold text-orange-700 bg-orange-100 px-2 py-1 rounded">Pendiente</span>
+                                  ) : (
+                                    <span className="text-xs font-bold text-primary-700 bg-primary-100 px-2 py-1 rounded">Inscripto</span>
+                                  )
                                 ) : (
                                   <button
                                     onClick={() => handleSignUp(shift.id)}
                                     disabled={isFull}
                                     className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${isFull ? 'bg-gray-100 text-gray-400' : 'bg-primary-500 text-white'}`}
                                   >
-                                    {isFull ? 'Lleno' : 'Inscribirme'}
+                                    {isFull ? 'Lleno' : (role?.requiresApproval ? 'Postularme' : 'Inscribirme')}
                                   </button>
                                 )}
                               </div>
@@ -423,8 +451,8 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                             </button>
                           )}
                         </div>
-                        <span className={`text-xs px-2 py-0.5 rounded-full h-fit ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                          {booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'}
+                        <span className={`text-xs px-2 py-0.5 rounded-full h-fit ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : booking.status === 'pending_approval' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                          {booking.status === 'confirmed' ? 'Confirmado' : booking.status === 'pending_approval' ? 'Pendiente Aprobación' : 'Pendiente'}
                         </span>
                       </div>
                       <div className="flex items-center text-sm text-gray-600 mb-1">
@@ -614,6 +642,15 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                               {role?.description}
                             </p>
 
+                            {role?.requiresApproval && (
+                              <div className="mb-4">
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">
+                                  <Shield size={14} className="mr-1.5" />
+                                  Requiere Aprobación del Administrador
+                                </span>
+                              </div>
+                            )}
+
                             <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-100">
                               <div className="flex flex-col">
                                 <span className="text-[11px] uppercase tracking-wider font-bold text-gray-400 mb-0.5">Vacantes</span>
@@ -626,10 +663,17 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                               </div>
 
                               {isAlreadyBooked ? (
-                                <div className="flex items-center text-primary-600 font-bold text-sm bg-primary-50 px-3 py-2 rounded-fs">
-                                  <CheckCircle2 size={18} className="mr-2" />
-                                  Inscripto
-                                </div>
+                                userBookings.find(b => b.shiftId === shift.id && b.status === 'pending_approval') ? (
+                                  <div className="flex items-center text-orange-600 font-bold text-sm bg-orange-50 px-3 py-2 rounded-fs">
+                                    <AlertTriangle size={18} className="mr-2" />
+                                    Pendiente
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center text-primary-600 font-bold text-sm bg-primary-50 px-3 py-2 rounded-fs">
+                                    <CheckCircle2 size={18} className="mr-2" />
+                                    Inscripto
+                                  </div>
+                                )
                               ) : (
                                 <button
                                   onClick={() => handleSignUp(shift.id)}
@@ -639,7 +683,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                                     : 'bg-primary-500 text-white hover:bg-primary-600 shadow-sm'
                                     }`}
                                 >
-                                  {isFull ? 'Completo' : <><Plus size={16} className="mr-1.5" /> Inscribirme</>}
+                                  {isFull ? 'Completo' : <>{role?.requiresApproval ? <Shield size={16} className="mr-1.5" /> : <Plus size={16} className="mr-1.5" />} {role?.requiresApproval ? 'Postularme' : 'Inscribirme'}</>}
                                 </button>
                               )}
                             </div>
