@@ -20,7 +20,7 @@ Necesito entender dónde y cómo se usará, y gestionar el acceso a la versión 
 
 ### 📞 Contacta a Freddy para Pedir Acceso o Permiso
 
-  * **Email:** [Tu Correo Electrónico Aquí, ej: freddy.contacto@ejemplo.com]
+  * **Email:** [voluntarioseneventos@gmail.com]
   * **Abrir un Issue:** Siéntete libre de abrir un [Issue](https://github.com/tu-usuario/convocacion-volunteer-system/issues) para iniciar la conversación sobre cómo usarlo o cómo reportar *bugs* de la beta.
 
 -----
