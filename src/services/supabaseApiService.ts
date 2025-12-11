@@ -130,8 +130,18 @@ export const supabaseApi = {
     },
 
     recoverPassword: async (email: string): Promise<void> => {
+        // Explicit strategy: Hardcode production URL to ensure correct subdirectory
+        const prodUrl = 'https://laconeo.github.io/voluntarios';
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        // Use current origin for local, explicit prod URL for deployment
+        // We append a trailing slash because Supabase sometimes prefers it for folder matching
+        const redirectUrl = isLocal ? window.location.origin : `${prodUrl}/`;
+
+        console.log('Recovery Redirect URL:', redirectUrl);
+
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/reset-password`, // We need to handle this route
+            redirectTo: redirectUrl,
         });
         if (error) throw error;
     },
