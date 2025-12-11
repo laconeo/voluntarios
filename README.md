@@ -131,6 +131,4 @@ El proyecto sigue vivo, y estas son las próximas cosas en las que estamos enfoc
 
 **Hecho con ❤️, y algo de caos de beta, para la comunidad de voluntarios de FamilySearch**
 
------
 
-La principal diferencia es que ahora el `README` establece la **fase beta** y la integra en la sección de **Contacto** y **Uso**, dándole más valor a la interacción contigo. ¡Mucha suerte con las pruebas\!
