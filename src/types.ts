@@ -11,7 +11,7 @@ export interface User {
   howTheyHeard: string;
   role: 'volunteer' | 'admin' | 'coordinator' | 'superadmin';
   password?: string; // Solo para admin y superadmin
-  status?: 'active' | 'suspended'; // Estado del usuario
+  status?: 'active' | 'suspended' | 'deleted'; // Estado del usuario
   createdAt?: string;
 }
 
@@ -40,6 +40,7 @@ export interface Role {
   youtubeUrl?: string;
   experienceLevel: 'nueva' | 'intermedia' | 'avanzada';
   requiresApproval?: boolean; // Indica si el rol requiere aprobación de admin (ej: Coordinador)
+  isVisible?: boolean; // Nuevo: Controla la visibilidad del rol en el frontend
   createdAt: string;
 }
 

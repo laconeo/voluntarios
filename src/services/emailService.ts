@@ -331,5 +331,43 @@ export const emailService = {
             subject,
             htmlContent
         });
+    },
+
+    // 11. Alerta de intento de login de usuario eliminado
+    sendDeletedUserLoginAlert: async (user: User, superAdmins: User[]) => {
+        if (superAdmins.length === 0) return;
+
+        const subject = "ALERTA: Intento de acceso de usuario eliminado";
+        const recipients = superAdmins.map(admin => ({ email: admin.email, name: admin.fullName }));
+
+        const htmlContent = `
+            <h2 style="color: #dc2626;">Alerta de Seguridad</h2>
+            <p>El usuario <strong>${user.fullName}</strong> (${user.email} / DNI: ${user.dni}) intentó iniciar sesión en el sistema.</p>
+            <p>Este usuario se encuentra actualmente en estado <strong>Eliminado</strong>.</p>
+            <p>El usuario ha recibido un mensaje indicando que su cuenta está en revisión.</p>
+            <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                <p><strong>Acción requerida:</strong></p>
+                <p>Por favor, revise si este usuario debe ser reactivado o si debe permanecer eliminado.</p>
+                <ul>
+                    <li>Si desea reactivarlo: Busque al usuario en Gestión de Usuarios (filtro 'Eliminados') y active su cuenta.</li>
+                    <li>Si debe permanecer eliminado: No se requiere acción, el acceso seguirá bloqueado.</li>
+                </ul>
+            </div>
+            <div style="margin: 20px 0;">
+                 <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Panel de Administración</a>
+            </div>
+        `;
+
+        // Send email to all superadmins (EmailJS might handle array of recipients differently or loop might be needed. 
+        // Our 'sendEmail' uses [0] so let's loop here or modify sendEmail. 
+        // Current sendEmail implementation only takes the first recipient in the array 'payload.to[0]'.
+        // So we iterate.
+        for (const recipient of recipients) {
+            await sendEmail({
+                to: [recipient],
+                subject,
+                htmlContent
+            });
+        }
     }
 };

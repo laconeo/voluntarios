@@ -61,7 +61,7 @@ const ResetPassword = () => {
                     </button>
                 </form>
                 <p className="mt-8 text-xs text-gray-400">
-                    Laconeo 2026 - Buenos Aires
+                    © 2026 Servicios de apoyo para usuarios de FS
                 </p>
             </div>
         </div>

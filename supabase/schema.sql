@@ -94,4 +94,8 @@ begin
   if not exists (select 1 from information_schema.columns where table_name = 'roles' and column_name = 'requires_approval') then
     alter table public.roles add column requires_approval boolean default false;
   end if;
+
+  if not exists (select 1 from information_schema.columns where table_name = 'roles' and column_name = 'is_visible') then
+    alter table public.roles add column is_visible boolean default true;
+  end if;
 end $$;

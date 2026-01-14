@@ -15,16 +15,14 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onProfileClick, onLogoC
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={onLogoClick}>
-            {/* Logo Custom */}
-            <div className="mr-3">
-              <img src={`${import.meta.env.BASE_URL}logo_tree.png`} alt="Logo" className="h-10 w-auto object-contain" />
-            </div>
-            <div className="flex flex-col justify-center">
-              <h1 className="text-[20px] text-fs-text font-serif tracking-tight font-medium">
-                Voluntarios
+            <div className="flex flex-col">
+              <h1 className="text-[20px] text-[#8CB83E] font-serif tracking-tight font-bold leading-tight">
+                Sistema de Gestión de Voluntarios (SGV)
               </h1>
+              <span className="text-sm text-gray-500 font-sans">
+                Centro Virtual
+              </span>
             </div>
-
           </div>
 
           {user && onLogout && (

@@ -35,7 +35,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                 mockApi.getAllEvents(),
             ]);
 
-            setUsers(usersData);
+            setUsers(usersData.sort((a, b) => a.fullName.localeCompare(b.fullName)));
             setEvents(eventsData);
         } catch (error) {
             toast.error('Error al cargar datos');
@@ -133,6 +133,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
             user.dni.includes(searchTerm) ||
             user.email.toLowerCase().includes(searchTerm.toLowerCase());
         const matchRole = filterRole === 'todos' || user.role === filterRole;
+
+        // Show deleted users logic
         const matchStatus = filterStatus === 'todos' || (user.status || 'active') === filterStatus;
 
         return matchSearch && matchRole && matchStatus;
@@ -227,7 +229,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                             </div>
                             <div>
                                 <p className="text-sm text-gray-600 mb-1">Total Usuarios</p>
-                                <p className="text-3xl font-bold text-gray-900">{users.length}</p>
+                                <p className="text-3xl font-bold text-gray-900">
+                                    {users.filter(u => u.status !== 'deleted').length}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -322,6 +326,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                 <option value="todos">Todos</option>
                                 <option value="active">Activos</option>
                                 <option value="suspended">Suspendidos</option>
+                                <option value="deleted">Eliminados</option>
                             </select>
                         </div>
                     </div>
@@ -397,9 +402,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                                 <td className="px-4 py-2.5 whitespace-nowrap">
                                                     <span className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full ${(user.status || 'active') === 'active'
                                                         ? 'bg-green-100 text-green-800'
-                                                        : 'bg-red-100 text-red-800'
+                                                        : (user.status === 'deleted' ? 'bg-gray-100 text-gray-800' : 'bg-red-100 text-red-800')
                                                         }`}>
-                                                        {(user.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
+                                                        {(user.status || 'active') === 'active' ? 'Activo' : (user.status === 'deleted' ? 'Eliminado' : 'Suspendido')}
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-2.5 whitespace-nowrap text-sm font-medium text-center">
@@ -494,9 +499,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                                 <div className="text-xs text-gray-500 uppercase font-bold mb-1">Estado</div>
                                                 <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${(user.status || 'active') === 'active'
                                                     ? 'bg-green-100 text-green-800'
-                                                    : 'bg-red-100 text-red-800'
+                                                    : (user.status === 'deleted' ? 'bg-gray-100 text-gray-800' : 'bg-red-100 text-red-800')
                                                     }`}>
-                                                    {(user.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
+                                                    {(user.status || 'active') === 'active' ? 'Activo' : (user.status === 'deleted' ? 'Eliminado' : 'Suspendido')}
                                                 </span>
                                             </div>
                                             <div className="col-span-2">

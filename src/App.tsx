@@ -174,9 +174,10 @@ const AppContent: React.FC = () => {
       const registeredUser = await mockApi.register(newUser);
       setCurrentUser(registeredUser);
       toast.success('¡Registro exitoso!');
-    } catch (error) {
-      toast.error('Error en el registro.');
-      console.error(error);
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Error desconocido';
+      console.error('Registration Error:', error);
+      toast.error(`Error en el registro: ${errorMessage}`);
     }
   };
 

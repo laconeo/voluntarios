@@ -73,7 +73,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [eventId]); // Included eventId in dependencies 
 
   const fetchUserBookings = useCallback(async () => {
     try {
@@ -149,14 +149,20 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
 
   const groupedShifts = useMemo(() => {
     const groups: Record<string, Shift[]> = {};
+    const visibleRoles = roles.filter(r => r.isVisible !== false); // Default true if undefined
+
     shifts.forEach(shift => {
+      // Check if role is visible
+      const role = visibleRoles.find(r => r.id === shift.roleId);
+      if (!role) return; // Skip if role not found or not visible
+
       if (!groups[shift.timeSlot]) {
         groups[shift.timeSlot] = [];
       }
       groups[shift.timeSlot].push(shift);
     });
     return groups;
-  }, [shifts]);
+  }, [shifts, roles]);
 
   // Helper to parse date string "YYYY-MM-DD" to local Date object
   const parseLocalDate = (dateString: string) => {

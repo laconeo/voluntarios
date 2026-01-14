@@ -50,6 +50,7 @@ const mapRole = (row: any): Role => ({
     youtubeUrl: row.youtube_url,
     experienceLevel: row.experience_level as any,
     requiresApproval: row.requires_approval,
+    isVisible: row.is_visible,
     createdAt: row.created_at,
 });
 
@@ -101,6 +102,23 @@ export const supabaseApi = {
 
         if (!userProfile) {
             throw new Error('Usuario no encontrado');
+        }
+
+        // Check if user is deleted
+        if (userProfile.status === 'deleted') {
+            // Fetch superadmins to notify
+            const { data: superAdmins } = await supabase
+                .from('users')
+                .select('*')
+                .eq('role', 'superadmin');
+
+            if (superAdmins) {
+                // Must map to User type
+                const admins = superAdmins.map(mapUser);
+                emailService.sendDeletedUserLoginAlert(mapUser(userProfile), admins).catch(console.error);
+            }
+
+            throw new Error('Su cuenta esta en proceso de revision, el administrador del sistema le contactara.');
         }
 
         const email = userProfile.email;
@@ -171,6 +189,7 @@ export const supabaseApi = {
                     attended_previous: newUser.attendedPrevious,
                     is_over_18: newUser.isOver18,
                     how_they_heard: newUser.howTheyHeard,
+                    status: 'active', // Reactivate if it was deleted/suspended
                     // DO NOT update ID or Email effectively here for Auth linkage
                 })
                 .eq('id', existingUser.id)
@@ -193,7 +212,12 @@ export const supabaseApi = {
             password: generatedPassword,
         });
 
-        if (authError) throw authError;
+        if (authError) {
+            if (authError.message.includes("User already registered")) {
+                throw new Error("El correo ya está registrado en el sistema de Autenticación (Auth), pero no tiene perfil de voluntario. Esto ocurre si el usuario fue eliminado de la base de datos manualmente pero no de la lista de usuarios autorizados. Por favor, elimine el usuario desde el panel de 'Authentication' en Supabase para poder registrarlo nuevamente.");
+            }
+            throw authError;
+        }
         if (!authData.user) throw new Error('Error creando usuario de autenticación');
 
         // Create Profile linked to Auth ID
@@ -216,8 +240,13 @@ export const supabaseApi = {
 
         // If profile creation fails, we should ideally rollback Auth (delete user), but for MVP just throw
         if (profileError) {
-            console.error('Profile creation failed', profileError);
-            throw profileError;
+            console.error('Profile creation failed. Details:', {
+                message: profileError.message,
+                details: profileError.details,
+                hint: profileError.hint,
+                code: profileError.code
+            });
+            throw new Error(`Error creando perfil: ${profileError.message}`);
         }
 
         const registered = mapUser(profileData);
@@ -240,19 +269,13 @@ export const supabaseApi = {
             status: updatedUser.status
         };
 
+        // REMOVED: potentially dangerous and error-prone client-side auth update.
+        // Password updates should be handled via specific recovery or settings flows, not side-effect of profile update.
+        /*
         if (updatedUser.password) {
-            // Update password in Auth if changed
-            const { error: authError } = await supabase.auth.admin.updateUserById(
-                updatedUser.id,
-                { password: updatedUser.password }
-            );
-
-            // Fallback for non-service-role clients (standard client can only update own password)
-            // But here we are admin editing another user. Without service role, we can't update OTHER's password via Client SDK easily.
-            // We will ignore this limitation for now or assume backend trigger handles it if implemented. 
-            // In pure client-side SuperAdmin, updating other's password is restricted.
-            if (authError) console.warn('Could not update Auth password (client limitation):', authError);
+            // ...
         }
+        */
 
         const { data, error } = await supabase
             .from('users')
@@ -263,29 +286,44 @@ export const supabaseApi = {
 
         if (error) throw error;
 
-        // Check if user became suspended to release bookings
-        if (updatedUser.status === 'suspended') {
-            await supabase
-                .from('bookings')
-                .update({ status: 'cancelled' })
-                .eq('user_id', updatedUser.id)
-                .eq('status', 'confirmed');
-        }
+        // Check if user became suspended - NOW we keep bookings active as requested.
+        // if (updatedUser.status === 'suspended') { ... }
 
         return mapUser(data);
     },
 
     deleteUser: async (userId: string): Promise<void> => {
-        // 1. Delete from public users table
+        // 1. Fetch active confirmed bookings to process waitlist later
+        const { data: confirmedBookings } = await supabase
+            .from('bookings')
+            .select('shift_id')
+            .eq('user_id', userId)
+            .eq('status', 'confirmed');
+
+        // 2. Cancel ALL active bookings (confirmed, pending, waitlist, requested)
+        // This releases the vacancies.
+        await supabase
+            .from('bookings')
+            .update({ status: 'cancelled' })
+            .eq('user_id', userId)
+            .neq('status', 'cancelled');
+
+        // 3. Process waitlist for shifts that had a confirmed booking cancelled
+        if (confirmedBookings && confirmedBookings.length > 0) {
+            const shiftIds = [...new Set(confirmedBookings.map(b => b.shift_id))];
+            for (const shiftId of shiftIds) {
+                await supabaseApi.processWaitlist(shiftId); // This assigns the slot to the next person
+            }
+        }
+
+        // 4. Soft Delete: Mark as deleted to avoid Auth user conflict.
+        // The user remains in DB but with status='deleted', and is filtered out from UI.
         const { error } = await supabase
             .from('users')
-            .delete()
+            .update({ status: 'deleted' })
             .eq('id', userId);
 
         if (error) throw error;
-
-        // Note: Auth user deletion requires Service Role key and backend logic.
-        // We only delete the profile data here. The Auth user remains but login will fail or have no profile.
     },
 
     getAllUsers: async (): Promise<User[]> => {
@@ -443,7 +481,8 @@ export const supabaseApi = {
             detailed_tasks: roleData.detailedTasks,
             youtube_url: roleData.youtubeUrl,
             experience_level: roleData.experienceLevel,
-            requires_approval: roleData.requiresApproval
+            requires_approval: roleData.requiresApproval,
+            is_visible: roleData.isVisible ?? true
         };
         const { data, error } = await supabase.from('roles').insert(dbRole).select().single();
         if (error) throw error;
@@ -458,6 +497,7 @@ export const supabaseApi = {
         if (updates.youtubeUrl !== undefined) dbUpdates.youtube_url = updates.youtubeUrl;
         if (updates.experienceLevel) dbUpdates.experience_level = updates.experienceLevel;
         if (updates.requiresApproval !== undefined) dbUpdates.requires_approval = updates.requiresApproval;
+        if (updates.isVisible !== undefined) dbUpdates.is_visible = updates.isVisible;
 
         const { data, error } = await supabase.from('roles').update(dbUpdates).eq('id', roleId).select().single();
         if (error) throw error;
@@ -724,7 +764,7 @@ export const supabaseApi = {
     },
 
     requestBookingCancellation: async (bookingId: string): Promise<Booking> => {
-        const { data: booking } = await supabase.from('bookings').select('*, shifts(*, events(*))').eq('id', bookingId).single();
+        const { data: booking } = await supabase.from('bookings').select('*, shifts(*), events(*)').eq('id', bookingId).single();
         if (!booking) throw new Error("Inscripción no encontrada.");
 
         const shift = booking.shifts;

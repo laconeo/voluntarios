@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Briefcase, Youtube, Info, AlertCircle, Shield } from 'lucide-react';
+import { Plus, Edit2, Trash2, Briefcase, Youtube, Info, AlertCircle, Shield, Eye, EyeOff } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { Role } from '../types';
 import { toast } from 'react-hot-toast';
@@ -21,6 +21,7 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
         youtubeUrl: '',
         experienceLevel: 'nueva' as 'nueva' | 'intermedia' | 'avanzada',
         requiresApproval: false,
+        isVisible: true, // Default visible
     });
 
     useEffect(() => {
@@ -59,6 +60,7 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
             youtubeUrl: '',
             experienceLevel: 'nueva',
             requiresApproval: false,
+            isVisible: true,
         });
         setShowModal(true);
     };
@@ -72,8 +74,23 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
             youtubeUrl: role.youtubeUrl || '',
             experienceLevel: role.experienceLevel,
             requiresApproval: role.requiresApproval || false,
+            isVisible: role.isVisible !== undefined ? role.isVisible : true,
         });
         setShowModal(true);
+    };
+
+    const handleToggleVisibility = async (role: Role) => {
+        try {
+            const newVisibility = !role.isVisible; // Toggle
+            // If undefined, assume true -> false
+            const isVisible = role.isVisible === undefined ? false : !role.isVisible;
+
+            await mockApi.updateRole(role.id, { isVisible });
+            toast.success(`Rol ${isVisible ? 'visible' : 'oculto'} para voluntarios`);
+            fetchRoles();
+        } catch (error: any) {
+            toast.error(error.message || 'Error al cambiar visibilidad');
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -172,10 +189,17 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
             ) : (
                 <div className="grid grid-cols-1 gap-4">
                     {roles.map(role => (
-                        <div key={role.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                        <div key={role.id} className={`bg-white rounded-lg border p-6 hover:shadow-md transition-shadow relative overflow-hidden ${(role.isVisible ?? true) ? 'border-gray-200' : 'border-gray-300 bg-gray-50'
+                            }`}>
+                            {!(role.isVisible ?? true) && (
+                                <div className="absolute top-0 right-0 bg-gray-200 text-gray-600 px-3 py-1 text-xs font-bold rounded-bl-lg z-10">
+                                    OCULTO
+                                </div>
+                            )}
+
                             <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2 flex-wrap">
                                         {role.name}
                                         <span className={`text-xs px-2 py-1 rounded-full ${getExperienceColor(role.experienceLevel)}`}>
                                             {getExperienceLabel(role.experienceLevel)}
@@ -189,6 +213,16 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
                                     </h4>
                                 </div>
                                 <div className="flex gap-2">
+                                    <button
+                                        onClick={() => handleToggleVisibility(role)}
+                                        className={`p-2 rounded-lg transition-colors ${(role.isVisible ?? true)
+                                                ? 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                                                : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'
+                                            }`}
+                                        title={(role.isVisible ?? true) ? "Ocultar rol a voluntarios" : "Hacer visible a voluntarios"}
+                                    >
+                                        {(role.isVisible ?? true) ? <Eye size={18} /> : <EyeOff size={18} />}
+                                    </button>
                                     <button
                                         onClick={() => openEditModal(role)}
                                         className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
@@ -305,26 +339,51 @@ const RoleManagement: React.FC<RoleManagementProps> = ({ eventId }) => {
                                 </div>
                             </div>
 
-                            <div className="flex items-start gap-3 p-4 bg-orange-50 rounded-lg border border-orange-100">
-                                <div className="flex items-center h-5">
-                                    <input
-                                        type="checkbox"
-                                        id="requiresApproval"
-                                        name="requiresApproval"
-                                        checked={formData.requiresApproval}
-                                        onChange={handleCheckboxChange}
-                                        className="h-5 w-5 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-                                    />
+                            {/* Flags Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="flex items-start gap-3 p-4 bg-orange-50 rounded-lg border border-orange-100">
+                                    <div className="flex items-center h-5">
+                                        <input
+                                            type="checkbox"
+                                            id="requiresApproval"
+                                            name="requiresApproval"
+                                            checked={formData.requiresApproval}
+                                            onChange={handleCheckboxChange}
+                                            className="h-5 w-5 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                                        />
+                                    </div>
+                                    <label htmlFor="requiresApproval" className="flex flex-col cursor-pointer">
+                                        <span className="font-semibold text-gray-900 flex items-center gap-2">
+                                            <Shield size={16} className="text-orange-600" />
+                                            Requiere Aprobación
+                                        </span>
+                                        <span className="text-xs text-gray-600 mt-1">
+                                            Los inscritos necesitarán validación.
+                                        </span>
+                                    </label>
                                 </div>
-                                <label htmlFor="requiresApproval" className="flex flex-col cursor-pointer">
-                                    <span className="font-semibold text-gray-900 flex items-center gap-2">
-                                        <Shield size={16} className="text-orange-600" />
-                                        Requiere Aprobación de Administrador
-                                    </span>
-                                    <span className="text-sm text-gray-600">
-                                        Si se activa, los voluntarios que se inscriban en este rol quedarán en estado "Pendiente" y necesitarán aprobación manual desde el panel de métricas. Ideal para roles de coordinación o liderazgo.
-                                    </span>
-                                </label>
+
+                                <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                                    <div className="flex items-center h-5">
+                                        <input
+                                            type="checkbox"
+                                            id="isVisible"
+                                            name="isVisible"
+                                            checked={formData.isVisible}
+                                            onChange={handleCheckboxChange}
+                                            className="h-5 w-5 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                                        />
+                                    </div>
+                                    <label htmlFor="isVisible" className="flex flex-col cursor-pointer">
+                                        <span className="font-semibold text-gray-900 flex items-center gap-2">
+                                            {formData.isVisible ? <Eye size={16} className="text-blue-600" /> : <EyeOff size={16} className="text-gray-400" />}
+                                            Visible para Voluntarios
+                                        </span>
+                                        <span className="text-xs text-gray-600 mt-1">
+                                            Si se desmarca, este rol y sus turnos quedarán ocultos.
+                                        </span>
+                                    </label>
+                                </div>
                             </div>
 
                             <div className="flex gap-4 pt-4 border-t border-gray-100">
