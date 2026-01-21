@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, XCircle, CheckCircle, Users, Filter, Info } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, Users, MoreHorizontal, ChevronRight, X } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { Event, User } from '../types';
 import { toast } from 'react-hot-toast';
@@ -107,7 +107,8 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         setVistaActual('editar');
     };
 
-    const confirmarAccion = (accion: string, evento: Event | null = null) => {
+    const confirmarAccion = (accion: string, evento: Event | null = null, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
         setAccionModal(accion);
         setEventoSeleccionado(evento);
         setMostrarModal(true);
@@ -149,8 +150,8 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
     };
 
     const getBadgeColor = (estado: string) => {
-        if (estado === 'Activo') return 'bg-primary-100 text-primary-700 border border-primary-200';
-        if (estado === 'Inactivo') return 'bg-gray-100 text-gray-700 border border-gray-300';
+        if (estado === 'Activo') return 'bg-[#e8f5e9] text-[#2e7d32] border border-[#c8e6c9]'; // Green 50/800
+        if (estado === 'Inactivo') return 'bg-gray-100 text-gray-700 border border-gray-200';
         return 'bg-blue-50 text-blue-700 border border-blue-200';
     };
 
@@ -166,282 +167,259 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
 
     const paises = ['todos', ...new Set(eventos.map(e => e.pais))];
 
+    // Sub-components for cleaner render
+    const StatCard = ({ title, count, icon: Icon, bgClass, iconClass }: { title: string, count: number, icon: any, bgClass: string, iconClass: string }) => (
+        <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-200 flex items-center justify-between">
+            <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
+                <p className="text-3xl font-light text-gray-900">{count}</p>
+            </div>
+            <div className={`p-3 rounded-full ${bgClass}`}>
+                <Icon size={24} className={iconClass} />
+            </div>
+        </div>
+    );
+
     if (vistaActual === 'listado') {
         return (
-            <div className="min-h-screen bg-gray-50">
-                {/* Header */}
-                <div className="bg-primary-500 text-white px-4 sm:px-6 py-6 sm:py-9">
-                    <div className="max-w-7xl mx-auto">
-                        <div className="mb-0 sm:mb-6">
-                            <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif mb-2 sm:mb-3">Gestión de eventos</h1>
-                            <p className="text-sm sm:text-base md:text-lg opacity-90">Administra eventos de voluntariado multi-organización</p>
+            <div className="min-h-screen pb-20 sm:pb-10 font-sans text-gray-900 bg-[#F7F7F7]">
+
+                {/* Modern clean header */}
+                <div className="bg-white border-b border-gray-200 shadow-sm">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 md:py-8">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <h1 className="text-3xl font-sans font-normal text-gray-900 tracking-tight">Gestión de Eventos</h1>
+                                <p className="text-gray-500 mt-1 font-light">Administra y organiza las actividades de voluntariado.</p>
+                            </div>
+                            <div className="hidden sm:flex items-center gap-3">
+                                {onViewMetrics && (
+                                    <button
+                                        onClick={() => onViewMetrics('users')}
+                                        className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-full text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                                    >
+                                        <Users className="mr-2 h-4 w-4" />
+                                        Usuarios
+                                    </button>
+                                )}
+                                <button
+                                    onClick={iniciarCrearEvento}
+                                    className="inline-flex items-center justify-center px-5 py-2 border border-transparent text-sm font-medium rounded-full text-white bg-[#8CB83E] hover:bg-[#7cb342] shadow-sm transition-colors"
+                                >
+                                    <Plus className="mr-2 h-5 w-5" />
+                                    Nuevo evento
+                                </button>
+                            </div>
                         </div>
-                        <div className="hidden sm:flex flex-col sm:flex-row gap-2 sm:gap-3">
-                            <button
-                                onClick={() => {
-                                    if (onViewMetrics) {
-                                        onViewMetrics('users');
-                                    }
-                                }}
-                                className="flex items-center justify-center gap-2 bg-white text-primary-600 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg hover:bg-gray-50 shadow-lg font-semibold text-sm sm:text-base"
+                    </div>
+                </div>
+
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+
+                    {/* Stats Overview */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <StatCard
+                            title="Eventos Activos"
+                            count={eventos.filter(e => e.estado === 'Activo').length}
+                            icon={Calendar}
+                            bgClass="bg-[#def4c6]" // Softer green background
+                            iconClass="text-[#3d8315]" // Darker green icon
+                        />
+                        <StatCard
+                            title="Eventos Inactivos"
+                            count={eventos.filter(e => e.estado === 'Inactivo').length}
+                            icon={Calendar}
+                            bgClass="bg-gray-100"
+                            iconClass="text-gray-500"
+                        />
+                        <StatCard
+                            title="Archivados"
+                            count={eventos.filter(e => e.estado === 'Archivado').length}
+                            icon={Archive}
+                            bgClass="bg-blue-50"
+                            iconClass="text-[#005994]"
+                        />
+                    </div>
+
+                    {/* Filters & Search */}
+                    <div className="flex flex-col sm:flex-row gap-4 items-center bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                        <div className="flex items-center text-gray-400 mr-2">
+                            <Search size={20} />
+                        </div>
+                        <div className="flex-1 w-full sm:w-auto grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <select
+                                value={filtroEstado}
+                                onChange={e => setFiltroEstado(e.target.value)}
+                                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
                             >
-                                <Users size={18} className="sm:w-5 sm:h-5" />
-                                <span className="whitespace-nowrap">Gestionar Usuarios</span>
-                            </button>
-                            <button
-                                onClick={iniciarCrearEvento}
-                                className="flex items-center justify-center gap-2 bg-white text-primary-600 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg hover:bg-gray-50 shadow-lg font-semibold text-sm sm:text-base"
+                                <option value="todos">Todos los estados</option>
+                                <option value="Activo">Activos</option>
+                                <option value="Inactivo">Inactivos</option>
+                                <option value="Archivado">Archivados</option>
+                            </select>
+                            <select
+                                value={filtroPais}
+                                onChange={e => setFiltroPais(e.target.value)}
+                                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
                             >
-                                <Plus size={18} className="sm:w-5 sm:h-5" />
-                                <span className="whitespace-nowrap">Crear nuevo evento</span>
-                            </button>
+                                {paises.map(p => (
+                                    <option key={p} value={p}>
+                                        {p === 'todos' ? 'Todos los países' : p}
+                                    </option>
+                                ))}
+                            </select>
+                            <select
+                                value={filtroFecha}
+                                onChange={e => setFiltroFecha(e.target.value)}
+                                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                            >
+                                <option value="todos">Todos los años</option>
+                                <option value="2026">2026</option>
+                                <option value="2025">2025</option>
+                            </select>
                         </div>
                     </div>
-                </div>
 
-                {/* Mobile Bottom Navigation Bar */}
-                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 sm:hidden z-50 flex gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-                    <button
-                        onClick={() => {
-                            if (onViewMetrics) {
-                                onViewMetrics('users');
-                            }
-                        }}
-                        className="flex-1 flex flex-col items-center justify-center gap-1 bg-gray-50 text-gray-700 py-2 rounded-lg border border-gray-200 active:bg-gray-100"
-                    >
-                        <Users size={20} />
-                        <span className="text-xs font-semibold">Usuarios</span>
-                    </button>
-                    <button
-                        onClick={iniciarCrearEvento}
-                        className="flex-[2] flex items-center justify-center gap-2 bg-primary-600 text-white py-2 rounded-lg active:bg-primary-700 shadow-md"
-                    >
-                        <Plus size={20} />
-                        <span className="font-semibold">Crear Evento</span>
-                    </button>
-                </div>
-
-                {/* Stats Cards */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 -mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <div className="bg-white rounded-lg shadow-md border-l-4 border-primary-500 p-6">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-primary-100 rounded-lg">
-                                    <CheckCircle className="text-primary-600" size={28} />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-600 mb-1">Eventos activos</p>
-                                    <p className="text-3xl font-bold text-gray-900">
-                                        {eventos.filter(e => e.estado === 'Activo').length}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-lg shadow-md border-l-4 border-gray-400 p-6">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-gray-100 rounded-lg">
-                                    <XCircle className="text-gray-600" size={28} />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-600 mb-1">Eventos inactivos</p>
-                                    <p className="text-3xl font-bold text-gray-900">
-                                        {eventos.filter(e => e.estado === 'Inactivo').length}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-lg shadow-md border-l-4 border-blue-500 p-6">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-blue-100 rounded-lg">
-                                    <Archive className="text-blue-600" size={28} />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-600 mb-1">Eventos archivados</p>
-                                    <p className="text-3xl font-bold text-gray-900">
-                                        {eventos.filter(e => e.estado === 'Archivado').length}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Filters */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-8">
-                    <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Filter size={20} className="text-gray-600" />
-                            <h3 className="font-semibold text-gray-900">Filtros</h3>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Estado del evento</label>
-                                <select
-                                    value={filtroEstado}
-                                    onChange={e => setFiltroEstado(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
-                                >
-                                    <option value="todos">Todos los estados</option>
-                                    <option value="Activo">Activos</option>
-                                    <option value="Inactivo">Inactivos</option>
-                                    <option value="Archivado">Archivados</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">País</label>
-                                <select
-                                    value={filtroPais}
-                                    onChange={e => setFiltroPais(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
-                                >
-                                    {paises.map(p => (
-                                        <option key={p} value={p}>
-                                            {p === 'todos' ? 'Todos los países' : p}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Año</label>
-                                <select
-                                    value={filtroFecha}
-                                    onChange={e => setFiltroFecha(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
-                                >
-                                    <option value="todos">Todos los años</option>
-                                    <option value="2026">2026</option>
-                                    <option value="2025">2025</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                            <p className="text-sm text-gray-600">
-                                Mostrando <span className="font-semibold text-gray-900">{eventosFiltrados.length}</span> de {eventos.length} eventos
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Event List */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-32">
+                    {/* Events Grid */}
                     {isLoading ? (
-                        <div className="text-center py-12">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto"></div>
+                        <div className="flex justify-center py-12">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {eventosFiltrados.map(evento => (
-                                <div key={evento.id} className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow">
-                                    <div className="bg-gradient-to-br from-primary-500 to-primary-600 p-6 text-white relative">
-                                        <div className="absolute top-4 right-4">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getBadgeColor(evento.estado)} bg-white`}>{evento.estado}</span>
-                                        </div>
-                                        <div className="mb-2">
-                                            <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center mb-3">
-                                                <Calendar className="text-white" size={24} />
-                                            </div>
-                                        </div>
-                                        <h3 className="text-xl font-serif mb-2">{evento.nombre}</h3>
-                                        <div className="flex items-center gap-2 text-sm opacity-90">
-                                            <MapPin size={14} />
-                                            <span>{evento.ubicacion}</span>
-                                        </div>
-                                    </div>
-                                    <div className="p-6">
-                                        <div className="space-y-3 mb-5">
-                                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                                <Calendar size={16} className="text-gray-400" />
-                                                <span>{evento.fechaInicio} al {evento.fechaFin}</span>
-                                            </div>
-                                            <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">{evento.descripcion}</p>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-3 py-4 mb-5 border-y border-gray-200">
-                                            <div className="text-center">
-                                                <p className="text-2xl font-bold text-gray-900">{evento.voluntarios}</p>
-                                                <p className="text-xs text-gray-500 mt-1">Voluntarios</p>
-                                            </div>
-                                            <div className="text-center border-x border-gray-200">
-                                                <p className="text-2xl font-bold text-gray-900">{evento.turnos}</p>
-                                                <p className="text-xs text-gray-500 mt-1">Turnos</p>
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-2xl font-bold text-primary-600">{evento.ocupacion}%</p>
-                                                <p className="text-xs text-gray-500 mt-1">Ocupación</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col sm:flex-row gap-2">
-                                            <button
-                                                onClick={() => iniciarEditarEvento(evento)}
-                                                className="flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 font-medium text-sm"
-                                            >
-                                                <Edit2 size={16} />
-                                                <span>Editar</span>
-                                            </button>
+                                <div
+                                    key={evento.id}
+                                    onClick={() => iniciarEditarEvento(evento)}
+                                    className="group bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden flex flex-col"
+                                >
+                                    <div className="p-6 flex-1">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getBadgeColor(evento.estado)}`}>
+                                                {evento.estado}
+                                            </span>
                                             {onViewMetrics && (
                                                 <button
-                                                    onClick={() => onViewMetrics(evento.id)}
-                                                    className="flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 font-medium text-sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onViewMetrics(evento.id);
+                                                    }}
+                                                    className="text-gray-400 hover:text-[#8CB83E] transition-colors p-1"
+                                                    title="Ver métricas"
                                                 >
-                                                    <TrendingUp size={16} />
-                                                    <span>Métricas</span>
+                                                    <TrendingUp size={18} />
                                                 </button>
                                             )}
+                                        </div>
+
+                                        <h3 className="text-xl font-sans font-medium text-gray-900 mb-2 group-hover:text-[#8CB83E] transition-colors">
+                                            {evento.nombre}
+                                        </h3>
+
+                                        <div className="flex items-center gap-2 text-gray-500 text-sm mb-4">
+                                            <MapPin size={14} />
+                                            <span>{evento.ubicacion}, {evento.pais}</span>
+                                        </div>
+
+                                        <p className="text-gray-600 text-sm line-clamp-2 leading-relaxed mb-4">
+                                            {evento.descripcion || "Sin descripción disponible."}
+                                        </p>
+
+                                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                                            <div>
+                                                <p className="text-xs text-gray-400 uppercase tracking-wider">Fecha</p>
+                                                <p className="text-sm font-medium text-gray-700">{new Date(evento.fechaInicio).toLocaleDateString()}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-gray-400 uppercase tracking-wider">Voluntarios</p>
+                                                <p className="text-sm font-medium text-gray-700">{evento.voluntarios}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-gray-50 px-4 py-3 border-t border-gray-100 flex items-center justify-between">
+                                        <div className="flex gap-1">
                                             {evento.estado !== 'Archivado' && (
                                                 <button
-                                                    onClick={() => confirmarAccion('archivar', evento)}
-                                                    className="flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 font-medium text-sm"
+                                                    onClick={(e) => confirmarAccion('archivar', evento, e)}
+                                                    className="p-2 text-gray-500 hover:text-[#005994] hover:bg-white rounded-md transition-colors"
+                                                    title="Archivar"
                                                 >
-                                                    <Archive size={16} />
-                                                    <span>Archivar</span>
+                                                    <Archive size={18} />
                                                 </button>
                                             )}
                                             {evento.voluntarios === 0 && (
                                                 <button
-                                                    onClick={() => confirmarAccion('eliminar', evento)}
-                                                    className="flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-sm"
+                                                    onClick={(e) => confirmarAccion('eliminar', evento, e)}
+                                                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-white rounded-md transition-colors"
+                                                    title="Eliminar"
                                                 >
-                                                    <Trash2 size={16} />
-                                                    <span className="sm:hidden">Eliminar</span>
+                                                    <Trash2 size={18} />
                                                 </button>
                                             )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {onViewMetrics && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onViewMetrics(evento.id);
+                                                    }}
+                                                    className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:text-[#005994] hover:border-[#005994] transition-colors"
+                                                >
+                                                    <TrendingUp size={16} />
+                                                    <span className="hidden sm:inline">Métricas</span>
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => iniciarEditarEvento(evento)}
+                                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-[#8CB83E] rounded-md hover:bg-[#7cb342] shadow-sm transition-colors"
+                                            >
+                                                <Edit2 size={16} />
+                                                <span>Editar</span>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     )}
+
                     {eventosFiltrados.length === 0 && !isLoading && (
-                        <div className="text-center py-12">
-                            <div className="inline-block p-4 bg-gray-100 rounded-full mb-4">
-                                <Search size={32} className="text-gray-400" />
-                            </div>
-                            <p className="text-gray-600 text-lg">No se encontraron eventos con los filtros seleccionados</p>
+                        <div className="text-center py-16 bg-white rounded-lg border border-dashed border-gray-300">
+                            <Search size={48} className="mx-auto text-gray-300 mb-4" />
+                            <h3 className="text-lg font-medium text-gray-900">No se encontraron eventos</h3>
+                            <p className="text-gray-500">Intenta ajustar los filtros de búsqueda.</p>
                         </div>
                     )}
                 </div>
 
                 {/* Confirmation Modal */}
                 {mostrarModal && eventoSeleccionado && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-                            <h3 className="text-xl font-serif font-bold text-gray-900 mb-4">
-                                Confirmar {accionModal === 'archivar' ? 'archivado' : 'eliminación'}
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-slide-up">
+                            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4 mx-auto">
+                                <Archive className="text-red-600" size={24} />
+                            </div>
+                            <h3 className="text-lg font-sans font-bold text-center text-gray-900 mb-2">
+                                {accionModal === 'archivar' ? '¿Archivar evento?' : '¿Eliminar evento?'}
                             </h3>
-                            <p className="text-gray-600 mb-6 leading-relaxed">
+                            <p className="text-gray-600 text-center text-sm mb-6">
                                 {accionModal === 'archivar'
-                                    ? `¿Estás seguro que deseas archivar "${eventoSeleccionado.nombre}"? Los datos se conservarán en modo solo lectura.`
-                                    : `¿Estás seguro que deseas eliminar "${eventoSeleccionado.nombre}"? Esta acción no se puede deshacer.`}
+                                    ? `"${eventoSeleccionado.nombre}" pasará a modo solo lectura.`
+                                    : `"${eventoSeleccionado.nombre}" se eliminará permanentemente.`}
                             </p>
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => setMostrarModal(false)}
-                                    className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                                    className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm transition-colors"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     onClick={ejecutarAccion}
-                                    className={`flex-1 px-4 py-2.5 rounded-lg text-white font-medium ${accionModal === 'archivar' ? 'bg-primary-600 hover:bg-primary-700' : 'bg-red-600 hover:bg-red-700'}`}
+                                    className={`flex-1 px-4 py-2 rounded-lg text-white font-medium text-sm transition-colors shadow-sm ${accionModal === 'archivar' ? 'bg-[#8CB83E] hover:bg-[#7cb342]' : 'bg-red-600 hover:bg-red-700'
+                                        }`}
                                 >
                                     Confirmar
                                 </button>
@@ -449,78 +427,101 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                         </div>
                     </div>
                 )}
+                {/* Mobile Bottom Floating Action Buttons - List View */}
+                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 sm:hidden z-50 flex shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] pb-safe">
+                    {onViewMetrics && (
+                        <button
+                            onClick={() => onViewMetrics('users')}
+                            className="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-gray-600 active:bg-gray-50 rounded-lg transition-colors"
+                        >
+                            <Users size={24} />
+                            <span className="text-[10px] font-medium">Usuarios</span>
+                        </button>
+                    )}
+                    <button
+                        onClick={iniciarCrearEvento}
+                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-colors ${!onViewMetrics ? 'w-full' : ''} text-[#8CB83E] active:bg-green-50`}
+                    >
+                        <Plus size={24} />
+                        <span className="text-[10px] font-medium">Nuevo Evento</span>
+                    </button>
+                </div>
             </div>
         );
     }
 
-    // Crear / Editar view
+    // Crear / Editar view (Simplified for clean look)
     return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-6 sticky top-0 z-40 shadow-sm">
-                <div className="max-w-3xl mx-auto">
-                    <button
-                        onClick={() => setVistaActual('listado')}
-                        className="text-primary-600 hover:text-primary-700 mb-4 flex items-center gap-2 font-medium"
-                    >
-                        ← Volver al listado
-                    </button>
-                    <h1 className="text-2xl sm:text-3xl font-serif font-bold text-gray-900 mb-2">
-                        {vistaActual === 'crear' ? 'Crear nuevo evento' : 'Editar evento'}
-                    </h1>
-                    <p className="text-gray-600 text-sm sm:text-base">
-                        {vistaActual === 'crear'
-                            ? 'Completa la información del nuevo evento de voluntariado'
-                            : 'Modifica los datos del evento existente'}
-                    </p>
+        <div className="min-h-screen pb-20 sm:pb-10 font-sans text-gray-900 bg-[#F7F7F7]">
+            <div className="bg-white border-b border-gray-200">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={() => setVistaActual('listado')}
+                                className="p-2 -ml-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+                            >
+                                <X size={24} />
+                            </button>
+                            <div>
+                                <h1 className="text-xl font-sans font-medium text-gray-900">
+                                    {vistaActual === 'crear' ? 'Nuevo Evento' : eventoSeleccionado?.nombre}
+                                </h1>
+                                <p className="text-sm text-gray-500">
+                                    {vistaActual === 'crear' ? 'Crear un nuevo evento de voluntariado' : 'Gestión y edición'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div className="max-w-3xl mx-auto px-0 sm:px-6 py-0 sm:py-8 pb-32">
-                <div className="bg-white rounded-none sm:rounded-lg shadow-none sm:shadow-md border-x-0 sm:border border-gray-200 p-4 sm:p-8">
-                    {eventoSeleccionado && (
-                        <div className="hidden sm:flex gap-2 sm:gap-4 mb-6 sm:mb-8 border-b border-gray-200 overflow-x-auto">
+
+                {/* Tabs */}
+                {eventoSeleccionado && (
+                    <div className="max-w-4xl mx-auto px-4 sm:px-6 mt-2">
+                        <div className="flex space-x-6">
                             <button
                                 onClick={() => setActiveTab('details')}
-                                className={`pb-3 sm:pb-4 px-3 sm:px-4 font-medium transition-colors relative whitespace-nowrap text-sm sm:text-base ${activeTab === 'details'
-                                    ? 'text-primary-600 border-b-2 border-primary-600'
-                                    : 'text-gray-500 hover:text-gray-700'
-                                    }`}
+                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-[#8CB83E] text-[#8CB83E]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                             >
                                 Detalles
                             </button>
                             <button
                                 onClick={() => setActiveTab('roles')}
-                                className={`pb-3 sm:pb-4 px-3 sm:px-4 font-medium transition-colors relative whitespace-nowrap text-sm sm:text-base ${activeTab === 'roles'
-                                    ? 'text-primary-600 border-b-2 border-primary-600'
-                                    : 'text-gray-500 hover:text-gray-700'
-                                    }`}
+                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'roles' ? 'border-[#8CB83E] text-[#8CB83E]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                             >
                                 Roles
                             </button>
                             <button
                                 onClick={() => setActiveTab('shifts')}
-                                className={`pb-3 sm:pb-4 px-3 sm:px-4 font-medium transition-colors relative whitespace-nowrap text-sm sm:text-base ${activeTab === 'shifts'
-                                    ? 'text-primary-600 border-b-2 border-primary-600'
-                                    : 'text-gray-500 hover:text-gray-700'
-                                    }`}
+                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'shifts' ? 'border-[#8CB83E] text-[#8CB83E]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                             >
                                 Turnos
                             </button>
                         </div>
-                    )}
+                    </div>
+                )}
+            </div>
 
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                     {activeTab === 'roles' && eventoSeleccionado ? (
-                        <RoleManagement eventId={eventoSeleccionado.id} />
+                        <div className="p-6">
+                            <RoleManagement eventId={eventoSeleccionado.id} />
+                        </div>
                     ) : activeTab === 'shifts' && eventoSeleccionado ? (
-                        <ShiftManagement
-                            eventId={eventoSeleccionado.id}
-                            eventStartDate={eventoSeleccionado.fechaInicio}
-                            eventEndDate={eventoSeleccionado.fechaFin}
-                        />
+                        <div className="p-6">
+                            <ShiftManagement
+                                eventId={eventoSeleccionado.id}
+                                eventStartDate={eventoSeleccionado.fechaInicio}
+                                eventEndDate={eventoSeleccionado.fechaFin}
+                            />
+                        </div>
                     ) : (
-                        <>
-                            <div className="space-y-6">
+                        <div className="p-6 sm:p-8 space-y-6">
+                            {/* Form Content */}
+                            <div className="grid grid-cols-1 gap-6">
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Nombre del evento *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del evento</label>
                                     <input
                                         ref={nombreEventoInputRef}
                                         type="text"
@@ -528,203 +529,176 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                         value={formData.nombre}
                                         onChange={handleInputChange}
                                         placeholder="Ej: Feria del Libro Buenos Aires 2026"
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#8CB83E] focus:border-[#8CB83E] transition-shadow"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">URL del evento *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">URL amigable (Slug)</label>
                                     <div className="flex gap-2">
                                         <input
                                             type="text"
                                             name="slug"
                                             value={formData.slug}
                                             onChange={handleInputChange}
-                                            placeholder="feriadellibrobuenosaires"
-                                            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm"
+                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 text-sm font-mono"
                                         />
                                         <button
                                             type="button"
                                             onClick={generateSlug}
-                                            className="px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium whitespace-nowrap"
+                                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm font-medium"
                                         >
-                                            Auto-generar
+                                            Generar
                                         </button>
                                     </div>
                                     {formData.slug && (
-                                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                                <div className="flex-1 overflow-hidden">
-                                                    <p className="text-xs text-blue-600 font-semibold mb-1">URL de acceso público:</p>
-                                                    <p className="text-sm text-blue-900 font-mono break-all">
-                                                        {(() => {
-                                                            const baseUrl = window.location.href.split('#')[0].replace(/\/$/, '');
-                                                            return `${baseUrl}/#/${formData.slug}`;
-                                                        })()}
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={copyEventUrl}
-                                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm whitespace-nowrap flex items-center justify-center gap-2 w-full sm:w-auto"
-                                                >
-                                                    <Copy size={16} />
-                                                    Copiar
-                                                </button>
-                                            </div>
+                                        <div className="mt-2 flex items-center justify-between text-xs text-blue-600 bg-blue-50 px-3 py-2 rounded border border-blue-100">
+                                            <span className="truncate font-mono">
+                                                {`${window.location.href.split('#')[0].replace(/\/$/, '')}/#/${formData.slug}`}
+                                            </span>
+                                            <button onClick={copyEventUrl} className="ml-2 hover:underline font-medium">Copiar</button>
                                         </div>
                                     )}
-                                    <p className="text-sm text-gray-500 mt-2">
-                                        Esta URL será utilizada para que los voluntarios accedan al evento. Solo letras minúsculas sin espacios.
-                                    </p>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Ciudad *</label>
-                                        <div className="relative">
-                                            <MapPin className="absolute left-3 top-3.5 text-gray-400" size={20} />
-                                            <input
-                                                type="text"
-                                                name="ubicacion"
-                                                value={formData.ubicacion}
-                                                onChange={handleInputChange}
-                                                placeholder="Buenos Aires"
-                                                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                            />
-                                        </div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
+                                        <input
+                                            type="text"
+                                            name="ubicacion"
+                                            value={formData.ubicacion}
+                                            onChange={handleInputChange}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#8CB83E] focus:border-[#8CB83E]"
+                                        />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">País *</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">País</label>
                                         <input
                                             type="text"
                                             name="pais"
                                             value={formData.pais}
                                             onChange={handleInputChange}
-                                            placeholder="Argentina"
-                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#8CB83E] focus:border-[#8CB83E]"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Fecha de inicio *</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio</label>
                                         <input
                                             type="date"
                                             name="fechaInicio"
                                             value={formData.fechaInicio}
                                             onChange={handleInputChange}
-                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#8CB83E] focus:border-[#8CB83E]"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Fecha de fin *</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Fin</label>
                                         <input
                                             type="date"
                                             name="fechaFin"
                                             value={formData.fechaFin}
                                             onChange={handleInputChange}
-                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#8CB83E] focus:border-[#8CB83E]"
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Descripción</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
                                     <textarea
                                         name="descripcion"
                                         value={formData.descripcion}
                                         onChange={handleInputChange}
-                                        placeholder="Describe brevemente el evento..."
                                         rows={4}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#8CB83E] focus:border-[#8CB83E]"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Estado del evento *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
                                     <select
                                         name="estado"
                                         value={formData.estado}
                                         onChange={handleInputChange}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#8CB83E] focus:border-[#8CB83E]"
                                     >
-                                        <option value="Activo">Activo (visible para voluntarios)</option>
-                                        <option value="Inactivo">Inactivo (oculto, en preparación)</option>
-                                        <option value="Archivado">Archivado (solo lectura)</option>
+                                        <option value="Activo">Activo</option>
+                                        <option value="Inactivo">Inactivo</option>
+                                        <option value="Archivado">Archivado</option>
                                     </select>
-                                    <p className="text-sm text-gray-500 mt-2">
-                                        Solo eventos activos son visibles para voluntarios en el registro
-                                    </p>
-                                </div>
-
-                                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                                    <h4 className="font-semibold text-yellow-800 mb-2 flex items-center gap-2">
-                                        <span>⚠️</span> Reglas importantes
-                                    </h4>
-                                    <ul className="text-sm text-yellow-700 space-y-1 ml-6 list-disc">
-                                        <li>Solo puedes tener máximo 5 eventos activos simultáneos</li>
-                                        <li>La fecha de fin debe ser posterior a la fecha de inicio</li>
-                                        <li>No se pueden eliminar eventos con voluntarios registrados</li>
-                                    </ul>
                                 </div>
                             </div>
-                            <div className="flex gap-4 pt-6">
+
+                            <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100">
                                 <button
                                     type="button"
                                     onClick={() => setVistaActual('listado')}
-                                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-semibold"
+                                    className="px-5 py-2 text-gray-700 bg-white border border-gray-300 rounded-full hover:bg-gray-50 font-medium text-sm transition-colors"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="button"
                                     onClick={guardarEvento}
-                                    className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-semibold shadow-lg"
+                                    className="px-6 py-2 text-white bg-[#8CB83E] rounded-full hover:bg-[#7cb342] font-medium text-sm shadow-sm transition-colors"
                                 >
-                                    {vistaActual === 'crear' ? 'Crear evento' : 'Guardar cambios'}
+                                    Guardar Cambios
                                 </button>
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
+
+                {/* Detail Actions (Delete/Archive) */}
+                {eventoSeleccionado && activeTab === 'details' && vistaActual === 'editar' && (
+                    <div className="mt-8 border-t border-gray-200 pt-8">
+                        <h3 className="text-sm font-bold text-gray-900 mb-4">Zona de Peligro</h3>
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            {eventoSeleccionado.estado !== 'Archivado' && (
+                                <button
+                                    onClick={() => confirmarAccion('archivar', eventoSeleccionado)}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2"
+                                >
+                                    <Archive size={16} />
+                                    Archivar Evento
+                                </button>
+                            )}
+                            {eventoSeleccionado.voluntarios === 0 && (
+                                <button
+                                    onClick={() => confirmarAccion('eliminar', eventoSeleccionado)}
+                                    className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 flex items-center justify-center gap-2"
+                                >
+                                    <Trash2 size={16} />
+                                    Eliminar Evento
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
-            {/* Mobile Tab Navigation for Event Editing */}
+
+            {/* Mobile Nav */}
             {eventoSeleccionado && (
-                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 sm:hidden z-50 flex gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-                    <button
-                        onClick={() => setActiveTab('details')}
-                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-colors ${activeTab === 'details'
-                            ? 'text-primary-600 bg-primary-50'
-                            : 'text-gray-500 hover:bg-gray-50'
-                            }`}
-                    >
-                        <Info size={20} />
-                        <span className="text-xs font-semibold">Detalles</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('roles')}
-                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-colors ${activeTab === 'roles'
-                            ? 'text-primary-600 bg-primary-50'
-                            : 'text-gray-500 hover:bg-gray-50'
-                            }`}
-                    >
-                        <Users size={20} />
-                        <span className="text-xs font-semibold">Roles</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('shifts')}
-                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-colors ${activeTab === 'shifts'
-                            ? 'text-primary-600 bg-primary-50'
-                            : 'text-gray-500 hover:bg-gray-50'
-                            }`}
-                    >
+                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 sm:hidden z-40 flex justify-around">
+                    <button onClick={() => setActiveTab('details')} className={`p-2 flex flex-col items-center ${activeTab === 'details' ? 'text-[#8CB83E]' : 'text-gray-400'}`}>
                         <Calendar size={20} />
-                        <span className="text-xs font-semibold">Turnos</span>
+                        <span className="text-[10px] mt-1">Detalles</span>
+                    </button>
+                    <button onClick={() => setActiveTab('roles')} className={`p-2 flex flex-col items-center ${activeTab === 'roles' ? 'text-[#8CB83E]' : 'text-gray-400'}`}>
+                        <Users size={20} />
+                        <span className="text-[10px] mt-1">Roles</span>
+                    </button>
+                    <button onClick={() => setActiveTab('shifts')} className={`p-2 flex flex-col items-center ${activeTab === 'shifts' ? 'text-[#8CB83E]' : 'text-gray-400'}`}>
+                        <TrendingUp size={20} />
+                        <span className="text-[10px] mt-1">Turnos</span>
                     </button>
                 </div>
             )}
+
         </div>
     );
 };
