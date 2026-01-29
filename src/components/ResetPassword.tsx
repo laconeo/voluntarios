@@ -61,7 +61,7 @@ const ResetPassword = () => {
                     </button>
                 </form>
                 <p className="mt-8 text-xs text-gray-400">
-                    © 2026 Servicios de apoyo para usuarios de FS
+                    © 2026 Hecho con ❤️ para proveer apoyo al usuario
                 </p>
             </div>
         </div>

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Filter, Download, Mail, Phone, Edit2, X, Save, Eye, CheckCircle, XCircle, Calendar } from 'lucide-react';
+import { Users, Search, Filter, Download, Mail, Phone, Edit2, X, Save, Eye, CheckCircle, XCircle, Calendar, Trash2, Share2, Copy } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { supabaseApi as mockApi } from '../services/supabaseApiService'; // Using Supabase API now
-import type { User, Booking } from '../types';
+import type { User, Booking, Shift } from '../types';
 import { toast } from 'react-hot-toast';
 import { emailService } from '../services/emailService';
 
@@ -12,6 +14,7 @@ interface EventVolunteersListProps {
 const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) => {
     const [volunteers, setVolunteers] = useState<User[]>([]);
     const [bookings, setBookings] = useState<Booking[]>([]);
+    const [shifts, setShifts] = useState<Shift[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterRole, setFilterRole] = useState('todos');
@@ -22,6 +25,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     const [viewingUser, setViewingUser] = useState<User | null>(null);
     const [viewingUserBookings, setViewingUserBookings] = useState<Booking[]>([]);
     const [isLoadingShifts, setIsLoadingShifts] = useState(false);
+    const [eventDetails, setEventDetails] = useState<any>(null);
 
     useEffect(() => {
         fetchVolunteers();
@@ -30,17 +34,52 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     const fetchVolunteers = async () => {
         setIsLoading(true);
         try {
-            const [allUsers, eventBookings] = await Promise.all([
+            const [allUsers, eventBookings, eventInfo, allShifts] = await Promise.all([
                 mockApi.getAllUsers(),
-                mockApi.getBookingsByEvent(eventId)
+                mockApi.getBookingsByEvent(eventId),
+                mockApi.getEventById(eventId),
+                mockApi.getShiftsByEvent(eventId)
             ]);
 
-            // Filtrar solo usuarios que tienen bookings en este evento
+            // Filtrar solo usuarios que tienen bookings en este evento O son coordinadores en algun turno
             const userIdsInEvent = new Set(eventBookings.map(b => b.userId));
+
+            // Add coordinators to the set
+            allShifts.forEach(s => {
+                if (s.coordinatorIds) {
+                    s.coordinatorIds.forEach(id => userIdsInEvent.add(id));
+                }
+            });
+
             const eventVolunteers = allUsers.filter(u => userIdsInEvent.has(u.id));
 
+            // Generate synthetic bookings for Coordinators to ensure they show up in counts and lists
+            const coordinatorBookings: Booking[] = [];
+            allShifts.forEach(shift => {
+                if (shift.coordinatorIds) {
+                    shift.coordinatorIds.forEach(uid => {
+                        // Check if this user already has a booking for this shift to avoid duplicates (though rare)
+                        const exists = eventBookings.some(b => b.userId === uid && b.shiftId === shift.id);
+                        if (!exists) {
+                            coordinatorBookings.push({
+                                id: `coord_${shift.id}_${uid}`,
+                                userId: uid,
+                                shiftId: shift.id,
+                                eventId: eventId,
+                                status: 'confirmed',
+                                attendance: 'pending' as any,
+                                requestedAt: new Date().toISOString(),
+                                shift: shift as any, // Attach shift for display
+                            });
+                        }
+                    });
+                }
+            });
+
             setVolunteers(eventVolunteers);
-            setBookings(eventBookings);
+            setBookings([...eventBookings, ...coordinatorBookings]);
+            setEventDetails(eventInfo);
+            setShifts(allShifts);
         } catch (error) {
             console.error('Error al cargar voluntarios:', error);
             toast.error('Error al cargar voluntarios del evento');
@@ -59,6 +98,20 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
         try {
             const userToUpdate = { ...editingUser };
+
+            // Check if role degraded from coordinator to something else
+            // We need to compare with the ORIGINAL user state in 'volunteers' list or fetch fresh.
+            // But 'volunteers' list has the old state.
+            const originalUser = volunteers.find(u => u.id === editingUser.id);
+            if (originalUser && originalUser.role === 'coordinator' && userToUpdate.role !== 'coordinator') {
+                // Remove from all coordinated shifts
+                const coordinatedShifts = shifts.filter(s => s.coordinatorIds?.includes(editingUser.id));
+                for (const shift of coordinatedShifts) {
+                    await mockApi.removeCoordinatorFromShift(shift.id, editingUser.id);
+                }
+                toast.success('Se eliminaron los turnos de coordinación automáticamente.');
+            }
+
             await mockApi.updateUser(userToUpdate);
 
             toast.success('Usuario actualizado correctamente');
@@ -77,12 +130,78 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
         try {
             const userShifts = await mockApi.getUserBookings(user.id, eventId);
-            setViewingUserBookings(userShifts);
+
+            // Also fetch coordinator shifts manually if needed, or simply reuse the ones from 'bookings' state if they are there?
+            // 'bookings' state has synthesized bookings. But 'getUserBookings' fetches from DB.
+            // Let's stick to consistent DB fetch + synthesize.
+            const allEventShifts = await mockApi.getShiftsByEvent(eventId);
+            const coordShifts = allEventShifts.filter(s => s.coordinatorIds?.includes(user.id));
+
+            const syntheticBookings: Booking[] = coordShifts.map(shift => ({
+                id: `coord_${shift.id}_${user.id}`,
+                userId: user.id,
+                shiftId: shift.id,
+                eventId: eventId,
+                status: 'confirmed',
+                attendance: 'pending' as any,
+                requestedAt: new Date().toISOString(),
+                shift: shift as any
+            })).filter(sb => !userShifts.some(ub => ub.shiftId === sb.shiftId)); // Avoid dups
+
+            setViewingUserBookings([...userShifts, ...syntheticBookings]);
         } catch (error) {
             console.error('Error fetching user shifts', error);
             toast.error('Error al cargar turnos del voluntario');
         } finally {
             setIsLoadingShifts(false);
+        }
+    };
+
+    const handleAssignCoordinator = async (shiftId: string) => {
+        if (!editingUser) return;
+        try {
+            await mockApi.assignCoordinatorToShift(shiftId, editingUser.id);
+            toast.success('Turno asignado al coordinador');
+            // Refresh shifts locally
+            const updatedShifts = await mockApi.getShiftsByEvent(eventId);
+            setShifts(updatedShifts);
+            // Also refresh volunteers to update counts if needed
+            fetchVolunteers();
+        } catch (error: any) {
+            toast.error(error.message || 'Error al asignar turno');
+        }
+    };
+
+    const handleRemoveCoordinator = async (shiftId: string) => {
+        if (!editingUser) return;
+        try {
+            await mockApi.removeCoordinatorFromShift(shiftId, editingUser.id);
+            toast.success('Turno removido');
+            // Refresh shifts locally
+            const updatedShifts = await mockApi.getShiftsByEvent(eventId);
+            setShifts(updatedShifts);
+            // Also refresh volunteers
+            fetchVolunteers();
+        } catch (error: any) {
+            toast.error(error.message || 'Error al remover turno');
+        }
+    };
+
+    const handleDeleteBooking = async (bookingId: string) => {
+        try {
+            await mockApi.adminCancelBooking(bookingId);
+            toast.success('Turno eliminado y voluntario notificado');
+
+            // Refresh shifts list
+            if (viewingUser) {
+                const userShifts = await mockApi.getUserBookings(viewingUser.id, eventId);
+                setViewingUserBookings(userShifts);
+            }
+            // Also refresh main list to update counts if necessary
+            fetchVolunteers();
+        } catch (error: any) {
+            console.error('Error deleting booking', error);
+            toast.error(error.message || 'Error al eliminar el turno');
         }
     };
 
@@ -122,6 +241,164 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             volunteer: 'Voluntario'
         };
         return labels[role as keyof typeof labels] || role;
+    };
+
+    // Summary Generation Logic
+    const [summaryUser, setSummaryUser] = useState<User | null>(null);
+    const [summaryBookings, setSummaryBookings] = useState<Booking[]>([]);
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
+
+    const handleOpenSummary = async (user: User) => {
+        setSummaryUser(user);
+
+        // Fetch specific bookings for this user to be sure we have the latest
+        const userShifts = await mockApi.getUserBookings(user.id, eventId);
+        setSummaryBookings(userShifts);
+
+        setShowSummaryModal(true);
+    };
+
+    const generateSummaryText = () => {
+        if (!summaryUser) return '';
+
+        // Header con datos del evento
+        let text = `*RECORDATORIO DE ASIGNACIONES*\n`;
+        text += `*${eventDetails?.nombre || 'Evento'}*\n`;
+        if (eventDetails) {
+            text += `📅 ${new Date(eventDetails.fechaInicio + 'T00:00:00').toLocaleDateString()} - ${new Date(eventDetails.fechaFin + 'T00:00:00').toLocaleDateString()}\n`;
+            text += `📍 ${eventDetails.ubicacion}\n`;
+        }
+        text += `\nHola ${summaryUser.fullName}, te comparto el resumen de tus turnos asignados:\n\n`;
+
+        // Listado de turnos
+        const activeBookings = summaryBookings.filter(b => b.status !== 'cancelled');
+        if (activeBookings.length === 0) {
+            text += "No tienes turnos registrados.\n";
+        } else {
+            activeBookings.forEach(booking => {
+                const date = booking.shift?.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', weekday: 'short' }) : 'N/A';
+                const roleName = booking.shift?.role?.name || 'Rol';
+                text += `✅ ${date} ${booking.shift?.timeSlot} | ${roleName}\n`;
+            });
+        }
+
+        // Footer con link y aviso
+        text += `\n⚠️ *Importante:* Si tienes alguna novedad o no puedes asistir a algún turno, por favor avísanos lo antes posible.\n\n`;
+
+        const eventUrl = eventDetails?.slug ? `${window.location.origin}/#/${eventDetails.slug}` : window.location.href;
+        text += `🔗 Más info y autogestión en:\n${eventUrl}`;
+
+        return text;
+    };
+
+    const handleCopySummary = () => {
+        const text = generateSummaryText();
+        navigator.clipboard.writeText(text);
+        toast.success('Resumen copiado al portapapeles');
+    };
+
+    const handleDownloadSummaryPDF = async () => {
+        if (!summaryUser) return;
+        const doc = new jsPDF();
+
+        // Header
+        doc.setFillColor(243, 244, 246);
+        doc.rect(0, 0, 210, 45, 'F'); // Increased height for more info
+
+        doc.setFontSize(20);
+        doc.setTextColor(17, 24, 39);
+        doc.text("Recordatorio de Asignaciones", 14, 20);
+
+        // Event Info in Header
+        doc.setFontSize(14);
+        doc.setTextColor(31, 41, 55);
+        doc.text(eventDetails?.nombre || 'Evento', 14, 30);
+
+        doc.setFontSize(10);
+        doc.setTextColor(75, 85, 99);
+        if (eventDetails) {
+            const dateStr = `${new Date(eventDetails.fechaInicio + 'T00:00:00').toLocaleDateString('es-AR')} - ${new Date(eventDetails.fechaFin + 'T00:00:00').toLocaleDateString('es-AR')}`;
+            doc.text(`Fechas: ${dateStr}   |   Ubicación: ${eventDetails.ubicacion}`, 14, 38);
+        }
+
+        let yPos = 60;
+        doc.setFontSize(14);
+        doc.setTextColor(17, 24, 39);
+        doc.text(`Voluntario: ${summaryUser.fullName}`, 14, yPos);
+        yPos += 7;
+        doc.setFontSize(10);
+        doc.setTextColor(75, 85, 99);
+        doc.text(`DNI: ${summaryUser.dni} | Email: ${summaryUser.email}`, 14, yPos);
+        yPos += 15;
+
+        // Table
+        const tableColumn = ["Fecha", "Horario", "Rol", "Estado"];
+        const activeBookings = summaryBookings.filter(b => b.status !== 'cancelled');
+        const warningBookings = activeBookings.map(booking => [
+            booking.shift?.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', weekday: 'short' }) : 'N/A',
+            booking.shift?.timeSlot || '-',
+            booking.shift?.role?.name || 'Rol',
+            booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'
+        ]);
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [tableColumn],
+            body: warningBookings,
+            theme: 'grid',
+            headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+            styles: { fontSize: 10, cellPadding: 3 },
+            alternateRowStyles: { fillColor: [249, 250, 251] }
+        });
+
+        // Footer
+        // Get the final Y position after the table
+        // @ts-ignore
+        const finalY = doc.lastAutoTable.finalY + 15;
+
+        doc.setDrawColor(253, 224, 71); // yellow-300
+        doc.setFillColor(254, 252, 232); // yellow-50
+        doc.roundedRect(14, finalY, 182, 25, 3, 3, 'FD');
+
+        doc.setFontSize(10);
+        doc.setTextColor(161, 98, 7); // yellow-800
+        doc.text("IMPORTANTE: Si tienes alguna novedad o no puedes asistir a algún turno, por favor avísanos lo antes posible.", 18, finalY + 8, { maxWidth: 174 });
+
+        doc.setTextColor(31, 41, 55); // gray-800
+        doc.text("Más info y autogestión en:", 18, finalY + 16);
+        doc.setTextColor(37, 99, 235); // blue-600
+        const eventUrl = eventDetails?.slug ? `${window.location.origin}/#/${eventDetails.slug}` : window.location.href;
+        doc.textWithLink(eventUrl, 65, finalY + 16, { url: eventUrl });
+
+        doc.save(`resumen_${summaryUser.fullName.replace(/\s+/g, '_')}.pdf`);
+        toast.success('PDF generado exitosamente');
+    };
+
+    const handleShareWhatsApp = () => {
+        if (!summaryUser) return;
+        const text = generateSummaryText();
+
+        // Limpiar el número dejando solo dígitos
+        let phone = summaryUser.phone.replace(/\D/g, '');
+
+        // Lógica específica para Argentina (mejora la probabilidad de que funcione el enlace directo)
+        // Si tiene 10 dígitos (ej: 11 1234 5678), asumimos que es número local y agregamos 549
+        if (phone.length === 10) {
+            phone = '549' + phone;
+        }
+        // Si tiene 11 dígitos y empieza con 0 (ej: 011 1234 5678), quitamos el 0 y agregamos 549
+        else if (phone.length === 11 && phone.startsWith('0')) {
+            phone = '549' + phone.substring(1);
+        }
+
+        // Si ya tiene 12 o 13 dígitos (ej: 54911...), lo dejamos así.
+
+        // Construir URL. Si el teléfono es válido (>6 dígitos al menos), intentamos el enlace directo.
+        let url = phone.length > 6
+            ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+            : `https://wa.me/?text=${encodeURIComponent(text)}`;
+
+        window.open(url, '_blank');
     };
 
     const getRoleBadge = (role: string) => {
@@ -214,29 +491,29 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             </div>
 
             {/* Desktop Table View */}
-            <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full">
+            <div className="hidden sm:block"> {/* Removed overflow-x-auto to try to fit content */}
+                <table className="w-full table-fixed"> {/* table-fixed helps contain width */}
                     <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
                                 Voluntario
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
                                 Contacto
                             </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Participo feria anterior
+                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
+                                Participo
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
                                 Rol
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
                                 Turnos
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
                                 Estado
                             </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
                                 Acciones
                             </th>
                         </tr>
@@ -246,70 +523,76 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                             const userBookings = bookings.filter(b => b.userId === volunteer.id);
                             return (
                                 <tr key={volunteer.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap">
+                                    <td className="px-6 py-4"> {/* Removed whitespace-nowrap */}
                                         <div className="flex items-center">
                                             <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
                                                 <span className="text-primary-700 font-semibold">
                                                     {volunteer.fullName.split(' ').map(n => n[0]).join('').substring(0, 2)}
                                                 </span>
                                             </div>
-                                            <div className="ml-4">
-                                                <div className="text-sm font-medium text-gray-900">{volunteer.fullName}</div>
-                                                <div className="text-sm text-gray-500">DNI: {volunteer.dni}</div>
+                                            <div className="ml-4 overflow-hidden">
+                                                <div className="text-sm font-medium text-gray-900 truncate" title={volunteer.fullName}>{volunteer.fullName}</div>
+                                                <div className="text-sm text-gray-500 truncate">DNI: {volunteer.dni}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="flex items-center gap-2 text-sm text-gray-900 mb-1">
-                                            <Mail size={14} className="text-gray-400" />
-                                            {volunteer.email}
+                                    <td className="px-3 py-4"> {/* Removed whitespace-nowrap */}
+                                        <div className="flex items-center gap-2 text-sm text-gray-900 mb-1 overflow-hidden">
+                                            <Mail size={14} className="text-gray-400 flex-shrink-0" />
+                                            <span className="truncate" title={volunteer.email}>{volunteer.email}</span>
                                         </div>
                                         <div className="flex items-center gap-2 text-sm text-gray-500">
-                                            <Phone size={14} className="text-gray-400" />
-                                            {volunteer.phone}
+                                            <Phone size={14} className="text-gray-400 flex-shrink-0" />
+                                            <span className="truncate">{volunteer.phone}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                    <td className="px-2 py-4 text-center text-sm font-medium">
                                         {volunteer.attendedPrevious ? (
                                             <span className="text-green-600">SI</span>
                                         ) : (
                                             <span className="text-gray-400">NO</span>
                                         )}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
+                                    <td className="px-3 py-4">
                                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(volunteer.role)}`}>
                                             {getRoleLabel(volunteer.role)}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
+                                    <td className="px-3 py-4">
                                         <div className="text-sm text-gray-900 font-semibold">{userBookings.length} turnos</div>
-                                        <div className="text-xs text-gray-500">
-                                            {userBookings.length > 0 ? 'Asignado' : 'Sin turnos'}
-                                        </div>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${(volunteer.status || 'active') === 'active'
+                                    <td className="px-3 py-4">
+                                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${(volunteer.status || 'active') === 'active'
                                             ? 'bg-green-100 text-green-800'
                                             : 'bg-red-100 text-red-800'
                                             }`}>
                                             {(volunteer.status || 'active') === 'active' ? 'Activo' : 'Suspendido'}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button
-                                            onClick={() => handleViewShifts(volunteer)}
-                                            className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded-lg transition-colors mr-1"
-                                            title="Ver historial de turnos"
-                                        >
-                                            <Calendar size={18} />
-                                        </button>
-                                        <button
-                                            onClick={() => handleEditUser(volunteer)}
-                                            className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
-                                            title="Editar usuario"
-                                        >
-                                            <Edit2 size={18} />
-                                        </button>
+                                    <td className="px-3 py-4 text-right text-sm font-medium">
+                                        <div className="flex justify-end gap-1">
+                                            <button
+                                                onClick={() => handleViewShifts(volunteer)}
+                                                className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                                                title="Ver historial de turnos"
+                                            >
+                                                <Calendar size={18} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleOpenSummary(volunteer)}
+                                                className="text-green-600 hover:text-green-900 p-2 hover:bg-green-50 rounded-lg transition-colors"
+                                                title="Compartir resumen de asignaciones"
+                                            >
+                                                <Share2 size={18} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleEditUser(volunteer)}
+                                                className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
+                                                title="Editar usuario"
+                                            >
+                                                <Edit2 size={18} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             );
@@ -343,6 +626,13 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                         title="Ver historial"
                                     >
                                         <Calendar size={18} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleOpenSummary(volunteer)}
+                                        className="p-2 text-green-600 bg-green-50 rounded-lg"
+                                        title="Compartir resumen"
+                                    >
+                                        <Share2 size={18} />
                                     </button>
                                     <button
                                         onClick={() => handleEditUser(volunteer)}
@@ -492,6 +782,77 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                 </div>
                             </div>
 
+                            {/* Coordinator Shift Assignment Section */}
+                            {editingUser.role === 'coordinator' && (
+                                <div className="mt-6 border-t border-gray-100 pt-4">
+                                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Asignar Turnos (Coordinación)</h4>
+
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Agregar Turno</label>
+                                        <div className="flex gap-2">
+                                            <select
+                                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                                                id="coordinator-shift-select"
+                                                onChange={(e) => {
+                                                    if (e.target.value) {
+                                                        handleAssignCoordinator(e.target.value);
+                                                        e.target.value = ""; // Reset
+                                                    }
+                                                }}
+                                            >
+                                                <option value="">Seleccionar un turno para asignar...</option>
+                                                {shifts
+                                                    .filter(s => !s.coordinatorIds?.includes(editingUser.id))
+                                                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                                                    .map(s => (
+                                                        <option key={s.id} value={s.id}>
+                                                            {new Date(s.date + 'T12:00:00').toLocaleDateString()} - {s.timeSlot} (Vacantes: {s.availableVacancies})
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            <thead className="bg-gray-100">
+                                                <tr>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Horario</th>
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Acción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-200">
+                                                {shifts
+                                                    .filter(s => s.coordinatorIds?.includes(editingUser.id))
+                                                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                                                    .map(s => (
+                                                        <tr key={s.id}>
+                                                            <td className="px-4 py-2 text-sm text-gray-900">{new Date(s.date + 'T12:00:00').toLocaleDateString()}</td>
+                                                            <td className="px-4 py-2 text-sm text-gray-500">{s.timeSlot}</td>
+                                                            <td className="px-4 py-2 text-right">
+                                                                <button
+                                                                    onClick={() => handleRemoveCoordinator(s.id)}
+                                                                    className="text-red-600 hover:text-red-900 text-xs font-medium hover:underline"
+                                                                >
+                                                                    Quitar
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                {shifts.filter(s => s.coordinatorIds?.includes(editingUser.id)).length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-500">
+                                                            No tiene turnos de coordinación asignados.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
 
 
                             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
@@ -526,6 +887,56 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     <p className="text-gray-500">No se encontraron voluntarios con los filtros seleccionados</p>
                 </div>
             )}
+
+            {/* Summary Share Modal */}
+            {showSummaryModal && summaryUser && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-gray-900">
+                                Compartir Asignaciones
+                            </h3>
+                            <button onClick={() => setShowSummaryModal(false)} className="text-gray-400 hover:text-gray-600">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="mb-6">
+                            <p className="text-sm text-gray-600 mb-2">
+                                Genera un resumen de los turnos asignados a <strong>{summaryUser.fullName}</strong> para enviárselo como recordatorio.
+                            </p>
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                {generateSummaryText()}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <button
+                                onClick={handleShareWhatsApp}
+                                className="flex items-center justify-center gap-2 px-4 py-3 bg-[#25D366] text-white rounded-lg hover:brightness-105 font-medium transition-colors shadow-sm"
+                            >
+                                <Share2 size={18} />
+                                WhatsApp
+                            </button>
+                            <button
+                                onClick={handleCopySummary}
+                                className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm"
+                            >
+                                <Copy size={18} />
+                                Copiar
+                            </button>
+                            <button
+                                onClick={handleDownloadSummaryPDF}
+                                className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-900 text-white rounded-lg hover:bg-black font-medium transition-colors shadow-sm"
+                            >
+                                <Download size={18} />
+                                Descargar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* View Shifts Modal */}
             {viewingUser && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -567,6 +978,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asistencia</th>
+                                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody className="bg-white divide-y divide-gray-200">
@@ -603,6 +1015,23 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                             </span>
                                                         ) : (
                                                             <span className="text-gray-400 italic">Pendiente</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                        {booking.status !== 'cancelled' ? (
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (window.confirm('¿Estás seguro de que quieres eliminar este turno? Se enviará un aviso al voluntario.')) {
+                                                                        handleDeleteBooking(booking.id);
+                                                                    }
+                                                                }}
+                                                                className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded transition-colors"
+                                                                title="Eliminar turno"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-gray-400 text-xs">-</span>
                                                         )}
                                                     </td>
                                                 </tr>

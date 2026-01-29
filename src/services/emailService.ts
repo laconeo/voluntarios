@@ -286,6 +286,30 @@ export const emailService = {
         });
     },
 
+    // 9. Cancelación por Administrador
+    sendBookingCancelledByAdmin: async (user: User, eventName: string, date: string, time: string) => {
+        const subject = "Aviso: Tu turno ha sido cancelado";
+        const htmlContent = `
+      <p>Hola ${user.fullName.split(' ')[0]},</p>
+      <p>Te informamos que tu turno en el evento <strong>${eventName}</strong> ha sido cancelado por un administrador.</p>
+      <div style="background-color: #fee2e2; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #ef4444;">
+        <p><strong>Detalles del turno removido:</strong></p>
+        <p>Fecha: ${date}</p>
+        <p>Horario: ${time}</p>
+      </div>
+      <p>Ya no tienes este compromiso asignado en tu calendario.</p>
+      <p>Si crees que esto es un error, por favor contacta a tu coordinador.</p>
+      <div style="margin: 20px 0;">
+         <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ver mis turnos actuales</a>
+      </div>
+     `;
+        await sendEmail({
+            to: [{ email: user.email, name: user.fullName }],
+            subject,
+            htmlContent,
+        });
+    },
+
     // 9. Recuperación de Contraseña (Solicitado por User)
     sendPasswordRecovery: async (user: User) => {
         const subject = "Recuperación de Contraseña - Voluntarios";

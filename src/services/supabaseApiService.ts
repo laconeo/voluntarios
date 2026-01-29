@@ -795,6 +795,29 @@ export const supabaseApi = {
         }
     },
 
+    adminCancelBooking: async (bookingId: string): Promise<void> => {
+        const { data: booking } = await supabase.from('bookings').select('*, shifts(*), events(*), users(*)').eq('id', bookingId).single();
+        if (!booking) throw new Error("Inscripción no encontrada.");
+
+        const cancelledAt = new Date().toISOString();
+
+        // 1. Mark as cancelled
+        await supabase.from('bookings').update({ status: 'cancelled', cancelled_at: cancelledAt }).eq('id', bookingId);
+
+        // 2. Process waitlist to fill the spot
+        await supabaseApi.processWaitlist(booking.shift_id);
+
+        // 3. Send email to user
+        if (booking.users && booking.events && booking.shifts) {
+            emailService.sendBookingCancelledByAdmin(
+                mapUser(booking.users),
+                booking.events.nombre,
+                booking.shifts.date,
+                booking.shifts.time_slot
+            ).catch(console.error);
+        }
+    },
+
     processWaitlist: async (shiftId: string): Promise<void> => {
         const { data: entries } = await supabase.from('waitlist').select('*').eq('shift_id', shiftId).order('position', { ascending: true });
 

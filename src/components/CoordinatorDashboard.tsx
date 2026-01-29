@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { User, Event, Shift, Booking, Role } from '../types';
-import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer } from 'lucide-react';
+import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
 
 interface CoordinatorDashboardProps {
@@ -18,6 +20,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
     const [roles, setRoles] = useState<Role[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showActionsMenu, setShowActionsMenu] = useState(false);
+    const [showMobileMenu, setShowMobileMenu] = useState(false);
 
     useEffect(() => {
         const loadInitialData = async () => {
@@ -141,6 +145,94 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
         document.body.removeChild(link);
     };
 
+    const handleDownloadPDF = () => {
+        const doc = new jsPDF();
+        const eventName = events.find(e => e.id === selectedEventId)?.nombre || 'Evento';
+
+        doc.setFillColor(243, 244, 246);
+        doc.rect(0, 0, 210, 30, 'F');
+        doc.setFontSize(16);
+        doc.setTextColor(17, 24, 39);
+        doc.text("Planilla de Asistencia", 14, 15);
+
+        doc.setFontSize(10);
+        doc.setTextColor(55, 65, 81);
+        doc.text(`Evento: ${eventName} | Coordinador: ${user.fullName}`, 14, 23);
+
+        let yPos = 35;
+
+        // Process each group of shifts as a section
+        sortedGroups.forEach(group => {
+            // Gather bookings for this group
+            const groupBookings = group.shifts.flatMap(s =>
+                bookings.filter(b => b.shiftId === s.id && b.status === 'confirmed').map(b => ({ ...b, roleName: getRoleName(s.roleId) }))
+            );
+
+            if (groupBookings.length === 0) return;
+
+            // Section Header
+            if (yPos > 270) { doc.addPage(); yPos = 20; }
+
+            const dateStr = new Date(group.date).toLocaleDateString();
+            doc.setFontSize(12);
+            doc.setTextColor(0, 0, 0);
+            doc.setFillColor(229, 231, 235);
+            doc.rect(14, yPos - 5, 182, 8, 'F');
+            doc.text(`${dateStr} - ${group.timeSlot} (${groupBookings.length} voluntarios)`, 16, yPos);
+            yPos += 8;
+
+            // Table
+            const tableColumn = ["Nombre", "DNI", "Rol", "Asistencia (Firma/Check)"];
+            const tableRows = groupBookings.map(b => [
+                b.user?.fullName || '',
+                b.user?.dni || '',
+                b.roleName || '',
+                '' // Empty for manual check
+            ]);
+
+            autoTable(doc, {
+                startY: yPos,
+                head: [tableColumn],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+                styles: { fontSize: 9, cellPadding: 2 },
+                // @ts-ignore
+                didDrawPage: (data) => {
+                    // @ts-ignore
+                    yPos = data.cursor.y;
+                }
+            });
+            // @ts-ignore
+            yPos = doc.lastAutoTable.finalY + 10;
+        });
+
+        doc.save(`planilla_asistencia_${selectedEventId}.pdf`);
+        toast.success("PDF de asistencia descargado");
+    };
+
+    const handleShareWhatsApp = () => {
+        const eventName = events.find(e => e.id === selectedEventId)?.nombre || 'Evento';
+        let text = `*Listado de Voluntarios - ${eventName}*\n`;
+        text += `Coordinador: ${user.fullName}\n\n`;
+
+        sortedGroups.forEach(group => {
+            const groupBookings = group.shifts.flatMap(s => bookings.filter(b => b.shiftId === s.id && b.status === 'confirmed'));
+            if (groupBookings.length === 0) return;
+
+            const dateStr = new Date(group.date).toLocaleDateString();
+            text += `*📅 ${dateStr} - ${group.timeSlot}*\n`;
+
+            groupBookings.forEach(b => {
+                text += `- ${b.user?.fullName} (${b.user?.phone || 'Sin tel'})\n`;
+            });
+            text += '\n';
+        });
+
+        const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+    };
+
     const handlePrint = () => {
         window.print();
     };
@@ -262,22 +354,48 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                             />
                         </div>
 
-                        {/* Desktop Action Buttons */}
-                        <div className="hidden lg:flex gap-2">
+                        {/* Desktop Action Buttons - Dropdown */}
+                        <div className="hidden lg:relative lg:block">
                             <button
-                                onClick={handlePrint}
+                                onClick={() => setShowActionsMenu(!showActionsMenu)}
                                 className="flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium shadow-sm"
                             >
-                                <Printer size={18} className="mr-2" />
-                                Imprimir
+                                Acciones
+                                <ChevronDown size={16} className="ml-2" />
                             </button>
-                            <button
-                                onClick={exportToCSV}
-                                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm"
-                            >
-                                <Download size={18} className="mr-2" />
-                                Exportar
-                            </button>
+
+                            {showActionsMenu && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                                    <button
+                                        onClick={() => { handleShareWhatsApp(); setShowActionsMenu(false); }}
+                                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <Share2 size={16} className="mr-2 text-green-600" />
+                                        WhatsApp
+                                    </button>
+                                    <button
+                                        onClick={() => { handleDownloadPDF(); setShowActionsMenu(false); }}
+                                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <FileText size={16} className="mr-2 text-indigo-600" />
+                                        Descargar PDF
+                                    </button>
+                                    <button
+                                        onClick={() => { handlePrint(); setShowActionsMenu(false); }}
+                                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <Printer size={16} className="mr-2 text-gray-600" />
+                                        Imprimir
+                                    </button>
+                                    <button
+                                        onClick={() => { exportToCSV(); setShowActionsMenu(false); }}
+                                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <Download size={16} className="mr-2 text-green-700" />
+                                        Exportar Excel
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -489,21 +607,57 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             </main>
 
             {/* Fixed Bottom Footer - Mobile Only */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 flex gap-4 print:hidden lg:hidden">
-                <button
-                    onClick={handlePrint}
-                    className="flex-1 flex items-center justify-center px-4 py-3 bg-white text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium shadow-sm"
-                >
-                    <Printer size={20} className="mr-2" />
-                    Imprimir
-                </button>
-                <button
-                    onClick={exportToCSV}
-                    className="flex-1 flex items-center justify-center px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium shadow-md"
-                >
-                    <Download size={20} className="mr-2" />
-                    Exportar Excel
-                </button>
+            {/* Fixed Bottom Footer - Mobile Only */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 print:hidden lg:hidden safe-area-bottom">
+                {/* Mobile Menu Dropup */}
+                {showMobileMenu && (
+                    <div className="border-b border-gray-200 bg-gray-50 animate-in slide-in-from-bottom duration-200">
+                        <button
+                            onClick={() => { handleDownloadPDF(); setShowMobileMenu(false); }}
+                            className="flex items-center w-full px-6 py-4 text-gray-700 hover:bg-gray-100 border-b border-gray-200"
+                        >
+                            <div className="bg-indigo-100 p-2 rounded-full mr-3">
+                                <FileText size={20} className="text-indigo-600" />
+                            </div>
+                            <span className="font-medium">Descargar PDF de Asistencia</span>
+                        </button>
+                        <button
+                            onClick={() => { exportToCSV(); setShowMobileMenu(false); }}
+                            className="flex items-center w-full px-6 py-4 text-gray-700 hover:bg-gray-100"
+                        >
+                            <div className="bg-green-100 p-2 rounded-full mr-3">
+                                <Download size={20} className="text-green-700" />
+                            </div>
+                            <span className="font-medium">Exportar a Excel</span>
+                        </button>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-2 p-2">
+                    <button
+                        onClick={handleShareWhatsApp}
+                        className="flex flex-col items-center justify-center py-2 rounded-lg bg-green-50 text-green-700 active:bg-green-100"
+                    >
+                        <Share2 size={20} className="mb-1" />
+                        <span className="text-[10px] font-medium leading-none">WhatsApp</span>
+                    </button>
+
+                    <button
+                        onClick={handlePrint}
+                        className="flex flex-col items-center justify-center py-2 rounded-lg bg-gray-50 text-gray-700 active:bg-gray-100"
+                    >
+                        <Printer size={20} className="mb-1" />
+                        <span className="text-[10px] font-medium leading-none">Imprimir</span>
+                    </button>
+
+                    <button
+                        onClick={() => setShowMobileMenu(!showMobileMenu)}
+                        className={`flex flex-col items-center justify-center py-2 rounded-lg transition-colors ${showMobileMenu ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-50 text-gray-700 active:bg-gray-100'}`}
+                    >
+                        {showMobileMenu ? <ChevronDown size={20} className="mb-1" /> : <ChevronUp size={20} className="mb-1" />}
+                        <span className="text-[10px] font-medium leading-none">Más</span>
+                    </button>
+                </div>
             </div>
         </div>
     );

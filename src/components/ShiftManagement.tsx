@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, Clock, Users, Tag, AlertCircle, Edit2, Copy, Shield } from 'lucide-react';
+import { Plus, Trash2, Calendar, Clock, Users, Tag, AlertCircle, Edit2, Copy, Shield, Search } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { Shift, Role } from '../types';
 import { toast } from 'react-hot-toast';
@@ -20,6 +20,7 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
     const [cloneSourceDate, setCloneSourceDate] = useState('');
     const [cloneTargetDate, setCloneTargetDate] = useState('');
     const [isCloning, setIsCloning] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const [formData, setFormData] = useState({
         date: '',
@@ -202,8 +203,15 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
         return roles.find(r => r.id === roleId)?.requiresApproval;
     };
 
+    // Filter shifts
+    const filteredShifts = shifts.filter(shift => {
+        if (!searchTerm) return true;
+        const roleName = getRoleName(shift.roleId).toLowerCase();
+        return roleName.includes(searchTerm.toLowerCase());
+    });
+
     // Agrupar turnos por fecha
-    const shiftsByDate = shifts.reduce((acc, shift) => {
+    const shiftsByDate = filteredShifts.reduce((acc, shift) => {
         if (!acc[shift.date]) {
             acc[shift.date] = [];
         }
@@ -229,10 +237,10 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
                 <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Gestión de Turnos</h3>
                     <p className="text-sm text-gray-600">
-                        Total de turnos: <span className="font-semibold text-gray-900">{shifts.length}</span>
+                        Total de turnos: <span className="font-semibold text-gray-900">{filteredShifts.length}</span>
                         {' • '}
                         Vacantes totales: <span className="font-semibold text-gray-900">
-                            {shifts.reduce((sum, s) => sum + s.totalVacancies, 0)}
+                            {filteredShifts.reduce((sum, s) => sum + s.totalVacancies, 0)}
                         </span>
                     </p>
                 </div>
@@ -243,6 +251,20 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
                     <Plus size={18} />
                     Agregar Turno
                 </button>
+            </div>
+
+            {/* Search Filter */}
+            <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search size={18} className="text-gray-400" />
+                </div>
+                <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar turno por nombre de rol..."
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition duration-150 ease-in-out"
+                />
             </div>
 
             {/* Info Alert */}

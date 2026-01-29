@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { User, Shift, Role, Booking } from '../types';
 import { mockApi } from '../services/mockApiService';
-import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus, Info, Mail, Phone, Shield } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus, Info, Mail, Phone, Shield, Share2, Copy, Download } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import RoleDetailModal from './RoleDetailModal';
 import Modal from './Modal';
 import { toast } from 'react-hot-toast';
@@ -22,6 +24,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   const [userBookings, setUserBookings] = useState<Booking[]>([]);
   const [event, setEvent] = useState<any>(null); // To store event details
   const [showEventModal, setShowEventModal] = useState(false);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'shifts' | 'bookings'>('shifts');
 
   // Auto-scroll to selected date in mobile view
@@ -289,8 +292,256 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
 
   const getRoleName = (roleId: string) => roles.find(r => r.id === roleId)?.name || 'Desconocido';
 
+  const generateSummaryText = () => {
+    let text = `*Resumen de Asignaciones - ${event?.nombre || 'Evento'}*\n\n`;
+    text += `📍 Ubicación: ${event?.ubicacion || 'No especificada'}\n`;
+    if (event) {
+      text += `📅 Fechas: ${new Date(event.fechaInicio + 'T00:00:00').toLocaleDateString()} - ${new Date(event.fechaFin + 'T00:00:00').toLocaleDateString()}\n`;
+      const eventUrl = event.slug ? `${window.location.origin}/#/${event.slug}` : window.location.href;
+      text += `🔗 Link Evento: ${eventUrl}\n\n`;
+    }
+
+    text += `*Mis Turnos:*\n`;
+    const activeBookings = userBookings.filter(b => b.status !== 'cancelled');
+    if (activeBookings.length === 0) {
+      text += "No tienes turnos registrados.\n";
+    } else {
+      activeBookings.forEach(booking => {
+        const date = booking.shift.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString() : 'N/A';
+        const roleName = booking.shift.role?.name || 'Rol';
+        text += `- ${date} ${booking.shift.timeSlot} (${roleName}) - ${booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'}\n`;
+      });
+    }
+
+    text += `\n*Contacto Admins:*\n📧 Email: admin@feria.com\n📱 Tel: +54 11 1234-5678`;
+    return text;
+  };
+
+  const handleShareWhatsApp = () => {
+    const text = generateSummaryText();
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleShareEmail = () => {
+    const text = generateSummaryText();
+    const subject = `Resumen Voluntariado - ${event?.nombre || ''}`;
+    const url = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    window.location.href = url;
+  };
+
+  const handleCopyToClipboard = () => {
+    const text = generateSummaryText();
+    navigator.clipboard.writeText(text);
+    toast.success('Resumen copiado al portapapeles');
+  };
+
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF();
+
+    // Header
+    doc.setFillColor(243, 244, 246); // gray-100
+    doc.rect(0, 0, 210, 40, 'F');
+
+    doc.setFontSize(22);
+    doc.setTextColor(17, 24, 39); // gray-900
+    doc.text("Resumen de Asignaciones", 14, 25);
+
+    let yPos = 55;
+
+    // Event Details
+    doc.setFontSize(14);
+    doc.setTextColor(31, 41, 55); // gray-800
+    doc.text(event?.nombre || 'Evento', 14, yPos);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setTextColor(75, 85, 99); // gray-600
+    doc.text(`Ubicación: ${event?.ubicacion || 'No especificada'}`, 14, yPos);
+    yPos += 6;
+
+    if (event) {
+      doc.text(`Fechas: ${new Date(event.fechaInicio + 'T00:00:00').toLocaleDateString()} - ${new Date(event.fechaFin + 'T00:00:00').toLocaleDateString()}`, 14, yPos);
+      yPos += 12;
+    } else {
+      yPos += 12;
+    }
+
+    // Admin Contact Box
+    doc.setDrawColor(229, 231, 235); // gray-200
+    doc.setFillColor(249, 250, 251); // gray-50
+    doc.roundedRect(14, yPos - 5, 182, 28, 3, 3, 'FD');
+
+    doc.setFontSize(11);
+    doc.setTextColor(17, 24, 39);
+    doc.text("Contacto Administradores", 20, yPos + 3);
+
+    doc.setFontSize(10);
+    doc.setTextColor(75, 85, 99);
+    doc.text("Email: admin@feria.com", 20, yPos + 10);
+    doc.text("Teléfono: +54 11 1234-5678", 20, yPos + 16);
+
+    yPos += 35;
+
+    // Table
+    const tableColumn = ["Fecha", "Horario", "Rol", "Estado"];
+    const activeBookings = userBookings.filter(b => b.status !== 'cancelled');
+    const tableRows = activeBookings.map(booking => [
+      booking.shift.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString() : 'N/A',
+      booking.shift.timeSlot,
+      booking.shift.role?.name || 'Rol',
+      booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'
+    ]);
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [tableColumn],
+      body: tableRows,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [79, 70, 229],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      styles: {
+        fontSize: 10,
+        cellPadding: 3
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251]
+      }
+    });
+
+    // Footer
+    const pageHeight = doc.internal.pageSize.height;
+    doc.setFontSize(8);
+    doc.setTextColor(156, 163, 175);
+    doc.text(`Generado el ${new Date().toLocaleDateString()} - Sistema de Voluntariado`, 14, pageHeight - 10);
+
+    doc.save(`resumen_voluntariado_${event?.slug || 'evento'}.pdf`);
+    toast.success('PDF descargado correctamente');
+  };
+
   return (
     <div className="pb-24 lg:pb-12">
+      {selectedRole && <RoleDetailModal role={selectedRole} onClose={() => setSelectedRole(null)} />}
+
+      {/* Modal de Resumen y Compartir */}
+      <Modal
+        isOpen={showSummaryModal}
+        onClose={() => setShowSummaryModal(false)}
+        title="Resumen de Asignaciones"
+      >
+        <div className="space-y-6">
+          <div className="bg-primary-50 p-4 rounded-lg border border-primary-100">
+            <h4 className="font-bold text-lg text-primary-900 mb-2">{event?.nombre}</h4>
+            <div className="text-sm text-primary-800 space-y-1">
+              <div className="flex items-center gap-2">
+                <MapPin size={16} />
+                <span>{event?.ubicacion || "Ubicación no especificada"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CalendarIcon size={16} />
+                <span>{event ? `${new Date(event.fechaInicio + 'T00:00:00').toLocaleDateString()} - ${new Date(event.fechaFin + 'T00:00:00').toLocaleDateString()}` : "Fechas no disponibles"}</span>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-primary-200">
+              <p className="font-semibold text-sm text-primary-900 mb-2">Contacto Administradores:</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-primary-800">
+                  <Mail size={14} />
+                  <span>admin@feria.com</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-primary-800">
+                  <Phone size={14} />
+                  <span>+54 11 1234-5678</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-bold text-gray-900 mb-3 flex items-center justify-between">
+              <span>Mis Turnos Activos</span>
+              <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                {userBookings.filter(b => b.status !== 'cancelled').length} asignados
+              </span>
+            </h4>
+            {userBookings.filter(b => b.status !== 'cancelled').length > 0 ? (
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <ul className="divide-y divide-gray-100">
+                  {userBookings.filter(b => b.status !== 'cancelled').map(booking => (
+                    <li key={booking.id} className="p-3 bg-white hover:bg-gray-50 transition-colors">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-bold text-gray-900 text-sm">{booking.shift.role?.name}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide
+                                        ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                          {booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <CalendarIcon size={12} />
+                          {booking.shift.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString() : 'N/A'}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} />
+                          {booking.shift.timeSlot}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                <p className="text-gray-500 text-sm italic">No tienes turnos activos.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
+            <h4 className="font-bold text-gray-900 text-sm mb-1">Compartir copia de respaldo</h4>
+            <p className="text-xs text-gray-500 mb-4">Envía este resumen a tu dispositivo para tener los datos de acceso siempre a mano.</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <button
+                onClick={handleShareWhatsApp}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-[#25D366] text-white rounded-lg hover:brightness-105 transition-all text-sm font-bold shadow-sm"
+              >
+                <Share2 size={16} />
+                WhatsApp
+              </button>
+              <button
+                onClick={handleShareEmail}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-sm font-bold shadow-sm"
+              >
+                <Mail size={16} />
+                Email
+              </button>
+              <button
+                onClick={handleCopyToClipboard}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all text-sm font-bold shadow-sm"
+              >
+                <Copy size={16} />
+                Copiar
+              </button>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <button
+                onClick={handleDownloadPDF}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-900 text-white rounded-lg hover:bg-black transition-all text-sm font-bold shadow-lg"
+              >
+                <Download size={18} />
+                Descargar PDF
+              </button>
+              <p className="text-[10px] text-center text-gray-400 mt-2">Descarga un archivo PDF oficial con el membrete del evento.</p>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
       {selectedRole && <RoleDetailModal role={selectedRole} onClose={() => setSelectedRole(null)} />}
 
       {/* Modal de Detalles del Evento */}
@@ -441,7 +692,18 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
 
         {activeTab === 'bookings' && (
           <div className="px-4 py-6">
-            <h2 className="text-xl font-serif text-fs-text mb-6">Mis Inscripciones</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-serif text-fs-text">Mis Inscripciones</h2>
+              {userBookings.length > 0 && (
+                <button
+                  onClick={() => setShowSummaryModal(true)}
+                  className="flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 px-3 py-1.5 bg-primary-50 rounded-full"
+                >
+                  <Share2 size={16} />
+                  <span className="text-xs">Compartir</span>
+                </button>
+              )}
+            </div>
             {userBookings.length > 0 ? (
               <ul className="space-y-4">
                 {userBookings.map(booking => {
@@ -537,7 +799,18 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
           </button>
 
           <div className="bg-white p-5 rounded-lg shadow-card border border-fs-border">
-            <h3 className="font-serif text-lg text-fs-text mb-4 border-b border-fs-border pb-2">Mis Inscripciones</h3>
+            <div className="flex items-center justify-between mb-4 border-b border-fs-border pb-2">
+              <h3 className="font-serif text-lg text-fs-text">Mis Inscripciones</h3>
+              {userBookings.length > 0 && (
+                <button
+                  onClick={() => setShowSummaryModal(true)}
+                  className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-full transition-colors"
+                  title="Compartir resumen"
+                >
+                  <Share2 size={18} />
+                </button>
+              )}
+            </div>
             {userBookings.length > 0 ? (
               <ul className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                 {userBookings.map(booking => {

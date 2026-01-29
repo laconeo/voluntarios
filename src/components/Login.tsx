@@ -137,7 +137,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
     setLoading(true);
     try {
       await onRecoverPassword(recoveryEmail);
-      toast.success("Si el correo existe, recibirás tu contraseña.");
+      toast.success("Si el correo existe, recibirás un enlace para restablecer tu contraseña.");
       setShowRecovery(false);
       setRecoveryEmail('');
       setShowPassword(false); // Go back to identifier input
@@ -214,14 +214,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
                 className={inputClasses} />
             </div>
 
-            {/* Mostrar campo DNI si ingresó con email */}
-            {!formData.dni && (
-              <div>
-                <label className={labelClasses}>DNI / RUT / Cédula</label>
-                <input type="text" name="dni" placeholder="Sin puntos ni guiones" value={formData.dni} onChange={handleInputChange} required
-                  className={inputClasses} />
-              </div>
-            )}
+            <div>
+              <label className={labelClasses}>DNI / RUT / Cédula</label>
+              <input type="text" name="dni" placeholder="Sin puntos ni guiones" value={formData.dni} onChange={handleInputChange} required
+                className={inputClasses} />
+            </div>
 
             <div>
               <label className={labelClasses}>Correo Electrónico</label>
@@ -243,6 +240,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
                   <option value="L">L (Large)</option>
                   <option value="XL">XL (Extra Large)</option>
                   <option value="XXL">XXL (Double XL)</option>
+                  <option value="3XL">3XL (Triple XL)</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
                   <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
@@ -281,7 +279,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
               <label className="flex items-center cursor-pointer">
                 <input type="checkbox" name="attendedPrevious" checked={formData.attendedPrevious} onChange={handleInputChange}
                   className="h-5 w-5 text-primary-500 border-gray-300 rounded focus:ring-primary-500" />
-                <span className="ml-3 text-sm text-gray-700">Participé como voluntario en la feria anterior</span>
+                <span className="ml-3 text-sm text-gray-700">Participé como voluntario en la feria anterior <span className="text-xs text-gray-500">(Opcional)</span></span>
               </label>
 
               <label className="flex items-center cursor-pointer">
@@ -418,8 +416,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
         </form>
 
         <p className="mt-8 text-xs text-gray-400">
-          © 2026 Servicios de apoyo para usuarios de FS
+          © 2026 Hecho con ❤️ para proveer apoyo al usuario
         </p>
+
       </div>
     </div>
   );
