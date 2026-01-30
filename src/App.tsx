@@ -17,7 +17,7 @@ const EventPortalWrapper: React.FC<{
   user: User | null,
   onLogout: () => void,
   onLogin: (id: string, password?: string) => Promise<boolean | 'password_required' | 'register'>,
-  onRegister: (u: User) => void
+  onRegister: (u: User, eventId?: string) => void
   onRecoverPassword: (email: string) => Promise<void>
 }> = ({ user, onLogout, onLogin, onRegister, onRecoverPassword }) => {
   const { eventSlug } = useParams<{ eventSlug: string }>();
@@ -99,14 +99,70 @@ const EventPortalWrapper: React.FC<{
     );
   }
 
+  // Wrap onRegister to include eventId
+  const handleRegisterWithEvent = (u: User) => {
+    if (event) {
+      onRegister(u, event.id);
+    } else {
+      onRegister(u);
+    }
+  };
+
   if (!user) {
-    return <Login onLogin={onLogin} onRegister={onRegister} onRecoverPassword={onRecoverPassword} />;
+    return <Login onLogin={onLogin} onRegister={handleRegisterWithEvent} onRecoverPassword={onRecoverPassword} contactEmail={event.contactEmail} />;
   }
 
   // If user is admin/superadmin, they might want to see the admin dashboard instead
   // But if they are at a specific event URL, they probably want to see the portal for that event
   // We'll stick to the portal view for specific event URLs unless they explicitly navigate away
   return <VolunteerPortal user={user} onLogout={onLogout} eventId={event.id} />;
+};
+
+// Component to handle redirection for volunteers landing on root
+const VolunteerHomeRedirect: React.FC<{ user: User }> = ({ user }) => {
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    const decideRedirect = async () => {
+      // 1. Check user's events
+      const myEvents = await mockApi.getUserEvents(user.id);
+      if (myEvents && myEvents.length > 0) {
+        // Redirect to first event
+        // Ensure slug exists, otherwise use ID (fallback logic might be needed if portal only supports slugs)
+        // Our mapEvent ensures slug exists.
+        setRedirectPath(`/${myEvents[0].slug}`);
+        return;
+      }
+
+      // 2. If no events, find first active event
+      const allEvents = await mockApi.getAllEvents();
+      const activeEvents = allEvents.filter(e => e.estado === 'Activo');
+
+      if (activeEvents.length > 0) {
+        setRedirectPath(`/${activeEvents[0].slug}`);
+      } else {
+        // No active events?
+        setRedirectPath(null); // Will render "No events"
+      }
+    };
+    decideRedirect();
+  }, [user]);
+
+  if (redirectPath) {
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  // Loading or No Events state
+  // We can show a simple message or a list if there are multiple events but none enrolled?
+  // For now, simple message.
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="text-center max-w-md bg-white p-8 rounded-lg shadow">
+        <h2 className="text-xl font-bold text-gray-800 mb-2">No hay eventos disponibles</h2>
+        <p className="text-gray-600">No estás inscripto en ningún evento y no hay eventos activos disponibles en este momento.</p>
+      </div>
+    </div>
+  );
 };
 
 const AppContent: React.FC = () => {
@@ -169,9 +225,9 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleRegister = async (newUser: User) => {
+  const handleRegister = async (newUser: User, eventId?: string) => {
     try {
-      const registeredUser = await mockApi.register(newUser);
+      const registeredUser = await mockApi.register(newUser, eventId);
       setCurrentUser(registeredUser);
       toast.success('¡Registro exitoso!');
     } catch (error: any) {
@@ -232,10 +288,7 @@ const AppContent: React.FC = () => {
               ) : currentUser.role === 'coordinator' ? (
                 <CoordinatorDashboard user={currentUser} onLogout={handleLogout} />
               ) : (
-                // If regular volunteer at root, maybe show a list of events to choose from?
-                // For now, let's redirect to a default event or show a selection screen.
-                // Since we don't have a "Select Event" screen yet, let's default to event_1
-                <Navigate to="/feriadellibrobuenosaires2026" replace />
+                <VolunteerHomeRedirect user={currentUser} />
               )
             } />
 

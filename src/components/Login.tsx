@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { User } from '../types';
-import { Lock } from 'lucide-react';
+import { Lock, AlertTriangle, Info } from 'lucide-react';
 import Modal from './Modal';
 import { toast } from 'react-hot-toast';
+import { supabaseApi as mockApi } from '../services/supabaseApiService';
 
 interface LoginProps {
   onLogin: (identifier: string, password?: string) => Promise<boolean | 'password_required' | 'register'>;
@@ -10,9 +11,10 @@ interface LoginProps {
   onRecoverPassword?: (email: string) => Promise<void>;
   initialDni?: string;
   onGoToRegister?: () => void;
+  contactEmail?: string;
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, initialDni, onGoToRegister }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, initialDni, onGoToRegister, contactEmail }) => {
   const [identifier, setIdentifier] = useState(initialDni || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -23,6 +25,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
   const [termsContent, setTermsContent] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [eventContactEmail, setEventContactEmail] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Omit<User, 'id' | 'role'>>({
     dni: initialDni || '',
@@ -36,6 +39,30 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
     howTheyHeard: 'Redes Sociales',
   });
   const [agreed, setAgreed] = useState(false);
+
+  // Fetch event contact email from URL slug
+  useEffect(() => {
+    const fetchEventEmail = async () => {
+      // Extract slug from URL hash (e.g., /#/feriadellibrobuenosaires2026)
+      const hash = window.location.hash;
+      const slugMatch = hash.match(/\/#\/([^/?]+)/);
+
+      if (slugMatch && slugMatch[1]) {
+        const slug = slugMatch[1];
+        try {
+          const events = await mockApi.getAllEvents();
+          const event = events.find(e => e.slug === slug);
+          if (event?.contactEmail) {
+            setEventContactEmail(event.contactEmail);
+          }
+        } catch (error) {
+          console.error('Error fetching event email:', error);
+        }
+      }
+    };
+
+    fetchEventEmail();
+  }, []);
 
   // Auto-focus en el campo de identificador al cargar
   useEffect(() => {
@@ -224,6 +251,28 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
               <label className={labelClasses}>Correo Electrónico</label>
               <input type="email" name="email" placeholder="correo@ejemplo.com" value={formData.email} onChange={handleInputChange} required
                 className={inputClasses} />
+
+              {/* Email Warnings/Suggestions */}
+              {formData.email && (
+                <div className="mt-2 space-y-2">
+                  {['outlook', 'live', 'yahoo', 'hotmail'].some(provider => formData.email.toLowerCase().includes(provider)) && (
+                    <div className="flex items-start gap-2 text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-100">
+                      <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+                      <span>
+                        Si usas <strong>{formData.email.split('@')[1] || 'este proveedor'}</strong>, es probable que nuestros correos lleguen a tu carpeta de <strong>Spam/Correo No Deseado</strong>. ¡Por favor revísala!
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Always show contact tip */}
+                  <div className="flex items-start gap-2 text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-100">
+                    <Info size={14} className="mt-0.5 flex-shrink-0" />
+                    <span>
+                      <strong>Importante:</strong> Agrega nuestro email {eventContactEmail || contactEmail ? `(${eventContactEmail || contactEmail})` : 'del evento'} a tus contactos para asegurar que recibas todas las notificaciones importantes.
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <label className={labelClasses}>Teléfono Móvil</label>
@@ -356,6 +405,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder="DNI, RUT, Cédula o Email"
               className="w-full px-4 py-3.5 bg-gray-50 border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-xl text-center text-fs-text placeholder-gray-400"
+              autoComplete="username"
               required
               disabled={loading}
             />
@@ -372,6 +422,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Contraseña"
                   className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-xl text-center text-fs-text placeholder-gray-400"
+                  autoComplete="current-password"
                   autoFocus
                   disabled={loading}
                 />

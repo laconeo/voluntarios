@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { User, Event, Shift, Booking, Role } from '../types';
-import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown } from 'lucide-react';
+import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown, Utensils } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
@@ -74,10 +74,26 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 .filter(b => b.status === 'confirmed' && b.shift?.role?.requiresApproval)
                 .map(b => b.shiftId);
 
-            // Filtrar solo los turnos donde este coordinador está asignado directo o por booking
-            const myShifts = eventShifts.filter(shift =>
+            // Filtrar turnos asignados directamente (donde es coordinador)
+            const assignedShifts = eventShifts.filter(shift =>
                 shift.coordinatorIds.includes(user.id) || coordinatorBookingShiftIds.includes(shift.id)
             );
+
+            // Expandir visibilidad: incluir TODOS los turnos que ocurren en la misma fecha y hora que mis turnos asignados
+            // Esto permite ver a voluntarios de otros roles (ej: Limpieza) si yo soy Coordinador en ese horario
+            const visibleShifts = new Set<string>();
+
+            assignedShifts.forEach(coordShift => {
+                visibleShifts.add(coordShift.id);
+                // Buscar concurrentes
+                eventShifts.forEach(otherShift => {
+                    if (otherShift.date === coordShift.date && otherShift.timeSlot === coordShift.timeSlot) {
+                        visibleShifts.add(otherShift.id);
+                    }
+                });
+            });
+
+            const myShifts = eventShifts.filter(s => visibleShifts.has(s.id));
 
             // Sort shifts by date and time
             myShifts.sort((a, b) => {
@@ -102,17 +118,38 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
     };
 
     const handleAttendanceChange = async (bookingId: string, status: 'attended' | 'absent' | 'pending') => {
+        // Optimistic update
+        setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, attendance: status } : b));
+
         try {
             await mockApi.updateBookingAttendance(bookingId, status);
-            setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, attendance: status } : b));
             toast.success('Asistencia actualizada');
         } catch (error) {
+            // Revert on error (optional, but good practice)
+            // For now, we just notify. To revert, we'd need the previous state.
             toast.error('Error al actualizar asistencia');
+            console.error(error);
+        }
+    };
+
+    const handleFoodStatusChange = async (bookingId: string, currentStatus: boolean | undefined) => {
+        const newStatus = !currentStatus;
+        // Optimistic update
+        setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, foodDelivered: newStatus } : b));
+
+        try {
+            await mockApi.updateBookingFoodStatus(bookingId, newStatus);
+            if (newStatus) toast.success('Vianda entregada');
+        } catch (error) {
+            toast.error('Error al actualizar vianda');
+            console.error(error);
+            // Revert
+            setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, foodDelivered: currentStatus } : b));
         }
     };
 
     const exportToCSV = () => {
-        const headers = ['Fecha', 'Horario', 'Rol', 'Nombre', 'DNI', 'Email', 'Teléfono', 'Estado', 'Asistencia'];
+        const headers = ['Fecha', 'Horario', 'Rol', 'Nombre', 'DNI', 'Email', 'Teléfono', 'Estado', 'Vianda', 'Asistencia'];
         const csvRows = [headers.join(',')];
 
         filteredShifts.forEach(shift => {
@@ -129,6 +166,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                     booking.user?.email || '',
                     booking.user?.phone || '',
                     booking.status,
+                    booking.foodDelivered ? 'Si' : 'No',
                     booking.attendance || 'Pendiente'
                 ];
                 csvRows.push(row.map(field => `"${field}"`).join(','));
@@ -143,6 +181,14 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    };
+
+    // Helper robusto para fechas
+    const parseDateHelper = (dateString: string) => {
+        if (!dateString) return new Date();
+        const cleanDate = dateString.split('T')[0];
+        const [y, m, d] = cleanDate.split('-').map(Number);
+        return new Date(y, m - 1, d);
     };
 
     const handleDownloadPDF = () => {
@@ -173,7 +219,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             // Section Header
             if (yPos > 270) { doc.addPage(); yPos = 20; }
 
-            const dateStr = new Date(group.date).toLocaleDateString();
+            const localDate = parseDateHelper(group.date);
+            const dateStr = localDate.toLocaleDateString();
             doc.setFontSize(12);
             doc.setTextColor(0, 0, 0);
             doc.setFillColor(229, 231, 235);
@@ -182,19 +229,20 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             yPos += 8;
 
             // Table
-            const tableColumn = ["Nombre", "DNI", "Rol", "Asistencia (Firma/Check)"];
+            const tableColumn = ["Nombre", "DNI", "Rol", "Vianda", "Asistencia"];
             const tableRows = groupBookings.map(b => [
                 b.user?.fullName || '',
                 b.user?.dni || '',
                 b.roleName || '',
-                '' // Empty for manual check
+                b.foodDelivered ? 'Si' : '',
+                b.attendance === 'attended' ? 'Presente' : (b.attendance === 'absent' ? 'Ausente' : '')
             ]);
 
             autoTable(doc, {
                 startY: yPos,
                 head: [tableColumn],
                 body: tableRows,
-                theme: 'grid',
+                theme: 'grid', // 'striped', 'grid', 'plain'
                 headStyles: { fillColor: [79, 70, 229], textColor: 255 },
                 styles: { fontSize: 9, cellPadding: 2 },
                 // @ts-ignore
@@ -220,7 +268,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             const groupBookings = group.shifts.flatMap(s => bookings.filter(b => b.shiftId === s.id && b.status === 'confirmed'));
             if (groupBookings.length === 0) return;
 
-            const dateStr = new Date(group.date).toLocaleDateString();
+            const localDate = parseDateHelper(group.date);
+            const dateStr = localDate.toLocaleDateString();
             text += `*📅 ${dateStr} - ${group.timeSlot}*\n`;
 
             groupBookings.forEach(b => {
@@ -329,7 +378,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                 <option value="all">Todos los horarios</option>
                                 {uniqueTimeSlots.map(slotKey => {
                                     const [date, time] = slotKey.split('|');
-                                    const dateStr = new Date(date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                                    const dateStr = parseDateHelper(date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
                                     return (
                                         <option key={slotKey} value={slotKey}>
                                             {dateStr} - {time}
@@ -402,12 +451,15 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
 
                 <div className="space-y-6">
                     {sortedGroups.map(group => {
-                        // Gather all bookings for this time slot (across all roles)
+                        // Gather bookings: Show non-cancelled (including pending, waitlist, cancellation_requested)
                         const groupBookings = group.shifts.flatMap(s =>
                             bookings
-                                .filter(b => b.shiftId === s.id && b.status === 'confirmed')
+                                .filter(b => b.shiftId === s.id && b.status !== 'cancelled')
                                 .map(b => ({ ...b, roleName: getRoleName(s.roleId) }))
                         );
+
+                        // Calculate total occupied spots based on shift data (from DB) to check consistency
+                        const totalOccupied = group.shifts.reduce((acc, s) => acc + (s.totalVacancies - s.availableVacancies), 0);
 
                         // If searching, filter bookings
                         const displayBookings = searchTerm
@@ -419,7 +471,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
 
                         if (displayBookings.length === 0 && searchTerm) return null;
 
-                        const dateStr = new Date(group.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
+                        const dateStr = parseDateHelper(group.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
 
                         return (
                             <div key={`${group.date}-${group.timeSlot}`} className="mb-6 last:mb-0">
@@ -429,16 +481,23 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                         <div className="flex items-center gap-4">
                                             <div className="flex items-center text-gray-700 font-medium">
                                                 <Calendar size={18} className="mr-2 text-primary-500" />
-                                                {new Date(group.date).toLocaleDateString()}
+                                                <span className="capitalize">{parseDateHelper(group.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
                                             </div>
                                             <div className="flex items-center text-gray-700 font-medium">
                                                 <Clock size={18} className="mr-2 text-primary-500" />
                                                 {group.timeSlot}
                                             </div>
                                         </div>
-                                        <span className="text-sm text-gray-500">
-                                            {displayBookings.length} voluntarios confirmados
-                                        </span>
+                                        <div className="text-right">
+                                            <span className="text-sm text-gray-500 block">
+                                                {displayBookings.length} voluntarios en lista
+                                            </span>
+                                            {totalOccupied > displayBookings.length && (
+                                                <span className="text-xs text-orange-500 font-medium" title="Hay más vacantes ocupadas en el sistema de las que se muestran aquí. Posibles usuarios con estado desconocido o filtro activo.">
+                                                    ⚠️ {totalOccupied} vacantes ocupadas
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {displayBookings.length > 0 ? (
@@ -449,6 +508,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Voluntario</th>
                                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
                                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vianda</th>
                                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asistencia</th>
                                                     </tr>
                                                 </thead>
@@ -467,6 +527,18 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                             <td className="px-6 py-4 whitespace-nowrap">
                                                                 <div className="text-sm text-gray-900">{booking.user?.email}</div>
                                                                 <div className="text-sm text-gray-500">{booking.user?.phone}</div>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <button
+                                                                    onClick={() => handleFoodStatusChange(booking.id, booking.foodDelivered)}
+                                                                    className={`p-1.5 rounded-full transition-colors flex items-center gap-2 ${booking.foodDelivered
+                                                                        ? 'bg-orange-100 text-orange-600 ring-2 ring-orange-500'
+                                                                        : 'text-gray-400 hover:bg-orange-50 hover:text-orange-500'
+                                                                        }`}
+                                                                    title={booking.foodDelivered ? 'Vianda entregada' : 'Marcar vianda'}
+                                                                >
+                                                                    <Utensils size={20} />
+                                                                </button>
                                                             </td>
                                                             <td className="px-6 py-4 whitespace-nowrap">
                                                                 <div className="flex gap-2">
@@ -499,7 +571,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                         </div>
                                     ) : (
                                         <div className="p-4 text-center text-gray-500 text-sm">
-                                            No hay voluntarios confirmados para este horario.
+                                            No hay voluntarios en la lista para este horario.
+                                            {totalOccupied > 0 && <p className="text-xs text-orange-500 mt-1">Pero el sistema reporta {totalOccupied} vacantes ocupadas. Contacta al admin.</p>}
                                         </div>
                                     )}
                                 </div>
@@ -535,6 +608,18 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                                 {booking.roleName}
                                                             </span>
                                                         </div>
+                                                        <div className="ml-2">
+                                                            <button
+                                                                onClick={() => handleFoodStatusChange(booking.id, booking.foodDelivered)}
+                                                                className={`p-2 rounded-full transition-colors ${booking.foodDelivered
+                                                                    ? 'bg-orange-100 text-orange-600 ring-2 ring-orange-500'
+                                                                    : 'bg-gray-100 text-gray-400'
+                                                                    }`}
+                                                                title={booking.foodDelivered ? 'Vianda entregada' : 'Marcar vianda'}
+                                                            >
+                                                                <Utensils size={20} />
+                                                            </button>
+                                                        </div>
                                                     </div>
 
                                                     <div className="pl-2 grid grid-cols-1 gap-1 mb-4">
@@ -552,25 +637,25 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex gap-2 pl-2">
+                                                    <div className="flex gap-3 pl-2 mt-4 border-t border-gray-100 pt-3">
                                                         <button
-                                                            onClick={() => handleAttendanceChange(booking.id, 'attended')}
-                                                            className={`flex-1 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all ${booking.attendance === 'attended'
-                                                                ? 'bg-green-100 text-green-700 shadow-inner'
-                                                                : 'bg-gray-50 text-gray-600 hover:bg-green-50 hover:text-green-600 border border-gray-100'
+                                                            onClick={(e) => { e.stopPropagation(); handleAttendanceChange(booking.id, 'attended'); }}
+                                                            className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-sm ${booking.attendance === 'attended'
+                                                                ? 'bg-green-600 text-white shadow-green-200'
+                                                                : 'bg-white border border-gray-300 text-gray-700 hover:bg-green-50 hover:border-green-300 hover:text-green-700'
                                                                 }`}
                                                         >
-                                                            <CheckCircle size={16} className={booking.attendance === 'attended' ? 'fill-current' : ''} />
+                                                            <CheckCircle size={18} className={booking.attendance === 'attended' ? 'text-white' : 'text-gray-400'} />
                                                             Presente
                                                         </button>
                                                         <button
-                                                            onClick={() => handleAttendanceChange(booking.id, 'absent')}
-                                                            className={`flex-1 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all ${booking.attendance === 'absent'
-                                                                ? 'bg-red-100 text-red-700 shadow-inner'
-                                                                : 'bg-gray-50 text-gray-600 hover:bg-red-50 hover:text-red-600 border border-gray-100'
+                                                            onClick={(e) => { e.stopPropagation(); handleAttendanceChange(booking.id, 'absent'); }}
+                                                            className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-sm ${booking.attendance === 'absent'
+                                                                ? 'bg-red-600 text-white shadow-red-200'
+                                                                : 'bg-white border border-gray-300 text-gray-700 hover:bg-red-50 hover:border-red-300 hover:text-red-700'
                                                                 }`}
                                                         >
-                                                            <XCircle size={16} className={booking.attendance === 'absent' ? 'fill-current' : ''} />
+                                                            <XCircle size={18} className={booking.attendance === 'absent' ? 'text-white' : 'text-gray-400'} />
                                                             Ausente
                                                         </button>
                                                     </div>
@@ -587,24 +672,28 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                         );
                     })}
 
-                    {sortedGroups.length === 0 && !searchTerm && (
-                        <div className="text-center py-12 bg-white rounded-lg shadow border border-gray-200">
-                            <div className="max-w-md mx-auto px-4">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-2">No tienes turnos asignados</h3>
-                                <p className="text-gray-600 text-sm">
-                                    Actualmente no estás asignado como coordinadores en ningún turno de este evento.
-                                </p>
+                    {
+                        sortedGroups.length === 0 && !searchTerm && (
+                            <div className="text-center py-12 bg-white rounded-lg shadow border border-gray-200">
+                                <div className="max-w-md mx-auto px-4">
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No tienes turnos asignados</h3>
+                                    <p className="text-gray-600 text-sm">
+                                        Actualmente no estás asignado como coordinadores en ningún turno de este evento.
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )
+                    }
 
-                    {sortedGroups.length === 0 && searchTerm && (
-                        <div className="text-center py-12 text-gray-500">
-                            No se encontraron turnos que coincidan con la búsqueda.
-                        </div>
-                    )}
-                </div>
-            </main>
+                    {
+                        sortedGroups.length === 0 && searchTerm && (
+                            <div className="text-center py-12 text-gray-500">
+                                No se encontraron turnos que coincidan con la búsqueda.
+                            </div>
+                        )
+                    }
+                </div >
+            </main >
 
             {/* Fixed Bottom Footer - Mobile Only */}
             {/* Fixed Bottom Footer - Mobile Only */}
@@ -658,8 +747,24 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                         <span className="text-[10px] font-medium leading-none">Más</span>
                     </button>
                 </div>
+
+                {/* DEBUG SECTION - REMOVE IN PRODUCTION */}
+                <div className="mt-12 p-4 bg-gray-900 text-green-400 rounded-lg text-xs font-mono overflow-auto max-h-96">
+                    <h4 className="font-bold text-white mb-2">🔧 DEBUG PANEL</h4>
+                    <p>User ID (Me): {user.id}</p>
+                    <p>Total Shifts Visible: {shifts.length}</p>
+                    <p>Total Bookings Loaded: {bookings.length}</p>
+                    <details className="mb-2">
+                        <summary className="cursor-pointer text-white underline">Ver Mis Turnos ({shifts.length})</summary>
+                        <pre>{JSON.stringify(shifts.map(s => ({ id: s.id, date: s.date, time: s.timeSlot, coords: s.coordinatorIds })), null, 2)}</pre>
+                    </details>
+                    <details>
+                        <summary className="cursor-pointer text-white underline">Ver Reservas ({bookings.length})</summary>
+                        <pre>{JSON.stringify(bookings.map(b => ({ id: b.id, shiftId: b.shiftId, userId: b.userId, name: b.user?.fullName, status: b.status })), null, 2)}</pre>
+                    </details>
+                </div>
             </div>
-        </div>
+        </div >
     );
 };
 

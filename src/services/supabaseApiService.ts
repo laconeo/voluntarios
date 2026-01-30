@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabaseClient';
-import type { User, Role, Shift, Booking, Event, EventAdmin, DashboardMetrics, WaitlistEntry } from '../types';
+import type { User, Role, Shift, Booking, Event, EventAdmin, DashboardMetrics, WaitlistEntry, Material } from '../types';
 import { emailService } from './emailService';
 
 // Helper to map DB columns to camelCase types if necessary
@@ -31,6 +31,7 @@ const mapEvent = (row: any): Event => ({
     nombre: row.nombre,
     ubicacion: row.ubicacion,
     pais: row.pais,
+    contactEmail: row.contact_email,
     fechaInicio: row.fecha_inicio,
     fechaFin: row.fecha_fin,
     descripcion: row.descripcion,
@@ -68,13 +69,30 @@ const mapShift = (row: any): Shift => ({
 const mapBooking = (row: any): Booking => ({
     id: row.id,
     userId: row.user_id,
-    shiftId: row.shift_id,
+    shiftId: row.shift_id || undefined, // Maybe null if event-level registration
     eventId: row.event_id,
     status: row.status as any,
     attendance: row.attendance as any,
+    foodDelivered: row.food_delivered,
     requestedAt: row.requested_at,
     cancelledAt: row.cancelled_at,
     // Relations must be joined if needed
+    shift: row.shifts ? {
+        ...mapShift(row.shifts),
+        role: row.shifts.roles ? mapRole(row.shifts.roles) : undefined
+    } : undefined,
+    user: row.users ? mapUser(row.users) : undefined
+});
+
+const mapMaterial = (row: any): Material => ({
+    id: row.id,
+    eventId: row.event_id,
+    name: row.name,
+    description: row.description,
+    quantity: row.quantity,
+    category: row.category,
+    isRequired: row.is_required,
+    createdAt: row.created_at,
 });
 
 // helper
@@ -164,7 +182,7 @@ export const supabaseApi = {
         if (error) throw error;
     },
 
-    register: async (newUser: User): Promise<User> => {
+    register: async (newUser: User, eventId?: string): Promise<User> => {
         // Check if user exists by DNI to avoid dups in Profile
         const { data: existingUser } = await supabase
             .from('users')
@@ -250,7 +268,27 @@ export const supabaseApi = {
         }
 
         const registered = mapUser(profileData);
+
+        // Send Welcome Email
         emailService.sendWelcomeEmail(registered, generatedPassword).catch(console.error);
+
+        // AUTO-ENROLL IN EVENT IF PROVIDED
+        if (eventId) {
+            try {
+                // Try to create a booking with NULL shift_id (General Registration)
+                await supabase.from('bookings').insert({
+                    id: `bk_gen_${Date.now()}`,
+                    user_id: registered.id,
+                    event_id: eventId,
+                    shift_id: null,
+                    status: 'confirmed',
+                    requested_at: new Date().toISOString()
+                });
+            } catch (err) {
+                console.warn('Could not auto-enroll user in event.', err);
+            }
+        }
+
         return registered;
     },
 
@@ -338,14 +376,41 @@ export const supabaseApi = {
         return mapUser(data);
     },
 
+    getUsersByIds: async (userIds: string[]): Promise<User[]> => {
+        if (!userIds || userIds.length === 0) return [];
+        const { data, error } = await supabase.from('users').select('*').in('id', userIds);
+        if (error) throw error;
+        return (data || []).map(mapUser);
+    },
+
 
     // ==================== EVENTS ====================
     getAllEvents: async (): Promise<Event[]> => {
-        const { data, error } = await supabase.from('events').select('*');
+        const { data: events, error } = await supabase.from('events').select('*');
         if (error) throw error;
-        // In real app, fetch counts via joined query
-        // For now, map basic data. Metrics dashboard calculates detailed counts.
-        return data.map(mapEvent);
+
+        // Fetch active bookings to calculate volunteer counts
+        // Using "confirmed" status to count actual volunteers
+        const { data: bookings } = await supabase
+            .from('bookings')
+            .select('event_id, user_id')
+            .eq('status', 'confirmed');
+
+        const eventsWithCounts = events.map(event => {
+            const mapped = mapEvent(event);
+
+            // Calculate unique volunteers for this event
+            if (bookings) {
+                const eventBookings = bookings.filter(b => b.event_id === event.id);
+                // Count unique userIds
+                const uniqueUsers = new Set(eventBookings.map(b => b.user_id));
+                mapped.voluntarios = uniqueUsers.size;
+            }
+
+            return mapped;
+        });
+
+        return eventsWithCounts;
     },
 
     getEventById: async (eventId: string): Promise<Event | null> => {
@@ -367,6 +432,7 @@ export const supabaseApi = {
             nombre: eventData.nombre,
             ubicacion: eventData.ubicacion,
             pais: eventData.pais,
+            contact_email: eventData.contactEmail,
             fecha_inicio: eventData.fechaInicio,
             fecha_fin: eventData.fechaFin,
             descripcion: eventData.descripcion,
@@ -383,6 +449,7 @@ export const supabaseApi = {
         if (updates.slug) dbUpdates.slug = updates.slug;
         if (updates.ubicacion) dbUpdates.ubicacion = updates.ubicacion;
         if (updates.pais) dbUpdates.pais = updates.pais;
+        if (updates.contactEmail !== undefined) dbUpdates.contact_email = updates.contactEmail;
         if (updates.fechaInicio) dbUpdates.fecha_inicio = updates.fechaInicio;
         if (updates.fechaFin) dbUpdates.fecha_fin = updates.fechaFin;
         if (updates.descripcion) dbUpdates.descripcion = updates.descripcion;
@@ -392,6 +459,8 @@ export const supabaseApi = {
         if (error) throw error;
         return mapEvent(data);
     },
+
+
 
     archiveEvent: async (eventId: string): Promise<Event> => {
         const { data, error } = await supabase.from('events').update({ estado: 'Archivado' }).eq('id', eventId).select().single();
@@ -523,9 +592,14 @@ export const supabaseApi = {
 
         return shifts.map(s => {
             const bookedCount = bookings?.filter(b => b.shift_id === s.id).length || 0;
+            // Also subtract assigned coordinators (if the shift is meant for them, this helps)
+            // But usually coordinator assignment is separate from vacancies.
+            // USER REQUEST: "no descontaste los turnos ocupados de coordinador" implies we should.
+            const coordinatorCount = s.coordinator_ids ? s.coordinator_ids.length : 0;
+
             return {
                 ...mapShift(s),
-                availableVacancies: s.total_vacancies - bookedCount
+                availableVacancies: Math.max(0, s.total_vacancies - bookedCount - coordinatorCount)
             };
         });
     },
@@ -620,40 +694,113 @@ export const supabaseApi = {
         await supabase.from('shifts').delete().eq('id', shiftId);
     },
 
+    getEventShiftDates: async (eventId: string): Promise<string[]> => {
+        const { data } = await supabase
+            .from('shifts')
+            .select('date')
+            .eq('event_id', eventId);
+
+        if (!data) return [];
+        // Unique dates
+        const dates = Array.from(new Set(data.map((d: any) => d.date)));
+        return dates.sort();
+    },
+
     assignCoordinatorToShift: async (shiftId: string, userId: string): Promise<Shift> => {
         const { data: shift } = await supabase.from('shifts').select('*').eq('id', shiftId).single();
         if (!shift) throw new Error('Turno no encontrado');
 
-        // Check booking? Not enforced by DB constraint but business rule
-        // ...
+        // Update user role to coordinator
+        await supabase.from('users').update({ role: 'coordinator' }).eq('id', userId);
 
-        let coords = shift.coordinator_ids || [];
-        if (!coords.includes(userId)) {
-            coords.push(userId);
-            await supabase.from('shifts').update({ coordinator_ids: coords }).eq('id', shiftId);
-            await supabase.from('users').update({ role: 'coordinator' }).eq('id', userId);
+        // Get ALL shifts with same date and time slot
+        const { data: relatedShifts } = await supabase
+            .from('shifts')
+            .select('id, coordinator_ids')
+            .eq('event_id', shift.event_id)
+            .eq('date', shift.date)
+            .eq('time_slot', shift.time_slot);
+
+        if (relatedShifts && relatedShifts.length > 0) {
+            // Update each shift to include this coordinator
+            for (const relatedShift of relatedShifts) {
+                const currentIds = relatedShift.coordinator_ids || [];
+                if (!currentIds.includes(userId)) {
+                    const newIds = [...currentIds, userId];
+                    await supabase
+                        .from('shifts')
+                        .update({ coordinator_ids: newIds })
+                        .eq('id', relatedShift.id);
+                }
+            }
         }
 
-        return mapShift({ ...shift, coordinator_ids: coords });
+        return mapShift({ ...shift, coordinator_ids: [...(shift.coordinator_ids || []), userId] });
     },
 
     removeCoordinatorFromShift: async (shiftId: string, userId: string): Promise<Shift> => {
         const { data: shift } = await supabase.from('shifts').select('*').eq('id', shiftId).single();
         if (!shift) throw new Error('Turno no encontrado');
 
-        let coords = shift.coordinator_ids || [];
-        coords = coords.filter((id: string) => id !== userId);
+        // Get ALL shifts with same date and time slot
+        const { data: relatedShifts } = await supabase
+            .from('shifts')
+            .select('id, coordinator_ids')
+            .eq('event_id', shift.event_id)
+            .eq('date', shift.date)
+            .eq('time_slot', shift.time_slot);
 
-        await supabase.from('shifts').update({ coordinator_ids: coords }).eq('id', shiftId);
+        if (relatedShifts && relatedShifts.length > 0) {
+            // Remove coordinator from each shift
+            for (const relatedShift of relatedShifts) {
+                const currentIds = relatedShift.coordinator_ids || [];
+                const newIds = currentIds.filter((id: string) => id !== userId);
 
-        // Check if coordinator elsewhere. Complex query or straightforward check.
-        // Logic: Search 'shifts' where coordinator_ids contains userId.
-        const { count } = await supabase.from('shifts').select('*', { count: 'exact', head: true }).contains('coordinator_ids', [userId]);
-        if (count === 0) {
+                if (currentIds.length !== newIds.length) {
+                    await supabase
+                        .from('shifts')
+                        .update({ coordinator_ids: newIds })
+                        .eq('id', relatedShift.id);
+                }
+            }
+        }
+
+        // Check if coordinator elsewhere.
+        const { count: coordCount } = await supabase.from('shifts').select('*', { count: 'exact', head: true }).contains('coordinator_ids', [userId]);
+        if (coordCount === 0) {
             await supabase.from('users').update({ role: 'volunteer' }).eq('id', userId);
         }
 
-        return mapShift({ ...shift, coordinator_ids: coords });
+        // FAIL-SAFE: Check if user has ANY booking for this event. 
+        // If not, create a General Registration so they don't disappear.
+        const { count: bookingCount } = await supabase
+            .from('bookings')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('event_id', shift.event_id)
+            .neq('status', 'cancelled');
+
+        // Also check if they are coordinator in other shifts of THIS event specifically (coordCount is global? No, shifts table mix events? Yes.)
+        const { count: eventCoordCount } = await supabase
+            .from('shifts')
+            .select('*', { count: 'exact', head: true })
+            .eq('event_id', shift.event_id)
+            .contains('coordinator_ids', [userId]);
+
+        if (bookingCount === 0 && eventCoordCount === 0) {
+            // Create a general enrollment
+            const generalBookingId = `booking_${Date.now()}_general`;
+            await supabase.from('bookings').insert({
+                id: generalBookingId,
+                user_id: userId,
+                event_id: shift.event_id,
+                shift_id: null,
+                status: 'confirmed',
+                requested_at: new Date().toISOString()
+            });
+        }
+
+        return mapShift({ ...shift, coordinator_ids: (shift.coordinator_ids || []).filter((id: string) => id !== userId) });
     },
 
 
@@ -720,6 +867,43 @@ export const supabaseApi = {
 
         const { data: bookingData } = await supabase.from('bookings').insert(newBooking).select().single();
 
+        // Auto-assign to coordinator_ids if role is coordinator
+        // Update ALL shifts with the same date and time slot
+        if (role && role.name.toLowerCase().includes('coordinador')) {
+            try {
+                // Get all shifts with same date and time slot
+                const { data: relatedShifts } = await supabase
+                    .from('shifts')
+                    .select('id, coordinator_ids')
+                    .eq('event_id', shift.event_id)
+                    .eq('date', shift.date)
+                    .eq('time_slot', shift.time_slot);
+
+                if (relatedShifts && relatedShifts.length > 0) {
+                    console.log(`✅ Found ${relatedShifts.length} shifts with date ${shift.date} and time ${shift.time_slot}`);
+
+                    // Update each shift to include this coordinator
+                    for (const relatedShift of relatedShifts) {
+                        const currentIds = relatedShift.coordinator_ids || [];
+                        if (!currentIds.includes(userId)) {
+                            const newIds = [...currentIds, userId];
+                            await supabase
+                                .from('shifts')
+                                .update({ coordinator_ids: newIds })
+                                .eq('id', relatedShift.id);
+
+                            console.log(`✅ Added coordinator ${userId} to shift ${relatedShift.id}`);
+                        }
+                    }
+
+                    console.log(`✅ Auto-assigned user ${userId} as coordinator to ${relatedShifts.length} shifts`);
+                }
+            } catch (error) {
+                console.error('Error auto-assigning coordinator:', error);
+                // Don't fail the booking if coordinator assignment fails
+            }
+        }
+
         // Email
         const { data: event } = await supabase.from('events').select('*').eq('id', shift.event_id).single();
         const { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
@@ -735,6 +919,32 @@ export const supabaseApi = {
         }
 
         return mapBooking(bookingData);
+    },
+
+    enrollUserInEvent: async (userId: string, eventId: string): Promise<Booking> => {
+        // Check if already enrolled
+        const { data: existing } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('event_id', eventId)
+            .neq('status', 'cancelled')
+            .maybeSingle();
+
+        if (existing) throw new Error("El usuario ya está inscripto en este evento.");
+
+        const newBooking = {
+            id: `bk_man_${Date.now()}`,
+            user_id: userId,
+            event_id: eventId,
+            shift_id: null,
+            status: 'confirmed',
+            requested_at: new Date().toISOString()
+        };
+
+        const { data, error } = await supabase.from('bookings').insert(newBooking).select().single();
+        if (error) throw error;
+        return mapBooking(data);
     },
 
     getBookingsByEvent: async (eventId: string): Promise<Booking[]> => {
@@ -761,6 +971,29 @@ export const supabaseApi = {
             }
             return booking;
         }).sort((a, b) => new Date(a.shift?.date!).getTime() - new Date(b.shift?.date!).getTime());
+    },
+
+    getBookingsForShifts: async (shiftIds: string[]): Promise<Booking[]> => {
+        if (!shiftIds || shiftIds.length === 0) return [];
+        const { data } = await supabase
+            .from('bookings')
+            .select('*, users(*), shifts(*, roles(*))')
+            .in('shift_id', shiftIds)
+            .eq('status', 'confirmed');
+
+        if (!data) return [];
+
+        return data.map((b: any) => {
+            const booking = mapBooking(b);
+            booking.user = b.users ? mapUser(b.users) : undefined;
+            if (b.shifts) {
+                booking.shift = mapShift(b.shifts) as Shift & { role: Role };
+                if (b.shifts.roles) {
+                    booking.shift.role = mapRole(b.shifts.roles);
+                }
+            }
+            return booking;
+        });
     },
 
     requestBookingCancellation: async (bookingId: string): Promise<Booking> => {
@@ -803,6 +1036,46 @@ export const supabaseApi = {
 
         // 1. Mark as cancelled
         await supabase.from('bookings').update({ status: 'cancelled', cancelled_at: cancelledAt }).eq('id', bookingId);
+
+        // 1.5. Auto-remove from coordinator_ids if role is coordinator
+        // Remove from ALL shifts with the same date and time slot
+        if (booking.shifts) {
+            const { data: role } = await supabase.from('roles').select('*').eq('id', booking.shifts.role_id).single();
+            if (role && role.name.toLowerCase().includes('coordinador')) {
+                try {
+                    // Get all shifts with same date and time slot
+                    const { data: relatedShifts } = await supabase
+                        .from('shifts')
+                        .select('id, coordinator_ids')
+                        .eq('event_id', booking.event_id)
+                        .eq('date', booking.shifts.date)
+                        .eq('time_slot', booking.shifts.time_slot);
+
+                    if (relatedShifts && relatedShifts.length > 0) {
+                        console.log(`✅ Found ${relatedShifts.length} shifts with date ${booking.shifts.date} and time ${booking.shifts.time_slot}`);
+
+                        // Remove coordinator from each shift
+                        for (const relatedShift of relatedShifts) {
+                            const currentIds = relatedShift.coordinator_ids || [];
+                            const newIds = currentIds.filter((id: string) => id !== booking.user_id);
+
+                            if (currentIds.length !== newIds.length) {
+                                await supabase
+                                    .from('shifts')
+                                    .update({ coordinator_ids: newIds })
+                                    .eq('id', relatedShift.id);
+
+                                console.log(`✅ Removed coordinator ${booking.user_id} from shift ${relatedShift.id}`);
+                            }
+                        }
+
+                        console.log(`✅ Auto-removed user ${booking.user_id} as coordinator from ${relatedShifts.length} shifts`);
+                    }
+                } catch (error) {
+                    console.error('Error auto-removing coordinator:', error);
+                }
+            }
+        }
 
         // 2. Process waitlist to fill the spot
         await supabaseApi.processWaitlist(booking.shift_id);
@@ -854,6 +1127,45 @@ export const supabaseApi = {
                 }
             }
         }
+    },
+
+    updateBookingFoodStatus: async (bookingId: string, delivered: boolean): Promise<void> => {
+        const { error } = await supabase.from('bookings').update({ food_delivered: delivered }).eq('id', bookingId);
+        if (error) throw error;
+    },
+
+    getUserEvents: async (userId: string): Promise<Event[]> => {
+        const { data: bookings } = await supabase
+            .from('bookings')
+            .select('event_id, events(*)')
+            .eq('user_id', userId)
+            .neq('status', 'cancelled');
+
+        if (!bookings) return [];
+
+        // Deduplicate events
+        const eventsMap = new Map();
+        bookings.forEach((b: any) => {
+            if (b.events) {
+                eventsMap.set(b.events.id, mapEvent(b.events));
+            }
+        });
+
+        // Also check if they are coordinator in any shift of any event
+        const { data: coordShifts } = await supabase
+            .from('shifts')
+            .select('event_id, events(*)')
+            .contains('coordinator_ids', [userId]);
+
+        if (coordShifts) {
+            coordShifts.forEach((s: any) => {
+                if (s.events) {
+                    eventsMap.set(s.events.id, mapEvent(s.events));
+                }
+            });
+        }
+
+        return Array.from(eventsMap.values());
     },
 
     // ==================== ADMIN METRICS ETC ====================
@@ -969,11 +1281,39 @@ export const supabaseApi = {
             const role = roles.find(r => r.id === shift?.role_id);
             if (role) {
                 const existing = acc.find(r => r.roleName === role.name);
-                if (existing) existing.count++;
-                else acc.push({ roleName: role.name, count: 1 });
+                if (existing) {
+                    existing.count++;
+                } else {
+                    acc.push({ roleName: role.name, count: 1, color: '#4F46E5' }); // default color
+                }
             }
             return acc;
         }, []);
+
+        // ADD Coordinators to distribution
+        shifts.forEach(s => {
+            if (s.coordinator_ids && s.coordinator_ids.length > 0) {
+                // A coordinator is technically a role participation.
+                // We should find the role of the shift, or maybe "coordinator" is a separate category?
+                // User asked: "no veo el rol de coordinador en el dashboard". 
+                // Assuming the shift role IS "Coordinador" (or similar), then adding to that count is correct.
+                // But if the shift role is "Cocina" and Freddy is the Coordinator, he counts as "Cocina"? Or "Coordinador"?
+                // Typically, a Coordinator is... a Coordinator.
+                // Let's add them to the role defined in the shift (if the shift is for Coordinators) 
+                // OR simply add a "Coordinadores" category if we can't determine.
+                // BUT, since the user said "assign role to coordinator", likely the shift itself has role_id pointing to "Coordinador".
+                const role = roles.find(r => r.id === s.role_id);
+                if (role) {
+                    // Add count
+                    const existing = roleDistribution.find(r => r.roleName === role.name);
+                    if (existing) {
+                        existing.count += s.coordinator_ids.length;
+                    } else {
+                        roleDistribution.push({ roleName: role.name, count: s.coordinator_ids.length, color: '#10B981' });
+                    }
+                }
+            }
+        });
 
         // Daily Occupation
         const uniqueDates = [...new Set(shifts.map(s => s.date))].sort();
@@ -1065,15 +1405,27 @@ export const supabaseApi = {
         if (booking.user_id) {
             await supabase.from('users').update({ role: 'coordinator' }).eq('id', booking.user_id);
 
-            // 3. Add user to shift's coordinator_ids
-            if (booking.shift_id) {
-                const { data: shift } = await supabase.from('shifts').select('coordinator_ids').eq('id', booking.shift_id).single();
-                if (shift) {
-                    const currentCoords: string[] = shift.coordinator_ids || [];
-                    if (!currentCoords.includes(booking.user_id)) {
-                        await supabase.from('shifts')
-                            .update({ coordinator_ids: [...currentCoords, booking.user_id] })
-                            .eq('id', booking.shift_id);
+            // 3. Add user to coordinator_ids for ALL shifts with same date and time slot
+            if (booking.shift_id && booking.shifts) {
+                // Get all shifts with same date and time slot
+                const { data: relatedShifts } = await supabase
+                    .from('shifts')
+                    .select('id, coordinator_ids')
+                    .eq('event_id', booking.event_id)
+                    .eq('date', booking.shifts.date)
+                    .eq('time_slot', booking.shifts.time_slot);
+
+                if (relatedShifts && relatedShifts.length > 0) {
+                    // Update each shift to include this coordinator
+                    for (const relatedShift of relatedShifts) {
+                        const currentIds = relatedShift.coordinator_ids || [];
+                        if (!currentIds.includes(booking.user_id)) {
+                            const newIds = [...currentIds, booking.user_id];
+                            await supabase
+                                .from('shifts')
+                                .update({ coordinator_ids: newIds })
+                                .eq('id', relatedShift.id);
+                        }
                     }
                 }
             }
@@ -1083,5 +1435,114 @@ export const supabaseApi = {
         // For now, assuming standard confirmation email logic or silence.
 
         return;
+    },
+
+    rejectCoordinatorRequest: async (bookingId: string): Promise<void> => {
+        const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId);
+        if (error) throw error;
+    },
+
+    // ==================== MATERIALS ====================
+    getMaterialsByEvent: async (eventId: string): Promise<Material[]> => {
+        const { data, error } = await supabase.from('materials').select('*').eq('event_id', eventId);
+        if (error) throw error;
+        return data.map(mapMaterial);
+    },
+
+    createMaterial: async (material: Omit<Material, 'id' | 'createdAt'>): Promise<Material> => {
+        const dbMaterial = {
+            event_id: material.eventId,
+            name: material.name,
+            description: material.description,
+            quantity: material.quantity,
+            category: material.category,
+            is_required: material.isRequired
+        };
+        const { data, error } = await supabase.from('materials').insert(dbMaterial).select().single();
+        if (error) throw error;
+        return mapMaterial(data);
+    },
+
+    updateMaterial: async (id: string, updates: Partial<Material>): Promise<Material> => {
+        const dbUpdates: any = {};
+        if (updates.name) dbUpdates.name = updates.name;
+        if (updates.description) dbUpdates.description = updates.description;
+        if (updates.quantity !== undefined) dbUpdates.quantity = updates.quantity;
+        if (updates.category) dbUpdates.category = updates.category;
+        if (updates.isRequired !== undefined) dbUpdates.is_required = updates.isRequired;
+
+        const { data, error } = await supabase.from('materials').update(dbUpdates).eq('id', id).select().single();
+        if (error) throw error;
+        return mapMaterial(data);
+    },
+
+    deleteMaterial: async (id: string): Promise<void> => {
+        const { error } = await supabase.from('materials').delete().eq('id', id);
+        if (error) throw error;
+    },
+
+    // ==================== DELIVERY ====================
+    getUserMaterials: async (eventId: string): Promise<{ user_id: string; material_id: string }[]> => {
+        const { data, error } = await supabase.from('user_materials').select('*').eq('event_id', eventId);
+        if (error) {
+            // If table doesn't exist, return empty (for now)
+            if (error.code === '42P01') return [];
+            throw error;
+        }
+        return data || [];
+    },
+
+    toggleUserMaterial: async (eventId: string, userId: string, materialId: string, delivered: boolean): Promise<void> => {
+        if (delivered) {
+            const { error } = await supabase.from('user_materials').insert({ event_id: eventId, user_id: userId, material_id: materialId });
+            if (error && error.code !== '23505') throw error; // Ignore 23505 (unique violation)
+        } else {
+            const { error } = await supabase.from('user_materials').delete().match({ event_id: eventId, user_id: userId, material_id: materialId });
+            if (error) throw error;
+        }
+    },
+
+    // ==================== COORDINATOR MANAGEMENT ====================
+    addCoordinatorToShift: async (shiftId: string, userId: string): Promise<void> => {
+        // Fetch current shift
+        const { data: shift } = await supabase
+            .from('shifts')
+            .select('coordinator_ids')
+            .eq('id', shiftId)
+            .single();
+
+        if (!shift) throw new Error('Shift not found');
+
+        const currentIds = shift.coordinator_ids || [];
+        if (currentIds.includes(userId)) return; // Already added
+
+        const newIds = [...currentIds, userId];
+        const { error } = await supabase
+            .from('shifts')
+            .update({ coordinator_ids: newIds })
+            .eq('id', shiftId);
+
+        if (error) throw error;
+    },
+
+    removeCoordinatorFromShift: async (shiftId: string, userId: string): Promise<void> => {
+        // Fetch current shift
+        const { data: shift } = await supabase
+            .from('shifts')
+            .select('coordinator_ids')
+            .eq('id', shiftId)
+            .single();
+
+        if (!shift) throw new Error('Shift not found');
+
+        const currentIds = shift.coordinator_ids || [];
+        const newIds = currentIds.filter((id: string) => id !== userId);
+
+        const { error } = await supabase
+            .from('shifts')
+            .update({ coordinator_ids: newIds })
+            .eq('id', shiftId);
+
+        if (error) throw error;
     },
 };

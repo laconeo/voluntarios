@@ -12,9 +12,13 @@ interface UserManagementProps {
 const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBack }) => {
     // ... existing state ...
     const [users, setUsers] = useState<User[]>([]);
+
     const [events, setEvents] = useState<Event[]>([]);
-    const [bookings, setBookings] = useState<Booking[]>([]);
+    const [userEventsMap, setUserEventsMap] = useState<Record<string, Event[]>>({});
     const [isLoading, setIsLoading] = useState(true);
+    const [showEnrollModal, setShowEnrollModal] = useState(false);
+    const [userToEnroll, setUserToEnroll] = useState<User | null>(null);
+    const [selectedEventId, setSelectedEventId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterRole, setFilterRole] = useState('todos');
     const [filterEvent, setFilterEvent] = useState('todos');
@@ -37,7 +41,55 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
 
             setUsers(usersData.sort((a, b) => a.fullName.localeCompare(b.fullName)));
             setEvents(eventsData);
+
+            // Fetch events for each user (inefficient for large N, but ok for now)
+            // Better: fetch all CONFIRMED bookings with events
+            // We can add a method 'getAllBookingsWithEvents'
+            // For now, let's just do bulk fetch if possible, or iterating.
+            // Let's iterate but optimizing? No, let's use a new helper or existing logic.
+            // We need to know for EACH user what events they are in.
+            // Let's assume we can fetch all bookings globally?
+            // mockApi.getAllBookings() doesn't exist?
+            // We can iterate users - NO.
+            // Let's just create a quick map by fetching all confirmed bookings? 
+            // We don't have a 'getAllBookings' method.
+            // Let's add 'getAllActiveBookings' to API?
+            // Or we can use `userEventsMap` and fetch on demand or lazy load?
+            // Easiest for UI is to fetch for *displayed* users, but filtering depends on it? No.
+            // Let's fetch for all users in parallel? No.
+
+            // Let's try to fetch all bookings from supabase directly if we could? 
+            // I'll add getAllBookings to API?
+            // Alternatively, since I just added getUserEvents(userId), I can call it for visible users?
+            // Let's just batch fetch for now.
+            const map: Record<string, Event[]> = {};
+            // Parallel fetch for top 50?
+            // This is going to be slow if many users.
+            // Let's skip pre-loading events for everyone column for now to avoid perf hit?
+            // User asked: "que pueda ver en que eventos esta registrado cada usuario".
+            // So we MUST show it.
+
+            // I'll use a hack: fetch all bookings by iterating all ACTIVE events.
+            const allBookingsPromises = eventsData.map(e => mockApi.getBookingsByEvent(e.id).then(bs => ({ event: e, bookings: bs })));
+            const results = await Promise.all(allBookingsPromises);
+
+            results.forEach(({ event, bookings }) => {
+                // Filter out general enrollments (shift_id: null) - they're just internal markers
+                const realBookings = bookings.filter(b => b.shiftId !== null);
+
+                realBookings.forEach(b => {
+                    if (!map[b.userId]) map[b.userId] = [];
+                    // Avoid dups
+                    if (!map[b.userId].find(e => e.id === event.id)) {
+                        map[b.userId].push(event);
+                    }
+                });
+            });
+
+            setUserEventsMap(map);
+
         } catch (error) {
+            console.error(error);
             toast.error('Error al cargar datos');
         } finally {
             setIsLoading(false);
@@ -158,6 +210,25 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
             volunteer: 'Voluntario'
         };
         return labels[role as keyof typeof labels] || role;
+    };
+
+    const handleOpenEnrollModal = (user: User) => {
+        setUserToEnroll(user);
+        setSelectedEventId('');
+        setShowEnrollModal(true);
+    };
+
+    const handleEnrollUser = async () => {
+        if (!userToEnroll || !selectedEventId) return;
+
+        try {
+            await mockApi.enrollUserInEvent(userToEnroll.id, selectedEventId);
+            toast.success(`Usuario inscripto en ${events.find(e => e.id === selectedEventId)?.nombre}`);
+            setShowEnrollModal(false);
+            fetchData(); // Refresh map
+        } catch (error: any) {
+            toast.error(error.message || 'Error al inscribir');
+        }
     };
 
     return (
@@ -367,6 +438,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                             </th>
                                             {/* Adjusted Register column visibility could be done if needed, keeping for now with less padding */}
                                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Eventos en los que participa
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 Registro
                                             </th>
                                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -407,6 +481,18 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                                         {(user.status || 'active') === 'active' ? 'Activo' : (user.status === 'deleted' ? 'Eliminado' : 'Suspendido')}
                                                     </span>
                                                 </td>
+                                                <td className="px-4 py-2.5 text-sm text-gray-500 max-w-[200px]">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {userEventsMap[user.id]?.map(e => (
+                                                            <span key={e.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 truncate max-w-full">
+                                                                {e.nombre}
+                                                            </span>
+                                                        ))}
+                                                        {(!userEventsMap[user.id] || userEventsMap[user.id].length === 0) && (
+                                                            <span className="text-xs text-gray-400 italic">Sin eventos</span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="px-4 py-2.5 whitespace-nowrap text-sm font-medium text-center">
                                                     {user.attendedPrevious ? (
                                                         <span className="text-green-600 bg-green-50 px-2 py-0.5 rounded text-xs">SI</span>
@@ -425,6 +511,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                                             title="Editar usuario"
                                                         >
                                                             <Edit2 size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleOpenEnrollModal(user)}
+                                                            className="text-indigo-600 hover:text-indigo-900 p-1.5 hover:bg-indigo-50 rounded transition-colors"
+                                                            title="Inscribir en Evento"
+                                                        >
+                                                            <Users size={16} />
                                                         </button>
                                                         <button
                                                             onClick={() => handleToggleStatus(user)}
@@ -654,6 +747,62 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
                                     Guardar Cambios
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Modal de Inscripción Manual */}
+            {showEnrollModal && userToEnroll && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+                        <div className="flex justify-between items-start mb-4">
+                            <h3 className="text-lg font-bold text-gray-900">
+                                Inscribir en Evento
+                            </h3>
+                            <button
+                                onClick={() => setShowEnrollModal(false)}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="mb-4">
+                            <p className="text-sm text-gray-600 mb-2">
+                                Selecciona el evento al que deseas inscribir a <strong>{userToEnroll.fullName}</strong>.
+                            </p>
+
+                            <select
+                                value={selectedEventId}
+                                onChange={(e) => setSelectedEventId(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            >
+                                <option value="">Seleccionar evento...</option>
+                                {events
+                                    .filter(e => e.estado === 'Activo' || e.estado === 'Inactivo') // Solo activos o inactivos, no archivados?
+                                    .filter(e => !userEventsMap[userToEnroll.id]?.some(ue => ue.id === e.id)) // Filtrar los que ya tiene
+                                    .map(e => (
+                                        <option key={e.id} value={e.id}>
+                                            {e.nombre}
+                                        </option>
+                                    ))}
+                            </select>
+                        </div>
+
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowEnrollModal(false)}
+                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleEnrollUser}
+                                disabled={!selectedEventId}
+                                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50"
+                            >
+                                Inscribir
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -17,32 +17,40 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     const [shifts, setShifts] = useState<Shift[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [roles, setRoles] = useState<any[]>([]); // roles state
     const [filterRole, setFilterRole] = useState('todos');
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [showEditModal, setShowEditModal] = useState(false);
 
     // New state for viewing user shifts
     const [viewingUser, setViewingUser] = useState<User | null>(null);
+
     const [viewingUserBookings, setViewingUserBookings] = useState<Booking[]>([]);
     const [isLoadingShifts, setIsLoadingShifts] = useState(false);
     const [eventDetails, setEventDetails] = useState<any>(null);
+
+    // Store ALL system users for manual enrollment
+    const [allSystemUsers, setAllSystemUsers] = useState<User[]>([]);
 
     useEffect(() => {
         fetchVolunteers();
     }, [eventId]);
 
-    const fetchVolunteers = async () => {
-        setIsLoading(true);
+    const fetchVolunteers = async (silent = false) => {
+        if (!silent) setIsLoading(true);
         try {
-            const [allUsers, eventBookings, eventInfo, allShifts] = await Promise.all([
+            const [allUsers, eventBookings, eventInfo, allShifts, eventRoles] = await Promise.all([
                 mockApi.getAllUsers(),
                 mockApi.getBookingsByEvent(eventId),
                 mockApi.getEventById(eventId),
-                mockApi.getShiftsByEvent(eventId)
+                mockApi.getShiftsByEvent(eventId),
+                mockApi.getRolesByEvent(eventId)
             ]);
 
             // Filtrar solo usuarios que tienen bookings en este evento O son coordinadores en algun turno
-            const userIdsInEvent = new Set(eventBookings.map(b => b.userId));
+            // EXCLUDE general enrollments (bookings without shifts) - they're just internal markers
+            const realBookings = eventBookings.filter(b => b.shiftId !== null);
+            const userIdsInEvent = new Set(realBookings.map(b => b.userId));
 
             // Add coordinators to the set
             allShifts.forEach(s => {
@@ -59,17 +67,18 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                 if (shift.coordinatorIds) {
                     shift.coordinatorIds.forEach(uid => {
                         // Check if this user already has a booking for this shift to avoid duplicates (though rare)
-                        const exists = eventBookings.some(b => b.userId === uid && b.shiftId === shift.id);
+                        const exists = realBookings.some(b => b.userId === uid && b.shiftId === shift.id);
                         if (!exists) {
+                            const shiftRole = eventRoles.find(r => r.id === shift.roleId);
                             coordinatorBookings.push({
                                 id: `coord_${shift.id}_${uid}`,
                                 userId: uid,
                                 shiftId: shift.id,
                                 eventId: eventId,
-                                status: 'confirmed',
+                                status: 'confirmed' as const,
                                 attendance: 'pending' as any,
                                 requestedAt: new Date().toISOString(),
-                                shift: shift as any, // Attach shift for display
+                                shift: { ...shift, role: shiftRole } as any, // Attach shift with role
                             });
                         }
                     });
@@ -77,14 +86,16 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             });
 
             setVolunteers(eventVolunteers);
-            setBookings([...eventBookings, ...coordinatorBookings]);
+            setBookings([...realBookings, ...coordinatorBookings]);
             setEventDetails(eventInfo);
             setShifts(allShifts);
+            setRoles(eventRoles);
+            setAllSystemUsers(allUsers); // Save all users
         } catch (error) {
             console.error('Error al cargar voluntarios:', error);
             toast.error('Error al cargar voluntarios del evento');
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
     };
 
@@ -137,16 +148,19 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             const allEventShifts = await mockApi.getShiftsByEvent(eventId);
             const coordShifts = allEventShifts.filter(s => s.coordinatorIds?.includes(user.id));
 
-            const syntheticBookings: Booking[] = coordShifts.map(shift => ({
-                id: `coord_${shift.id}_${user.id}`,
-                userId: user.id,
-                shiftId: shift.id,
-                eventId: eventId,
-                status: 'confirmed',
-                attendance: 'pending' as any,
-                requestedAt: new Date().toISOString(),
-                shift: shift as any
-            })).filter(sb => !userShifts.some(ub => ub.shiftId === sb.shiftId)); // Avoid dups
+            const syntheticBookings: Booking[] = coordShifts.map(shift => {
+                const shiftRole = roles.find(r => r.id === shift.roleId);
+                return {
+                    id: `coord|${shift.id}|${user.id}`,
+                    userId: user.id,
+                    shiftId: shift.id,
+                    eventId: eventId,
+                    status: 'confirmed' as const,
+                    attendance: 'pending' as any,
+                    requestedAt: new Date().toISOString(),
+                    shift: { ...shift, role: shiftRole } as any
+                };
+            }).filter(sb => !userShifts.some(ub => ub.shiftId === sb.shiftId)); // Avoid dups
 
             setViewingUserBookings([...userShifts, ...syntheticBookings]);
         } catch (error) {
@@ -165,8 +179,9 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             // Refresh shifts locally
             const updatedShifts = await mockApi.getShiftsByEvent(eventId);
             setShifts(updatedShifts);
+            setShifts(updatedShifts);
             // Also refresh volunteers to update counts if needed
-            fetchVolunteers();
+            fetchVolunteers(true);
         } catch (error: any) {
             toast.error(error.message || 'Error al asignar turno');
         }
@@ -180,8 +195,9 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             // Refresh shifts locally
             const updatedShifts = await mockApi.getShiftsByEvent(eventId);
             setShifts(updatedShifts);
+            setShifts(updatedShifts);
             // Also refresh volunteers
-            fetchVolunteers();
+            fetchVolunteers(true);
         } catch (error: any) {
             toast.error(error.message || 'Error al remover turno');
         }
@@ -189,6 +205,40 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
     const handleDeleteBooking = async (bookingId: string) => {
         try {
+            // Check if it is a synthetic coordinator booking
+            if (bookingId.startsWith('coord|')) {
+                // ID format: coord|{shiftId}|{userId}
+                const parts = bookingId.split('|');
+                if (parts.length >= 3) {
+                    const shiftId = parts[1];
+                    const userId = parts[2];
+
+                    if (window.confirm('¿Estás seguro de que quieres quitar el rol de coordinador para este turno?')) {
+                        await mockApi.removeCoordinatorFromShift(shiftId, userId);
+                        toast.success('Rol de coordinador removido');
+
+                        // Refresh shifts list
+                        if (viewingUser) {
+                            // Re-fetch logic or simulate
+                            // For simplicity, just close modal or re-fetch shifts:
+                            const userShifts = await mockApi.getUserBookings(viewingUser.id, eventId);
+                            // Need to re-synthesize? Yes.
+                            // Re-calling handleViewShifts is cleaner but it toggles loading.
+                            // Let's manually trigger refresh of main list which updates 'shifts' state
+                            // AND update secondary view.
+                            fetchVolunteers(true);
+                            // To refresh viewingUserBookings, we need to call logic similar to handleViewShifts
+                            // We can't easily call handleViewShifts(viewingUser) because of state closure/recursion risk?
+                            // Actually we can, just wait a bit.
+                            setTimeout(() => handleViewShifts(viewingUser), 500);
+                        } else {
+                            fetchVolunteers(true);
+                        }
+                    }
+                }
+                return;
+            }
+
             await mockApi.adminCancelBooking(bookingId);
             toast.success('Turno eliminado y voluntario notificado');
 
@@ -198,7 +248,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                 setViewingUserBookings(userShifts);
             }
             // Also refresh main list to update counts if necessary
-            fetchVolunteers();
+            fetchVolunteers(true);
         } catch (error: any) {
             console.error('Error deleting booking', error);
             toast.error(error.message || 'Error al eliminar el turno');
@@ -418,6 +468,27 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         const matchRole = filterRole === 'todos' || volunteer.role === filterRole;
         return matchSearch && matchRole;
     });
+
+    // Find users NOT in the event but in the system matching search
+    const notEnrolledUsers = searchTerm.length > 2 ? allSystemUsers.filter(u => {
+        const isEnrolled = volunteers.some(v => v.id === u.id);
+        if (isEnrolled) return false;
+
+        return u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            u.dni.includes(searchTerm) ||
+            u.email.toLowerCase().includes(searchTerm.toLowerCase());
+    }) : [];
+
+    const handleEnrollUser = async (userToEnroll: User) => {
+        if (!confirm(`¿Deseas inscribir a ${userToEnroll.fullName} en este evento?`)) return;
+        try {
+            await mockApi.enrollUserInEvent(userToEnroll.id, eventId);
+            toast.success('Usuario inscripto exitosamente');
+            fetchVolunteers(true);
+        } catch (error: any) {
+            toast.error(error.message || 'Error al inscribir usuario');
+        }
+    };
 
     if (isLoading) {
         return (
@@ -803,6 +874,10 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                 <option value="">Seleccionar un turno para asignar...</option>
                                                 {shifts
                                                     .filter(s => !s.coordinatorIds?.includes(editingUser.id))
+                                                    .filter(s => {
+                                                        const role = roles.find(r => r.id === s.roleId);
+                                                        return role?.name.toLowerCase().includes('coordinador');
+                                                    })
                                                     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                                                     .map(s => (
                                                         <option key={s.id} value={s.id}>
@@ -884,7 +959,32 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             {filteredVolunteers.length === 0 && (
                 <div className="text-center py-12">
                     <Users size={48} className="mx-auto text-gray-300 mb-4" />
-                    <p className="text-gray-500">No se encontraron voluntarios con los filtros seleccionados</p>
+                    <p className="text-gray-500">No se encontraron voluntarios inscriptos con los filtros seleccionados</p>
+
+                    {/* Show potential matches from system users */}
+                    {notEnrolledUsers.length > 0 && (
+                        <div className="mt-8 max-w-2xl mx-auto text-left bg-blue-50 rounded-lg p-6 border border-blue-100">
+                            <h4 className="text-sm font-semibold text-blue-900 mb-4">
+                                Usuarios encontrados en el sistema (no inscriptos en este evento):
+                            </h4>
+                            <div className="space-y-3">
+                                {notEnrolledUsers.map(u => (
+                                    <div key={u.id} className="flex items-center justify-between bg-white p-3 rounded shadow-sm">
+                                        <div>
+                                            <p className="font-medium text-gray-900">{u.fullName}</p>
+                                            <p className="text-xs text-gray-500">{u.email} • DNI: {u.dni}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleEnrollUser(u)}
+                                            className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors"
+                                        >
+                                            Inscribir
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -985,14 +1085,14 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                             {viewingUserBookings.map((booking) => (
                                                 <tr key={booking.id} className="hover:bg-gray-50">
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                        {booking.shift?.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString('es-AR') : '-'}
+                                                        {booking.shift?.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString('es-AR') : (booking.shiftId === null ? 'Sin Fecha' : '-')}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                         {booking.shift?.timeSlot || '-'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(booking.shift?.role?.name || '')}`}>
-                                                            {booking.shift?.role?.name || '-'}
+                                                            {booking.shift?.role?.name || (booking.shiftId === null ? 'Inscripción General' : '-')}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1098,8 +1198,9 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                         </div>
                     </div>
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 };
 

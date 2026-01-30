@@ -21,6 +21,7 @@ export interface Event {
   nombre: string;
   ubicacion: string;
   pais: string;
+  contactEmail?: string;
   fechaInicio: string; // YYYY-MM-DD
   fechaFin: string;
   descripcion: string;
@@ -58,10 +59,11 @@ export interface Shift {
 export interface Booking {
   id: string;
   userId: string;
-  shiftId: string;
+  shiftId?: string;
   eventId: string;
   status: 'confirmed' | 'cancellation_requested' | 'cancelled' | 'waitlist' | 'pending_approval';
   attendance?: 'pending' | 'attended' | 'absent'; // Estado de asistencia
+  foodDelivered?: boolean; // Si se le entregó comida/vianda
   requestedAt: string; // Timestamp de cuando se registró
   cancelledAt?: string; // Timestamp de cuando solicitó baja
   user?: User;
@@ -103,4 +105,15 @@ export interface DashboardMetrics {
   shiftOccupation: Record<string, number>; // Ocupación por franja horaria (timeSlot -> cantidad)
   attendancePercentage?: number;
   previousExperiencePercentage?: number;
+}
+
+export interface Material {
+  id: string;
+  eventId: string;
+  name: string;
+  description?: string;
+  quantity?: number;
+  category: 'general' | 'clothing' | 'access' | 'food';
+  isRequired: boolean; // Si es obligatorio que todos lo tengan
+  createdAt?: string;
 }

@@ -1,10 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, Users, MoreHorizontal, ChevronRight, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, Users, MoreHorizontal, ChevronRight, X, Package } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { Event, User } from '../types';
 import { toast } from 'react-hot-toast';
 import ShiftManagement from './ShiftManagement';
 import RoleManagement from './RoleManagement';
+import MaterialManagement from './MaterialManagement';
+import MaterialDeliveryList from './MaterialDeliveryList';
 
 interface SuperAdminDashboardProps {
     user: User;
@@ -13,11 +16,16 @@ interface SuperAdminDashboardProps {
 }
 
 const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewMetrics }) => {
-    const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar'>('listado');
-    const [activeTab, setActiveTab] = useState<'details' | 'roles' | 'shifts'>('details');
+    const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar' | 'delivery'>('listado');
+    const [activeTab, setActiveTab] = useState<'details' | 'roles' | 'shifts' | 'materials'>('details');
     const [eventoSeleccionado, setEventoSeleccionado] = useState<Event | null>(null);
     const [mostrarModal, setMostrarModal] = useState(false);
     const [accionModal, setAccionModal] = useState('');
+
+    // Delivery state is handled via vistaActual now
+    const [deliveryEventId, setDeliveryEventId] = useState<string | null>(null);
+
+    // Filters
     const [filtroEstado, setFiltroEstado] = useState('todos');
     const [filtroPais, setFiltroPais] = useState('todos');
     const [filtroFecha, setFiltroFecha] = useState('todos');
@@ -29,6 +37,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         slug: '',
         ubicacion: '',
         pais: '',
+        contactEmail: '',
         fechaInicio: '',
         fechaFin: '',
         descripcion: '',
@@ -82,13 +91,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
 
     const copyEventUrl = () => {
         const baseUrl = window.location.href.split('#')[0].replace(/\/$/, '');
-        const url = `${baseUrl}/#/${formData.slug}`;
+        const url = `${baseUrl} /#/${formData.slug} `;
         navigator.clipboard.writeText(url);
         toast.success('URL copiada al portapapeles');
     };
 
     const iniciarCrearEvento = () => {
-        setFormData({ nombre: '', slug: '', ubicacion: '', pais: '', fechaInicio: '', fechaFin: '', descripcion: '', estado: 'Inactivo' });
+        setFormData({ nombre: '', slug: '', ubicacion: '', pais: '', contactEmail: '', fechaInicio: '', fechaFin: '', descripcion: '', estado: 'Inactivo' });
         setVistaActual('crear');
     };
 
@@ -99,6 +108,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
             slug: evento.slug,
             ubicacion: evento.ubicacion,
             pais: evento.pais,
+            contactEmail: evento.contactEmail || '',
             fechaInicio: evento.fechaInicio,
             fechaFin: evento.fechaFin,
             descripcion: evento.descripcion,
@@ -174,11 +184,25 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                 <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
                 <p className="text-3xl font-light text-gray-900">{count}</p>
             </div>
-            <div className={`p-3 rounded-full ${bgClass}`}>
+            <div className={`p - 3 rounded - full ${bgClass} `}>
                 <Icon size={24} className={iconClass} />
             </div>
         </div>
     );
+
+    if (vistaActual === 'delivery' && deliveryEventId) {
+        return (
+            <div className="min-h-screen font-sans text-gray-900 bg-[#F7F7F7]">
+                <MaterialDeliveryList
+                    eventId={deliveryEventId}
+                    onClose={() => {
+                        setVistaActual('listado');
+                        setDeliveryEventId(null);
+                    }}
+                />
+            </div>
+        );
+    }
 
     if (vistaActual === 'listado') {
         return (
@@ -295,7 +319,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                 >
                                     <div className="p-6 flex-1">
                                         <div className="flex justify-between items-start mb-4">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getBadgeColor(evento.estado)}`}>
+                                            <span className={`px - 3 py - 1 rounded - full text - xs font - semibold ${getBadgeColor(evento.estado)} `}>
                                                 {evento.estado}
                                             </span>
                                             {onViewMetrics && (
@@ -359,6 +383,18 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                             )}
                                         </div>
                                         <div className="flex gap-2">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setDeliveryEventId(evento.id);
+                                                    setVistaActual('delivery');
+                                                }}
+                                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-purple-600 bg-purple-50 border border-purple-100 rounded-md hover:bg-purple-100 transition-colors"
+                                                title="Entrega de Materiales"
+                                            >
+                                                <Package size={16} />
+                                                <span className="hidden sm:inline">Materiales</span>
+                                            </button>
                                             {onViewMetrics && (
                                                 <button
                                                     onClick={(e) => {
@@ -418,8 +454,8 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                 </button>
                                 <button
                                     onClick={ejecutarAccion}
-                                    className={`flex-1 px-4 py-2 rounded-lg text-white font-medium text-sm transition-colors shadow-sm ${accionModal === 'archivar' ? 'bg-[#8CB83E] hover:bg-[#7cb342]' : 'bg-red-600 hover:bg-red-700'
-                                        }`}
+                                    className={`flex - 1 px - 4 py - 2 rounded - lg text - white font - medium text - sm transition - colors shadow - sm ${accionModal === 'archivar' ? 'bg-[#8CB83E] hover:bg-[#7cb342]' : 'bg-red-600 hover:bg-red-700'
+                                        } `}
                                 >
                                     Confirmar
                                 </button>
@@ -427,6 +463,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                         </div>
                     </div>
                 )}
+
                 {/* Mobile Bottom Floating Action Buttons - List View */}
                 <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 sm:hidden z-50 flex shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] pb-safe">
                     {onViewMetrics && (
@@ -440,7 +477,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                     )}
                     <button
                         onClick={iniciarCrearEvento}
-                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-lg transition-colors ${!onViewMetrics ? 'w-full' : ''} text-[#8CB83E] active:bg-green-50`}
+                        className={`flex - 1 flex flex - col items - center justify - center gap - 1 py - 2 rounded - lg transition - colors ${!onViewMetrics ? 'w-full' : ''} text - [#8CB83E] active: bg - green - 50`}
                     >
                         <Plus size={24} />
                         <span className="text-[10px] font-medium">Nuevo Evento</span>
@@ -481,21 +518,27 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                         <div className="flex space-x-6">
                             <button
                                 onClick={() => setActiveTab('details')}
-                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-[#8CB83E] text-[#8CB83E]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                className={`pb - 3 text - sm font - medium border - b - 2 transition - colors ${activeTab === 'details' ? 'border-[#8CB83E] text-[#8CB83E]' : 'border-transparent text-gray-500 hover:text-gray-700'} `}
                             >
                                 Detalles
                             </button>
                             <button
                                 onClick={() => setActiveTab('roles')}
-                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'roles' ? 'border-[#8CB83E] text-[#8CB83E]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                className={`pb - 3 text - sm font - medium border - b - 2 transition - colors ${activeTab === 'roles' ? 'border-[#8CB83E] text-[#8CB83E]' : 'border-transparent text-gray-500 hover:text-gray-700'} `}
                             >
                                 Roles
                             </button>
                             <button
                                 onClick={() => setActiveTab('shifts')}
-                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'shifts' ? 'border-[#8CB83E] text-[#8CB83E]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                className={`pb - 3 text - sm font - medium border - b - 2 transition - colors ${activeTab === 'shifts' ? 'border-[#8CB83E] text-[#8CB83E]' : 'border-transparent text-gray-500 hover:text-gray-700'} `}
                             >
                                 Turnos
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('materials')}
+                                className={`pb - 3 text - sm font - medium border - b - 2 transition - colors ${activeTab === 'materials' ? 'border-[#8CB83E] text-[#8CB83E]' : 'border-transparent text-gray-500 hover:text-gray-700'} `}
+                            >
+                                Materiales
                             </button>
                         </div>
                     </div>
@@ -515,6 +558,10 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                 eventStartDate={eventoSeleccionado.fechaInicio}
                                 eventEndDate={eventoSeleccionado.fechaFin}
                             />
+                        </div>
+                    ) : activeTab === 'materials' && eventoSeleccionado ? (
+                        <div className="p-6">
+                            <MaterialManagement eventId={eventoSeleccionado.id} />
                         </div>
                     ) : (
                         <div className="p-6 sm:p-8 space-y-6">
@@ -554,7 +601,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                     {formData.slug && (
                                         <div className="mt-2 flex items-center justify-between text-xs text-blue-600 bg-blue-50 px-3 py-2 rounded border border-blue-100">
                                             <span className="truncate font-mono">
-                                                {`${window.location.href.split('#')[0].replace(/\/$/, '')}/#/${formData.slug}`}
+                                                {`${window.location.href.split('#')[0].replace(/\/$/, '')} /#/${formData.slug} `}
                                             </span>
                                             <button onClick={copyEventUrl} className="ml-2 hover:underline font-medium">Copiar</button>
                                         </div>
@@ -582,6 +629,18 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#8CB83E] focus:border-[#8CB83E]"
                                         />
                                     </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Email de Contacto (Público)</label>
+                                    <input
+                                        type="email"
+                                        name="contactEmail"
+                                        value={formData.contactEmail || ''}
+                                        onChange={handleInputChange}
+                                        placeholder="contacto@evento.com"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#8CB83E] focus:border-[#8CB83E] transition-shadow"
+                                    />
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -684,15 +743,15 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
             {/* Mobile Nav */}
             {eventoSeleccionado && (
                 <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 sm:hidden z-40 flex justify-around">
-                    <button onClick={() => setActiveTab('details')} className={`p-2 flex flex-col items-center ${activeTab === 'details' ? 'text-[#8CB83E]' : 'text-gray-400'}`}>
+                    <button onClick={() => setActiveTab('details')} className={`p - 2 flex flex - col items - center ${activeTab === 'details' ? 'text-[#8CB83E]' : 'text-gray-400'} `}>
                         <Calendar size={20} />
                         <span className="text-[10px] mt-1">Detalles</span>
                     </button>
-                    <button onClick={() => setActiveTab('roles')} className={`p-2 flex flex-col items-center ${activeTab === 'roles' ? 'text-[#8CB83E]' : 'text-gray-400'}`}>
+                    <button onClick={() => setActiveTab('roles')} className={`p - 2 flex flex - col items - center ${activeTab === 'roles' ? 'text-[#8CB83E]' : 'text-gray-400'} `}>
                         <Users size={20} />
                         <span className="text-[10px] mt-1">Roles</span>
                     </button>
-                    <button onClick={() => setActiveTab('shifts')} className={`p-2 flex flex-col items-center ${activeTab === 'shifts' ? 'text-[#8CB83E]' : 'text-gray-400'}`}>
+                    <button onClick={() => setActiveTab('shifts')} className={`p - 2 flex flex - col items - center ${activeTab === 'shifts' ? 'text-[#8CB83E]' : 'text-gray-400'} `}>
                         <TrendingUp size={20} />
                         <span className="text-[10px] mt-1">Turnos</span>
                     </button>

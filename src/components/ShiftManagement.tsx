@@ -126,7 +126,6 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
             endTime: end ? end.trim() : '16:00',
             roleId: shift.roleId,
             totalVacancies: shift.totalVacancies,
-            availableVacancies: shift.availableVacancies, // Keep available vacancies for edit, though logic might adjust total
         });
         // Note: totalVacancies edit logic might need refinement if current bookings exist, but assuming simple edit for now
         setFormData(prev => ({ ...prev, totalVacancies: shift.totalVacancies }));
@@ -149,9 +148,13 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
             const timeSlot = `${formData.startTime} - ${formData.endTime}`;
 
             if (editingShift) {
+                // Ensure totalVacancies is a number
+                const total = Number(formData.totalVacancies);
                 await mockApi.updateShift(editingShift.id, {
-                    ...formData,
-                    timeSlot
+                    date: formData.date,
+                    timeSlot,
+                    roleId: formData.roleId,
+                    totalVacancies: total,
                 });
                 toast.success('Turno actualizado exitosamente');
             } else {
@@ -160,8 +163,8 @@ const ShiftManagement: React.FC<ShiftManagementProps> = ({ eventId, eventStartDa
                     date: formData.date,
                     timeSlot,
                     roleId: formData.roleId,
-                    totalVacancies: formData.totalVacancies,
-                    availableVacancies: formData.totalVacancies,
+                    totalVacancies: Number(formData.totalVacancies),
+                    availableVacancies: Number(formData.totalVacancies),
                     coordinatorIds: []
                 };
                 await mockApi.createShift(shiftData);

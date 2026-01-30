@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { User, Shift, Role, Booking } from '../types';
 import { mockApi } from '../services/mockApiService';
-import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus, Info, Mail, Phone, Shield, Share2, Copy, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus, Info, Mail, Phone, Shield, Share2, Copy, Download, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import RoleDetailModal from './RoleDetailModal';
@@ -15,9 +15,10 @@ interface VolunteerPortalProps {
 }
 
 const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, eventId }) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [shiftDates, setShiftDates] = useState<string[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
@@ -42,17 +43,34 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
     const loadEventData = async () => {
       if (eventId) {
         const eventData = await mockApi.getEventById(eventId);
+
         if (eventData) {
           setEvent(eventData);
+
+          // Get dates with shifts
+          const dates = await mockApi.getEventShiftDates(eventId);
+          setShiftDates(dates);
+
           // Set initial dates based on event
-          const start = new Date(eventData.fechaInicio);
+          // If first shift date exists, jump to it. Else event start.
           // Adjust for timezone if needed, but for now assume string is enough
           // Actually, let's just use the string date components to avoid timezone shifts on 'new Date()'
           const [y, m, d] = eventData.fechaInicio.split('-').map(Number);
           const startDate = new Date(y, m - 1, d);
 
-          setCurrentDate(startDate);
-          setSelectedDate(startDate);
+          let initialDate = startDate;
+          if (dates.length > 0) {
+            const firstShift = dates.sort()[0]; // dates are strings YYYY-MM-DD
+            const [sy, sm, sd] = firstShift.split('-').map(Number);
+            const firstShiftDate = new Date(sy, sm - 1, sd);
+            // If first shift is after start date (or whatever), we might want to default to it
+            // to avoid showing empty list.
+            initialDate = firstShiftDate;
+          } else {
+          }
+
+          setCurrentDate(initialDate);
+          setSelectedDate(initialDate);
         }
       }
     };
@@ -62,26 +80,114 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   const eventStartDate = event ? new Date(event.fechaInicio + 'T00:00:00') : new Date('2026-04-23T00:00:00');
   const eventEndDate = event ? new Date(event.fechaFin + 'T00:00:00') : new Date('2026-05-11T00:00:00');
 
+  // Ref to track the latest requested date to avoid race conditions
+  const lastRequestedDateRef = React.useRef<string>('');
+
   const fetchShifts = useCallback(async (date: Date) => {
     setIsLoading(true);
+    const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    lastRequestedDateRef.current = dateString;
+
     try {
-      const dateString = date.toISOString().split('T')[0];
+
       // Use eventId if available, otherwise default to event_1 (legacy behavior)
       const targetEventId = eventId || 'event_1';
       const fetchedShifts = await mockApi.getShiftsForDate(targetEventId, dateString);
-      setShifts(fetchedShifts);
+
+      // Only update state if this is still the most recent request
+      if (lastRequestedDateRef.current === dateString) {
+        setShifts(fetchedShifts);
+      } else {
+      }
     } catch (error) {
       console.error("Error fetching shifts:", error);
       toast.error('No se pudieron cargar los turnos.');
     } finally {
-      setIsLoading(false);
+      if (lastRequestedDateRef.current === dateString) {
+        setIsLoading(false);
+      }
     }
-  }, [eventId]); // Included eventId in dependencies 
+  }, [eventId]);
+
+  // Helper date parsing (duplicated from Coord for safety)
+  const parseLocalDate = (dateString: string) => {
+    const [y, m, d] = dateString.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  };
+
+  const [coordinatorsMap, setCoordinatorsMap] = useState<Record<string, User[]>>({});
 
   const fetchUserBookings = useCallback(async () => {
     try {
       const bookings = await mockApi.getUserBookings(user.id);
       setUserBookings(bookings);
+
+      // Collect shift IDs from current user bookings
+      const myShiftIds = bookings
+        .filter(b => b.status !== 'cancelled' && b.shift?.id)
+        .map(b => b.shift!.id);
+
+      if (myShiftIds.length > 0) {
+
+        // 1. Fetch Explicit Coordinators (from shift.coordinatorIds)
+        const coordinatorIds = new Set<string>();
+        bookings.forEach(b => {
+          b.shift?.coordinatorIds?.forEach(id => coordinatorIds.add(id));
+        });
+
+
+        const usersFromAssignment = await (coordinatorIds.size > 0
+          ? mockApi.getUsersByIds(Array.from(coordinatorIds))
+          : Promise.resolve([]));
+
+
+        // 2. Fetch "Coordinator Role" Bookings for these shifts
+        const shiftBookings = await mockApi.getBookingsForShifts(myShiftIds);
+
+        const usersFromBookings = shiftBookings
+          .filter(b => {
+            const roleName = b.shift?.role?.name;
+            const isCoordinator = roleName?.toLowerCase().includes('coordinador');
+            return isCoordinator;
+          })
+          .map(b => ({ ...b.user!, shiftId: b.shiftId }));
+
+
+        // Merge results into map
+        const map: Record<string, User[]> = {};
+
+        bookings.forEach(myBooking => {
+          if (!myBooking.shift) return;
+          const shiftId = myBooking.shift.id;
+
+          // Start with empty list
+          const shiftCoords: User[] = [];
+
+          // Add assigned
+          if (myBooking.shift.coordinatorIds) {
+            const assigned = usersFromAssignment.filter(u => myBooking.shift!.coordinatorIds.includes(u.id));
+            shiftCoords.push(...assigned);
+          } else {
+          }
+
+          // Add booked coordinators for this shift
+          const booked = usersFromBookings
+            .filter(ub => ub.shiftId === shiftId && ub.id)
+            .map(ub => ({ ...ub, shiftId: undefined }));
+
+
+          // Merge and dedup by ID
+          const all = [...shiftCoords, ...booked];
+          const unique = Array.from(new Map(all.map(item => [item.id, item])).values());
+
+          map[shiftId] = unique as User[];
+        });
+
+        setCoordinatorsMap(map);
+      } else {
+        setCoordinatorsMap({});
+      }
+
     } catch (error) {
       console.error("Error fetching user bookings:", error);
       toast.error('No se pudieron cargar tus inscripciones.');
@@ -90,12 +196,18 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
 
   useEffect(() => {
     mockApi.getAllRoles().then(setRoles);
-    fetchShifts(selectedDate);
+
+    // Only fetch shifts if event is loaded AND we have a valid selected date
+    if (event && selectedDate) {
+      fetchShifts(selectedDate);
+    } else {
+    }
+
     fetchUserBookings();
-  }, [selectedDate, fetchShifts, fetchUserBookings]);
+  }, [selectedDate, fetchShifts, fetchUserBookings, event]);
 
   const handleDateChange = (date: Date) => {
-    if (date >= eventStartDate && date <= eventEndDate) {
+    if (event && date >= eventStartDate && date <= eventEndDate) {
       setSelectedDate(date);
     }
   };
@@ -111,6 +223,22 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   const handleSignUp = async (shiftId: string) => {
     // Find role to check if approval is needed
     const shift = shifts.find(s => s.id === shiftId);
+
+    // Check for concurrent bookings
+    if (shift) {
+      const conflict = userBookings.find(b =>
+        b.status !== 'cancelled' &&
+        b.shift &&
+        b.shift.date === shift.date &&
+        b.shift.timeSlot === shift.timeSlot
+      );
+
+      if (conflict) {
+        toast.error('Ya estás inscripto en un turno en este mismo horario.');
+        return;
+      }
+    }
+
     const role = roles.find(r => r.id === shift?.roleId);
 
     let message = "¿Confirmas tu inscripción? Recuerda que es un compromiso de asistencia.";
@@ -129,7 +257,9 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
           toast.success('¡Inscripción exitosa!');
         }
 
-        fetchShifts(selectedDate);
+        if (selectedDate) {
+          fetchShifts(selectedDate);
+        }
         fetchUserBookings();
       } catch (error: any) {
         toast.error(error.message || 'Error al inscribirse.');
@@ -168,12 +298,18 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   }, [shifts, roles]);
 
   // Helper to parse date string "YYYY-MM-DD" to local Date object
-  const parseLocalDate = (dateString: string) => {
-    const [year, month, day] = dateString.split('-').map(Number);
-    return new Date(year, month - 1, day);
-  };
+  // Removed duplicate definition
 
   const renderCalendar = () => {
+    // Guard: Don't render if dates aren't loaded yet
+    if (!currentDate || !selectedDate) {
+      return (
+        <div className="bg-white p-5 rounded-lg shadow-card border border-fs-border text-center text-gray-500">
+          Cargando calendario...
+        </div>
+      );
+    }
+
     const month = currentDate.getMonth();
     const year = currentDate.getFullYear();
     const firstDay = new Date(year, month, 1).getDay();
@@ -195,22 +331,28 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
           {blanks.map((_, i) => <div key={`blank-${i}`} />)}
           {days.map(day => {
             const date = new Date(year, month, day);
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
             const isSelected = selectedDate.toDateString() === date.toDateString();
             const isInEvent = date >= eventStartDate && date <= eventEndDate;
+            const hasShifts = shiftDates.includes(dateStr);
+
             const isBooked = userBookings.some(b => {
               if (!b.shift?.date) return false;
               const bookingDate = parseLocalDate(b.shift.date);
               return bookingDate.toDateString() === date.toDateString();
             });
 
-            let classes = "w-8 h-8 mx-auto flex items-center justify-center rounded-full text-sm font-medium transition-colors ";
+            let classes = "w-8 h-8 mx-auto flex items-center justify-center rounded-full text-sm font-medium transition-colors relative ";
             if (isInEvent) {
               if (isSelected) {
                 classes += "bg-primary-500 text-white shadow-sm ";
               } else if (isBooked) {
                 classes += "bg-primary-100 text-primary-700 ring-1 ring-primary-200 ";
+              } else if (hasShifts) {
+                classes += "text-fs-text font-bold bg-gray-100 hover:bg-gray-200 cursor-pointer ";
               } else {
-                classes += "text-fs-text hover:bg-gray-100 cursor-pointer ";
+                classes += "text-fs-text hover:bg-gray-50 cursor-pointer opacity-60 ";
               }
             } else {
               classes += "text-gray-300 cursor-default ";
@@ -234,6 +376,15 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   };
 
   const renderMobileDateSelector = () => {
+    // Guard: Don't render if dates aren't loaded yet
+    if (!currentDate || !selectedDate) {
+      return (
+        <div className="bg-white border-b border-fs-border shadow-sm sticky top-0 z-40 p-4 text-center text-gray-500">
+          Cargando calendario...
+        </div>
+      );
+    }
+
     const month = currentDate.getMonth();
     const year = currentDate.getFullYear();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -302,7 +453,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
     }
 
     text += `*Mis Turnos:*\n`;
-    const activeBookings = userBookings.filter(b => b.status !== 'cancelled');
+    const activeBookings = userBookings.filter(b => b.status !== 'cancelled' && b.shift);
     if (activeBookings.length === 0) {
       text += "No tienes turnos registrados.\n";
     } else {
@@ -310,11 +461,68 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
         const date = booking.shift.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString() : 'N/A';
         const roleName = booking.shift.role?.name || 'Rol';
         text += `- ${date} ${booking.shift.timeSlot} (${roleName}) - ${booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'}\n`;
+
+        // Add coordinator info if available
+        if (booking.shift?.id && coordinatorsMap[booking.shift.id] && coordinatorsMap[booking.shift.id].length > 0) {
+          const coords = coordinatorsMap[booking.shift.id];
+          text += `  👤 Coordinador: ${coords.map(c => `${c.fullName} (${c.phone})`).join(', ')}\n`;
+        }
       });
     }
 
-    text += `\n*Contacto Admins:*\n📧 Email: admin@feria.com\n📱 Tel: +54 11 1234-5678`;
+    text += `\n*Contacto Admins:*\n📧 Email: ${event?.contactEmail || 'admin@evento.com'}`;
     return text;
+  };
+
+  const handleAddToCalendar = (booking: Booking) => {
+    if (!booking.shift || !event) return;
+
+    const shift = booking.shift;
+    const [startTime, endTime] = shift.timeSlot.split(' - ');
+
+    // Parse date and times
+    const dateStr = shift.date;
+    const [startHour, startMin] = startTime.split(':');
+    const [endHour, endMin] = endTime.split(':');
+
+    // Create date objects in local timezone
+    const startDate = new Date(`${dateStr}T${startHour}:${startMin}:00`);
+    const endDate = new Date(`${dateStr}T${endHour}:${endMin}:00`);
+
+    // Format for Google Calendar (YYYYMMDDTHHmmss)
+    const formatGoogleDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}${month}${day}T${hours}${minutes}00`;
+    };
+
+    const startFormatted = formatGoogleDate(startDate);
+    const endFormatted = formatGoogleDate(endDate);
+
+    // Build description with coordinator info
+    let description = `Voluntariado - ${event.nombre}\n\n`;
+    description += `Rol: ${shift.role?.name || 'Voluntario'}\n`;
+    description += `Estado: ${booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'}\n\n`;
+
+    if (shift.id && coordinatorsMap[shift.id] && coordinatorsMap[shift.id].length > 0) {
+      description += `Coordinador(es):\n`;
+      coordinatorsMap[shift.id].forEach(c => {
+        description += `- ${c.fullName}\n  📧 ${c.email}\n  📱 ${c.phone}\n`;
+      });
+      description += '\n';
+    }
+
+    description += `Contacto Admin: ${event.contactEmail || 'admin@evento.com'}`;
+
+    const title = `${event.nombre} - ${shift.role?.name || 'Voluntariado'}`;
+    const location = event.ubicacion || '';
+
+    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${startFormatted}/${endFormatted}&details=${encodeURIComponent(description)}&location=${encodeURIComponent(location)}`;
+
+    window.open(googleCalendarUrl, '_blank');
   };
 
   const handleShareWhatsApp = () => {
@@ -378,20 +586,26 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
 
     doc.setFontSize(10);
     doc.setTextColor(75, 85, 99);
-    doc.text("Email: admin@feria.com", 20, yPos + 10);
-    doc.text("Teléfono: +54 11 1234-5678", 20, yPos + 16);
+    doc.text(`Email: ${event?.contactEmail || 'admin@evento.com'}`, 20, yPos + 10);
 
     yPos += 35;
 
     // Table
-    const tableColumn = ["Fecha", "Horario", "Rol", "Estado"];
-    const activeBookings = userBookings.filter(b => b.status !== 'cancelled');
-    const tableRows = activeBookings.map(booking => [
-      booking.shift.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString() : 'N/A',
-      booking.shift.timeSlot,
-      booking.shift.role?.name || 'Rol',
-      booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'
-    ]);
+    const tableColumn = ["Fecha", "Horario", "Rol", "Coordinador", "Estado"];
+    const activeBookings = userBookings.filter(b => b.status !== 'cancelled' && b.shift);
+    const tableRows = activeBookings.map(booking => {
+      const coords = booking.shift?.id && coordinatorsMap[booking.shift.id]
+        ? coordinatorsMap[booking.shift.id].map(c => `${c.fullName} (${c.phone})`).join(', ')
+        : 'No asignado';
+
+      return [
+        booking.shift.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString() : 'N/A',
+        booking.shift.timeSlot,
+        booking.shift.role?.name || 'Rol',
+        coords,
+        booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'
+      ];
+    });
 
     autoTable(doc, {
       startY: yPos,
@@ -404,11 +618,14 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
         fontStyle: 'bold'
       },
       styles: {
-        fontSize: 10,
-        cellPadding: 3
+        fontSize: 9,
+        cellPadding: 2
       },
       alternateRowStyles: {
         fillColor: [249, 250, 251]
+      },
+      columnStyles: {
+        3: { cellWidth: 50 } // Coordinator column wider
       }
     });
 
@@ -450,12 +667,9 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm text-primary-800">
                   <Mail size={14} />
-                  <span>admin@feria.com</span>
+                  <span>{event?.contactEmail || 'admin@evento.com'}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-primary-800">
-                  <Phone size={14} />
-                  <span>+54 11 1234-5678</span>
-                </div>
+
               </div>
             </div>
           </div>
@@ -464,16 +678,16 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
             <h4 className="font-bold text-gray-900 mb-3 flex items-center justify-between">
               <span>Mis Turnos Activos</span>
               <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                {userBookings.filter(b => b.status !== 'cancelled').length} asignados
+                {userBookings.filter(b => b.status !== 'cancelled' && b.shift).length} asignados
               </span>
             </h4>
-            {userBookings.filter(b => b.status !== 'cancelled').length > 0 ? (
+            {userBookings.filter(b => b.status !== 'cancelled' && b.shift).length > 0 ? (
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <ul className="divide-y divide-gray-100">
-                  {userBookings.filter(b => b.status !== 'cancelled').map(booking => (
+                  {userBookings.filter(b => b.status !== 'cancelled' && b.shift).map(booking => (
                     <li key={booking.id} className="p-3 bg-white hover:bg-gray-50 transition-colors">
                       <div className="flex justify-between items-start mb-1">
-                        <span className="font-bold text-gray-900 text-sm">{booking.shift.role?.name}</span>
+                        <span className="font-bold text-gray-900 text-sm">{booking.shift?.role?.name || 'Sin rol'}</span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide
                                         ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
                           {booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'}
@@ -482,13 +696,30 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         <span className="flex items-center gap-1">
                           <CalendarIcon size={12} />
-                          {booking.shift.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString() : 'N/A'}
+                          {booking.shift?.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString() : 'N/A'}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock size={12} />
-                          {booking.shift.timeSlot}
+                          {booking.shift?.timeSlot || 'N/A'}
                         </span>
                       </div>
+                      {booking.status === 'confirmed' && booking.shift?.id && coordinatorsMap[booking.shift.id] && coordinatorsMap[booking.shift.id].length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-gray-100">
+                          <p className="text-[10px] font-semibold text-gray-600 mb-1">Coordinador(es):</p>
+                          <div className="space-y-1">
+                            {coordinatorsMap[booking.shift.id].map(c => (
+                              <div key={c.id} className="text-[10px] text-gray-600">
+                                <div className="font-medium">{c.fullName}</div>
+                                <div className="flex items-center gap-2">
+                                  <span>{c.email}</span>
+                                  <span>•</span>
+                                  <span>{c.phone}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -496,6 +727,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
             ) : (
               <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                 <p className="text-gray-500 text-sm italic">No tienes turnos activos.</p>
+                <p className="text-gray-400 text-xs mt-1">Selecciona una fecha en el calendario para ver los turnos disponibles.</p>
               </div>
             )}
           </div>
@@ -579,7 +811,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
             <div className="space-y-2">
               <div className="flex items-center text-gray-600">
                 <Mail size={18} className="mr-2 text-gray-400" />
-                <span>admin@feria.com</span>
+                <span>{event?.contactEmail || 'admin@evento.com'}</span>
               </div>
               <div className="flex items-center text-gray-600">
                 <Phone size={18} className="mr-2 text-gray-400" />
@@ -694,7 +926,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
           <div className="px-4 py-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-serif text-fs-text">Mis Inscripciones</h2>
-              {userBookings.length > 0 && (
+              {userBookings.filter(b => b.shift).length > 0 && (
                 <button
                   onClick={() => setShowSummaryModal(true)}
                   className="flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 px-3 py-1.5 bg-primary-50 rounded-full"
@@ -704,9 +936,9 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                 </button>
               )}
             </div>
-            {userBookings.length > 0 ? (
+            {userBookings.filter(b => b.shift).length > 0 ? (
               <ul className="space-y-4">
-                {userBookings.map(booking => {
+                {userBookings.filter(b => b.shift).map(booking => {
                   const role = roles.find(r => r.id === booking.shift?.roleId);
                   return (
                     <li key={booking.id} className="bg-white p-4 rounded-lg shadow-sm border border-fs-border">
@@ -734,9 +966,40 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                         <span>{booking.shift?.timeSlot} hs</span>
                       </div>
                       {booking.status === 'confirmed' && (
-                        <button onClick={() => handleCancellationRequest(booking.id)} className="w-full py-2 text-center text-red-600 border border-red-200 rounded hover:bg-red-50 text-sm font-medium transition-colors">
-                          Solicitar Baja
-                        </button>
+                        <div className="mt-2 text-xs text-gray-500 bg-gray-50 p-2 rounded border border-gray-100">
+                          <strong>Coordinador(es):</strong>
+                          {booking.shift?.id && coordinatorsMap[booking.shift.id] && coordinatorsMap[booking.shift.id].length > 0 ? (
+                            <ul className="mt-1 space-y-1">
+                              {coordinatorsMap[booking.shift.id].map(c => (
+                                <li key={c.id}>
+                                  <div className="font-semibold">{c.fullName}</div>
+                                  <div>{c.email}</div>
+                                  <div>{c.phone}</div>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <div className="mt-1 text-gray-400 italic">No asignado</div>
+                          )}
+                        </div>
+                      )}
+
+                      {booking.status === 'confirmed' && (
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={() => handleAddToCalendar(booking)}
+                            className="flex-1 py-2 text-center text-primary-600 border border-primary-200 rounded hover:bg-primary-50 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                          >
+                            <CalendarIcon size={16} />
+                            Agregar a Calendario
+                          </button>
+                          <button
+                            onClick={() => handleCancellationRequest(booking.id)}
+                            className="flex-1 py-2 text-center text-red-600 border border-red-200 rounded hover:bg-red-50 text-sm font-medium transition-colors"
+                          >
+                            Solicitar Baja
+                          </button>
+                        </div>
                       )}
                     </li>
                   );
@@ -772,9 +1035,9 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
           >
             <div className="relative">
               <CheckCircle2 size={24} strokeWidth={activeTab === 'bookings' ? 2.5 : 2} />
-              {userBookings.length > 0 && (
+              {userBookings.filter(b => b.shift).length > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 text-[8px] text-white font-bold">
-                  {userBookings.length}
+                  {userBookings.filter(b => b.shift).length}
                 </span>
               )}
             </div>
@@ -801,7 +1064,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
           <div className="bg-white p-5 rounded-lg shadow-card border border-fs-border">
             <div className="flex items-center justify-between mb-4 border-b border-fs-border pb-2">
               <h3 className="font-serif text-lg text-fs-text">Mis Inscripciones</h3>
-              {userBookings.length > 0 && (
+              {userBookings.filter(b => b.shift).length > 0 && (
                 <button
                   onClick={() => setShowSummaryModal(true)}
                   className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-full transition-colors"
@@ -811,9 +1074,9 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                 </button>
               )}
             </div>
-            {userBookings.length > 0 ? (
+            {userBookings.filter(b => b.shift).length > 0 ? (
               <ul className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                {userBookings.map(booking => {
+                {userBookings.filter(b => b.shift).map(booking => {
                   const role = roles.find(r => r.id === booking.shift?.roleId);
                   return (
                     <li key={booking.id} className="group p-3 rounded-fs border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-sm hover:border-gray-200 transition-all">
@@ -834,14 +1097,38 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                             <Clock size={12} className="mr-1" />
                             <span>{booking.shift?.timeSlot}</span>
                           </div>
+
+                          {booking.status === 'confirmed' && (
+                            <div className="mt-2 text-xs bg-white p-2 border border-gray-100 rounded">
+                              <span className="font-semibold text-gray-600 block mb-1">Coordinador:</span>
+                              {booking.shift?.id && coordinatorsMap[booking.shift.id] && coordinatorsMap[booking.shift.id].length > 0 ? (
+                                coordinatorsMap[booking.shift.id].map(c => (
+                                  <div key={c.id} className="mb-1 last:mb-0">
+                                    <div className="font-medium text-gray-800">{c.fullName}</div>
+                                    <div className="text-gray-500 text-[10px]">{c.email} | {c.phone}</div>
+                                  </div>
+                                ))
+                              ) : <span className="text-gray-400 italic">No asignado</span>}
+                            </div>
+                          )}
                         </div>
                         {booking.status === 'confirmed' && (
-                          <button
-                            onClick={() => handleCancellationRequest(booking.id)}
-                            className="text-xs font-medium text-fs-blue hover:text-red-600 hover:underline px-2 py-1"
-                          >
-                            Baja
-                          </button>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleAddToCalendar(booking)}
+                              className="p-2 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+                              title="Agregar a Google Calendar"
+                            >
+                              <CalendarIcon size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleCancellationRequest(booking.id)}
+                              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Solicitar baja del turno"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
                         )}
                       </div>
 
@@ -869,7 +1156,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
               Turnos Disponibles
             </h2>
             <p className="text-fs-meta mt-1 capitalize flex items-center">
-              <span className="font-medium text-gray-800">{selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+              <span className="font-medium text-gray-800">{selectedDate ? selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Cargando...'}</span>
               <span className="mx-2 text-gray-300">|</span>
               {event ? event.nombre : 'Cargando...'}
             </p>
