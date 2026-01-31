@@ -3,7 +3,6 @@ import { TrendingUp, Users, Calendar, AlertCircle, Clock, PieChart, CheckCircle,
 import { mockApi } from '../services/mockApiService';
 import type { DashboardMetrics, Event, Booking } from '../types';
 import { toast } from 'react-hot-toast';
-import EventVolunteersList from './EventVolunteersList';
 import Modal from './Modal';
 
 interface MetricsDashboardProps {
@@ -207,9 +206,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                     </div>
                     <p className="text-sm text-gray-600 mb-1">Pendientes</p>
                     <div className="flex items-baseline gap-3">
-                        <div className="cursor-pointer hover:opacity-80 transition-opacity" onClick={handleViewCancellations} role="button">
-                            <p className="text-2xl font-bold text-gray-900 underline decoration-dotted">{metrics.pendingCancellations}</p>
-                            <p className="text-xs text-gray-500">bajas (ver)</p>
+                        <div>
                         </div>
                         <div>
                             <p className="text-2xl font-bold text-gray-900">{metrics.waitlistCount}</p>
@@ -218,22 +215,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                     </div>
                 </div>
                 {/* Coordinator Requests Widget */}
-                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-orange-100 rounded-lg">
-                            <Shield className="text-orange-600" size={24} />
-                        </div>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-1">Solicitudes Coordinación</p>
-                    <div className="flex items-baseline gap-3">
-                        <div className="cursor-pointer hover:opacity-80 transition-opacity" onClick={handleViewCoordinatorRequests} role="button">
-                            <p className="text-2xl font-bold text-gray-900 underline decoration-dotted">
-                                {metrics.pendingCoordinatorRequests || 0}
-                            </p>
-                            <p className="text-xs text-gray-500">pendientes (ver)</p>
-                        </div>
-                    </div>
-                </div>
+
             </div>
 
             {/* Ocupación por Horario y Roles */}
@@ -358,90 +340,6 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                     </div>
                 </div>
             )}
-
-            {/* Event Volunteers List */}
-            <EventVolunteersList eventId={eventId} />
-
-            <Modal
-                isOpen={showCancellationsModal}
-                onClose={() => setShowCancellationsModal(false)}
-                title="Solicitudes de Baja Pendientes"
-            >
-                <div>
-                    {pendingCancellations.length === 0 ? (
-                        <p className="text-center text-gray-500 py-8">No hay solicitudes de baja pendientes.</p>
-                    ) : (
-                        <div className="space-y-4">
-                            {pendingCancellations.map((cancellation) => (
-                                <div key={cancellation.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                    <div>
-                                        <h4 className="font-bold text-gray-900">{cancellation.user?.fullName}</h4>
-                                        <div className="text-sm text-gray-600 space-y-1 mt-1">
-                                            <p><strong>Rol:</strong> {cancellation.shift?.role?.name}</p>
-                                            <p><strong>Turno:</strong> {new Date(cancellation.shift?.date).toLocaleDateString()} - {cancellation.shift?.timeSlot}</p>
-                                            <p><strong>Motivo:</strong> Solicitada el {new Date(cancellation.cancelledAt).toLocaleDateString()}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2 w-full sm:w-auto">
-                                        <button
-                                            onClick={() => handleRejectCancellation(cancellation.id)}
-                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors font-medium"
-                                        >
-                                            <XCircle size={18} />
-                                            Rechazar
-                                        </button>
-                                        <button
-                                            onClick={() => handleApproveCancellation(cancellation.id)}
-                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors font-medium"
-                                        >
-                                            <CheckCircle size={18} />
-                                            Confirmar Baja
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </Modal>
-
-            <Modal
-                isOpen={showCoordinatorRequestsModal}
-                onClose={() => setShowCoordinatorRequestsModal(false)}
-                title="Aprobar Coordinadores"
-            >
-                <div>
-                    {pendingCoordinatorRequests.length === 0 ? (
-                        <p className="text-center text-gray-500 py-8">No hay solicitudes pendientes.</p>
-                    ) : (
-                        <div className="space-y-4">
-                            <p className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded border border-blue-100">
-                                Al aprobar, el usuario quedará inscrito en el turno y se le asignará el rol de <strong>Coordinador</strong> en el sistema global.
-                            </p>
-                            {pendingCoordinatorRequests.map((req) => (
-                                <div key={req.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                    <div>
-                                        <h4 className="font-bold text-gray-900">{req.user?.fullName}</h4>
-                                        <div className="text-sm text-gray-600 space-y-1 mt-1">
-                                            <p><strong>Rol Evento:</strong> {req.shift?.role?.name}</p>
-                                            <p><strong>Turno:</strong> {new Date(req.shift?.date).toLocaleDateString()} - {req.shift?.timeSlot}</p>
-                                            <p><strong>Solicitado:</strong> {new Date(req.requestedAt).toLocaleDateString()}</p>
-                                            <p className="text-xs text-gray-500 mt-1">Email: {req.user?.email}</p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => handleApproveCoordinator(req.id)}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors font-medium w-full sm:w-auto"
-                                    >
-                                        <UserCheck size={18} />
-                                        Aprobar y Asignar
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </Modal>
         </div>
     );
 };

@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, Users, MoreHorizontal, ChevronRight, X, Package } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, Users, MoreHorizontal, ChevronRight, X, Package, ChevronDown, FileText, CheckSquare, Contact } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { Event, User } from '../types';
 import { toast } from 'react-hot-toast';
@@ -8,6 +8,10 @@ import ShiftManagement from './ShiftManagement';
 import RoleManagement from './RoleManagement';
 import MaterialManagement from './MaterialManagement';
 import MaterialDeliveryList from './MaterialDeliveryList';
+import StakeManagement from './StakeManagement';
+import EcclesiasticalPermission from './EcclesiasticalPermission';
+import EventVolunteersList from './EventVolunteersList';
+import VolunteerBadges from './VolunteerBadges';
 
 interface SuperAdminDashboardProps {
     user: User;
@@ -16,8 +20,9 @@ interface SuperAdminDashboardProps {
 }
 
 const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewMetrics }) => {
-    const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar' | 'delivery'>('listado');
-    const [activeTab, setActiveTab] = useState<'details' | 'roles' | 'shifts' | 'materials'>('details');
+    const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar' | 'delivery' | 'permiso-eclesiastico' | 'voluntarios' | 'credenciales'>('listado');
+    const [activeTab, setActiveTab] = useState<'details' | 'roles' | 'shifts' | 'materials' | 'stakes'>('details');
+    const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
     const [eventoSeleccionado, setEventoSeleccionado] = useState<Event | null>(null);
     const [mostrarModal, setMostrarModal] = useState(false);
     const [accionModal, setAccionModal] = useState('');
@@ -204,6 +209,52 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         );
     }
 
+    if (vistaActual === 'permiso-eclesiastico' && eventoSeleccionado) {
+        return (
+            <div className="min-h-screen font-sans text-gray-900 bg-[#F7F7F7]">
+                <EcclesiasticalPermission
+                    eventId={eventoSeleccionado.id}
+                    onClose={() => {
+                        setVistaActual('listado');
+                        setEventoSeleccionado(null);
+                    }}
+                />
+            </div>
+        );
+    }
+
+    if (vistaActual === 'credenciales' && eventoSeleccionado) {
+        return (
+            <VolunteerBadges
+                eventId={eventoSeleccionado.id}
+                onClose={() => setVistaActual('listado')}
+            />
+        );
+    }
+
+    if (vistaActual === 'voluntarios' && eventoSeleccionado) {
+        return (
+            <div className="min-h-screen font-sans text-gray-900 bg-[#F7F7F7]">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex items-center justify-between">
+                    <button
+                        onClick={() => setVistaActual('listado')}
+                        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                        <ChevronRight className="rotate-180" size={20} />
+                        Volver al listado de eventos
+                    </button>
+                    <div className="text-right">
+                        <h2 className="text-xl font-bold text-gray-900">{eventoSeleccionado.nombre}</h2>
+                        <p className="text-sm text-gray-500">Gestión de Voluntarios</p>
+                    </div>
+                </div>
+                <div className="border-t border-gray-200">
+                    <EventVolunteersList eventId={eventoSeleccionado.id} />
+                </div>
+            </div>
+        );
+    }
+
     if (vistaActual === 'listado') {
         return (
             <div className="min-h-screen pb-20 sm:pb-10 font-sans text-gray-900 bg-[#F7F7F7]">
@@ -361,59 +412,139 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                         </div>
                                     </div>
 
-                                    <div className="bg-gray-50 px-4 py-3 border-t border-gray-100 flex items-center justify-between">
+                                    <div className="bg-gray-50 px-4 py-3 border-t border-gray-100 flex items-center justify-between relative">
                                         <div className="flex gap-1">
                                             {evento.estado !== 'Archivado' && (
                                                 <button
                                                     onClick={(e) => confirmarAccion('archivar', evento, e)}
-                                                    className="p-2 text-gray-500 hover:text-[#005994] hover:bg-white rounded-md transition-colors"
+                                                    className="p-2 text-gray-400 hover:text-[#005994] hover:bg-white rounded-md transition-colors"
                                                     title="Archivar"
                                                 >
                                                     <Archive size={18} />
                                                 </button>
                                             )}
-                                            {evento.voluntarios === 0 && (
-                                                <button
-                                                    onClick={(e) => confirmarAccion('eliminar', evento, e)}
-                                                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-white rounded-md transition-colors"
-                                                    title="Eliminar"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            )}
                                         </div>
-                                        <div className="flex gap-2">
+
+                                        <div className="relative">
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setDeliveryEventId(evento.id);
-                                                    setVistaActual('delivery');
+                                                    setActiveDropdownId(activeDropdownId === evento.id ? null : evento.id);
                                                 }}
-                                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-purple-600 bg-purple-50 border border-purple-100 rounded-md hover:bg-purple-100 transition-colors"
-                                                title="Entrega de Materiales"
+                                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all shadow-sm"
                                             >
-                                                <Package size={16} />
-                                                <span className="hidden sm:inline">Materiales</span>
+                                                <span>Opciones</span>
+                                                <ChevronDown size={16} className={`transition-transform ${activeDropdownId === evento.id ? 'rotate-180' : ''}`} />
                                             </button>
-                                            {onViewMetrics && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onViewMetrics(evento.id);
-                                                    }}
-                                                    className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:text-[#005994] hover:border-[#005994] transition-colors"
-                                                >
-                                                    <TrendingUp size={16} />
-                                                    <span className="hidden sm:inline">Métricas</span>
-                                                </button>
+
+                                            {activeDropdownId === evento.id && (
+                                                <>
+                                                    <div
+                                                        className="fixed inset-0 z-10"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setActiveDropdownId(null);
+                                                        }}
+                                                    />
+                                                    <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-20 animate-fade-in origin-bottom-right">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                iniciarEditarEvento(evento);
+                                                                setActiveDropdownId(null);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                                        >
+                                                            <Edit2 size={16} className="text-[#8CB83E]" />
+                                                            <span>Editar Evento</span>
+                                                        </button>
+
+                                                        {onViewMetrics && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    onViewMetrics(evento.id);
+                                                                    setActiveDropdownId(null);
+                                                                }}
+                                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                                            >
+                                                                <TrendingUp size={16} className="text-blue-500" />
+                                                                <span>Ver Métricas</span>
+                                                            </button>
+                                                        )}
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEventoSeleccionado(evento);
+                                                                setVistaActual('voluntarios');
+                                                                setActiveDropdownId(null);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                                        >
+                                                            <Users size={16} className="text-green-600" />
+                                                            <span>Gestionar Voluntarios</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setDeliveryEventId(evento.id);
+                                                                setVistaActual('delivery');
+                                                                setActiveDropdownId(null);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                                        >
+                                                            <Package size={16} className="text-purple-500" />
+                                                            <span>Gestión Materiales</span>
+                                                        </button>
+
+                                                        <div className="my-1 border-t border-gray-100" />
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEventoSeleccionado(evento);
+                                                                setVistaActual('permiso-eclesiastico');
+                                                                setActiveDropdownId(null);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-[#005994] hover:bg-blue-50 transition-colors"
+                                                        >
+                                                            <CheckSquare size={16} />
+                                                            <span>Permiso Eclesiástico</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEventoSeleccionado(evento);
+                                                                setVistaActual('credenciales');
+                                                                setActiveDropdownId(null);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-orange-600 hover:bg-orange-50 transition-colors"
+                                                        >
+                                                            <Contact size={16} />
+                                                            <span>Credenciales</span>
+                                                        </button>
+
+                                                        {evento.voluntarios === 0 && (
+                                                            <>
+                                                                <div className="my-1 border-t border-gray-100" />
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        confirmarAccion('eliminar', evento, e);
+                                                                        setActiveDropdownId(null);
+                                                                    }}
+                                                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                    <span>Eliminar</span>
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </>
                                             )}
-                                            <button
-                                                onClick={() => iniciarEditarEvento(evento)}
-                                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-[#8CB83E] rounded-md hover:bg-[#7cb342] shadow-sm transition-colors"
-                                            >
-                                                <Edit2 size={16} />
-                                                <span>Editar</span>
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -540,6 +671,12 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                             >
                                 Materiales
                             </button>
+                            <button
+                                onClick={() => setActiveTab('stakes')}
+                                className={`pb - 3 text - sm font - medium border - b - 2 transition - colors ${activeTab === 'stakes' ? 'border-[#8CB83E] text-[#8CB83E]' : 'border-transparent text-gray-500 hover:text-gray-700'} `}
+                            >
+                                Estacas
+                            </button>
                         </div>
                     </div>
                 )}
@@ -562,6 +699,10 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                     ) : activeTab === 'materials' && eventoSeleccionado ? (
                         <div className="p-6">
                             <MaterialManagement eventId={eventoSeleccionado.id} />
+                        </div>
+                    ) : activeTab === 'stakes' && eventoSeleccionado ? (
+                        <div className="p-6">
+                            <StakeManagement eventId={eventoSeleccionado.id} />
                         </div>
                     ) : (
                         <div className="p-6 sm:p-8 space-y-6">

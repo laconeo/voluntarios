@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { User } from '../types';
+import type { User, Stake, Event as AppEvent } from '../types';
 import { Lock, AlertTriangle, Info } from 'lucide-react';
 import Modal from './Modal';
 import { toast } from 'react-hot-toast';
@@ -7,7 +7,7 @@ import { supabaseApi as mockApi } from '../services/supabaseApiService';
 
 interface LoginProps {
   onLogin: (identifier: string, password?: string) => Promise<boolean | 'password_required' | 'register'>;
-  onRegister: (newUser: User) => void;
+  onRegister: (newUser: User, eventId?: string) => void;
   onRecoverPassword?: (email: string) => Promise<void>;
   initialDni?: string;
   onGoToRegister?: () => void;
@@ -26,6 +26,10 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [eventContactEmail, setEventContactEmail] = useState<string | null>(null);
+  const [allEvents, setAllEvents] = useState<AppEvent[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<AppEvent | null>(null);
+  const [stakes, setStakes] = useState<Stake[]>([]);
+  const [currentEventId, setCurrentEventId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Omit<User, 'id' | 'role'>>({
     dni: initialDni || '',
@@ -40,29 +44,50 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
   });
   const [agreed, setAgreed] = useState(false);
 
-  // Fetch event contact email from URL slug
+  // Fetch event data and stakes
   useEffect(() => {
-    const fetchEventEmail = async () => {
-      // Extract slug from URL hash (e.g., /#/feriadellibrobuenosaires2026)
-      const hash = window.location.hash;
-      const slugMatch = hash.match(/\/#\/([^/?]+)/);
+    const fetchInitialData = async () => {
+      try {
+        const events = await mockApi.getAllEvents();
+        // Filtrar solo eventos activos - Corregido: usar 'estado' y valor 'Activo'
+        const activeEvents = events.filter((e: AppEvent) => e.estado === 'Activo');
+        setAllEvents(activeEvents);
 
-      if (slugMatch && slugMatch[1]) {
-        const slug = slugMatch[1];
-        try {
-          const events = await mockApi.getAllEvents();
-          const event = events.find(e => e.slug === slug);
-          if (event?.contactEmail) {
-            setEventContactEmail(event.contactEmail);
+        // Extraer slug del hash de la URL
+        const hash = window.location.hash;
+        const slugMatch = hash.match(/^#\/([^/?]+)/);
+
+        if (slugMatch && slugMatch[1]) {
+          const slug = slugMatch[1];
+          const event = events.find((e: AppEvent) => e.slug === slug);
+          if (event) {
+            setSelectedEvent(event);
+            if (event.contactEmail) {
+              setEventContactEmail(event.contactEmail);
+            }
+            // Cargar estacas
+            const eventStakes = await mockApi.getStakesByEvent(event.id);
+            setStakes(eventStakes);
           }
-        } catch (error) {
-          console.error('Error fetching event email:', error);
         }
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
       }
     };
 
-    fetchEventEmail();
+    fetchInitialData();
   }, []);
+
+  // Efecto para cargar estacas cuando cambia el evento seleccionado (manual)
+  useEffect(() => {
+    if (selectedEvent) {
+      mockApi.getStakesByEvent(selectedEvent.id)
+        .then(setStakes)
+        .catch(err => console.error('Error loading stakes:', err));
+    } else {
+      setStakes([]);
+    }
+  }, [selectedEvent]);
 
   // Auto-focus en el campo de identificador al cargar
   useEffect(() => {
@@ -142,7 +167,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
     if (!formData.isOver18) return;
     if (!formData.isMember) return;
     if (!agreed) return;
-    onRegister({ ...formData, id: '', role: 'volunteer' });
+
+    // Si no hay evento seleccionado y no hay slug, esto no debería pasar por la validación
+    if (!selectedEvent) {
+      toast.error('Por favor selecciona un evento');
+      return;
+    }
+
+    onRegister({ ...formData, id: '', role: 'volunteer' }, selectedEvent.id);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -224,16 +256,41 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
     return (
       <div className="max-w-3xl mx-auto mt-8 bg-white p-8 rounded-lg shadow-card border border-fs-border">
         <div className="border-b border-fs-border pb-4 mb-6">
-          <h2 className="text-2xl font-serif text-fs-text">Registro de Voluntario</h2>
+          <h2 className="text-2xl font-serif text-fs-text">
+            Registro {selectedEvent ? `para ${selectedEvent.nombre}` : 'de Voluntario'}
+          </h2>
           <p className="text-sm text-fs-meta mt-1">
-            Completa tus datos{formData.dni && ` para el documento: `}
-            {formData.dni && <span className="font-bold text-fs-text">{formData.dni}</span>}
-            {formData.email && !formData.dni && ` usando el email: `}
-            {formData.email && !formData.dni && <span className="font-bold text-fs-text">{formData.email}</span>}
+            {selectedEvent
+              ? `Completa tus datos para participar en este evento.`
+              : 'Selecciona un evento y completa tus datos para registrarte.'
+            }
           </p>
         </div>
 
         <form onSubmit={handleRegisterSubmit} className="space-y-6">
+          {!selectedEvent && (
+            <div className="bg-primary-50 p-4 rounded-fs border border-primary-100 mb-6">
+              <label className={labelClasses}>Selecciona el Evento al que te quieres inscribir</label>
+              <select
+                className={inputClasses}
+                onChange={(e) => {
+                  const ev = allEvents.find((event: AppEvent) => event.id === e.target.value);
+                  setSelectedEvent(ev || null);
+                  if (ev?.contactEmail) {
+                    setEventContactEmail(ev.contactEmail);
+                  } else {
+                    setEventContactEmail(null);
+                  }
+                }}
+                required
+              >
+                <option value="">-- Elige un evento --</option>
+                {allEvents.map((e: AppEvent) => (
+                  <option key={e.id} value={e.id}>{e.nombre} ({new Date(e.fechaInicio || '').toLocaleDateString()})</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className={labelClasses}>Nombre Completo</label>
@@ -247,7 +304,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
                 className={inputClasses} />
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className={labelClasses}>Correo Electrónico</label>
               <input type="email" name="email" placeholder="correo@ejemplo.com" value={formData.email} onChange={handleInputChange} required
                 className={inputClasses} />
@@ -296,7 +353,22 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
                 </div>
               </div>
             </div>
-            <div className="md:col-span-2">
+            <div>
+              <label className={labelClasses}>Estaca</label>
+              <div className="relative">
+                <select name="stakeId" value={formData.stakeId || ''} onChange={handleInputChange}
+                  className={`${inputClasses} appearance-none`}>
+                  <option value="">Selecciona tu estaca (opcional)</option>
+                  {stakes.map(stake => (
+                    <option key={stake.id} value={stake.id}>{stake.name}</option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                </div>
+              </div>
+            </div>
+            <div>
               <label className={labelClasses}>¿Cómo te enteraste de la actividad?</label>
               <div className="relative">
                 <select name="howTheyHeard" value={formData.howTheyHeard} onChange={handleInputChange}
@@ -359,19 +431,21 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
           <div className="pt-4">
             <button
               type="submit"
-              className={`w-full btn-primary shadow-sm transition-all ${isFormValid
+              className={`w-full btn-primary shadow-sm transition-all ${isFormValid && selectedEvent
                 ? 'opacity-100 hover:shadow-md'
                 : 'opacity-50 cursor-not-allowed bg-gray-400 hover:bg-gray-400'
                 }`}
-              disabled={!isFormValid}
+              disabled={!isFormValid || !selectedEvent}
             >
-              {!formData.isOver18 && !formData.isMember
-                ? "Debes ser mayor de 18 años y miembro de la iglesia"
-                : !formData.isOver18
-                  ? "Debes ser mayor de 18 años para continuar"
-                  : !formData.isMember
-                    ? "Debes ser miembro de la iglesia para continuar"
-                    : "Finalizar Registro"}
+              {!selectedEvent
+                ? "Selecciona un evento primero"
+                : !formData.isOver18 && !formData.isMember
+                  ? "Debes ser mayor de 18 años y miembro de la iglesia"
+                  : !formData.isOver18
+                    ? "Debes ser mayor de 18 años para continuar"
+                    : !formData.isMember
+                      ? "Debes ser miembro de la iglesia para continuar"
+                      : "Finalizar Registro"}
             </button>
           </div>
         </form>

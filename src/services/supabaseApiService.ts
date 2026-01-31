@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabaseClient';
-import type { User, Role, Shift, Booking, Event, EventAdmin, DashboardMetrics, WaitlistEntry, Material } from '../types';
+import type { User, Role, Shift, Booking, Event, EventAdmin, DashboardMetrics, WaitlistEntry, Material, Stake } from '../types';
 import { emailService } from './emailService';
 
 // Helper to map DB columns to camelCase types if necessary
@@ -20,6 +20,8 @@ const mapUser = (row: any): User => ({
     isOver18: row.is_over_18,
     howTheyHeard: row.how_they_heard,
     role: row.role as any,
+    stakeId: row.stake_id,
+    ecclesiasticalPermission: row.ecclesiastical_permission,
     password: row.password,
     status: row.status as any,
     createdAt: row.created_at,
@@ -92,6 +94,13 @@ const mapMaterial = (row: any): Material => ({
     quantity: row.quantity,
     category: row.category,
     isRequired: row.is_required,
+    createdAt: row.created_at,
+});
+
+const mapStake = (row: any): Stake => ({
+    id: row.id,
+    eventId: row.event_id,
+    name: row.name,
     createdAt: row.created_at,
 });
 
@@ -207,6 +216,7 @@ export const supabaseApi = {
                     attended_previous: newUser.attendedPrevious,
                     is_over_18: newUser.isOver18,
                     how_they_heard: newUser.howTheyHeard,
+                    stake_id: newUser.stakeId || null,
                     status: 'active', // Reactivate if it was deleted/suspended
                     // DO NOT update ID or Email effectively here for Auth linkage
                 })
@@ -251,6 +261,7 @@ export const supabaseApi = {
             is_over_18: newUser.isOver18,
             how_they_heard: newUser.howTheyHeard,
             role: newUser.role || 'volunteer',
+            stake_id: newUser.stakeId || null,
             status: 'active'
         };
 
@@ -304,6 +315,8 @@ export const supabaseApi = {
             is_over_18: updatedUser.isOver18,
             how_they_heard: updatedUser.howTheyHeard,
             role: updatedUser.role,
+            stake_id: updatedUser.stakeId || null,
+            ecclesiastical_permission: updatedUser.ecclesiasticalPermission || 'pending',
             status: updatedUser.status
         };
 
@@ -1525,24 +1538,48 @@ export const supabaseApi = {
         if (error) throw error;
     },
 
-    removeCoordinatorFromShift: async (shiftId: string, userId: string): Promise<void> => {
-        // Fetch current shift
-        const { data: shift } = await supabase
-            .from('shifts')
-            .select('coordinator_ids')
-            .eq('id', shiftId)
-            .single();
 
-        if (!shift) throw new Error('Shift not found');
-
-        const currentIds = shift.coordinator_ids || [];
-        const newIds = currentIds.filter((id: string) => id !== userId);
-
-        const { error } = await supabase
-            .from('shifts')
-            .update({ coordinator_ids: newIds })
-            .eq('id', shiftId);
-
+    // ==================== STAKES ====================
+    getStakesByEvent: async (eventId: string): Promise<Stake[]> => {
+        const { data, error } = await supabase.from('stakes').select('*').eq('event_id', eventId);
         if (error) throw error;
+        return (data || []).map(mapStake);
+    },
+
+    createStake: async (stake: Omit<Stake, 'id' | 'createdAt'>): Promise<Stake> => {
+        const dbStake = {
+            event_id: stake.eventId,
+            name: stake.name,
+        };
+        const { data, error } = await supabase.from('stakes').insert(dbStake).select().single();
+        if (error) throw error;
+        return mapStake(data);
+    },
+
+    deleteStake: async (id: string): Promise<void> => {
+        const { error } = await supabase.from('stakes').delete().eq('id', id);
+        if (error) throw error;
+    },
+
+    getVolunteersByEventStakes: async (eventId: string): Promise<User[]> => {
+        // 1. Obtener todas las estacas del evento
+        const { data: stakes, error: stakeError } = await supabase
+            .from('stakes')
+            .select('id')
+            .eq('event_id', eventId);
+
+        if (stakeError) throw stakeError;
+        if (!stakes || stakes.length === 0) return [];
+
+        const stakeIds = stakes.map(s => s.id);
+
+        // 2. Obtener usuarios asociados a esas estacas
+        const { data: users, error: userError } = await supabase
+            .from('users')
+            .select('*')
+            .in('stake_id', stakeIds);
+
+        if (userError) throw userError;
+        return (users || []).map(mapUser);
     },
 };

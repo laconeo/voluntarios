@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Filter, Download, Mail, Phone, Edit2, X, Save, Eye, CheckCircle, XCircle, Calendar, Trash2, Share2, Copy } from 'lucide-react';
+import { Users, Search, Filter, Download, Mail, Phone, Edit2, X, Save, Eye, CheckCircle, XCircle, Calendar, Trash2, Share2, Copy, AlertCircle, Shield, UserCheck } from 'lucide-react';
+import Modal from './Modal';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabaseApi as mockApi } from '../services/supabaseApiService'; // Using Supabase API now
-import type { User, Booking, Shift } from '../types';
+import type { User, Booking, Shift, Stake } from '../types';
 import { toast } from 'react-hot-toast';
 import { emailService } from '../services/emailService';
+import * as XLSX from 'xlsx';
 
 interface EventVolunteersListProps {
     eventId: string;
@@ -21,6 +23,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     const [filterRole, setFilterRole] = useState('todos');
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [showEditModal, setShowEditModal] = useState(false);
+    const [stakes, setStakes] = useState<Stake[]>([]);
 
     // New state for viewing user shifts
     const [viewingUser, setViewingUser] = useState<User | null>(null);
@@ -32,6 +35,12 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     // Store ALL system users for manual enrollment
     const [allSystemUsers, setAllSystemUsers] = useState<User[]>([]);
 
+    // Pending management states
+    const [pendingCancellations, setPendingCancellations] = useState<Booking[]>([]);
+    const [pendingCoordinatorRequests, setPendingCoordinatorRequests] = useState<Booking[]>([]);
+    const [showCancellationsModal, setShowCancellationsModal] = useState(false);
+    const [showCoordinatorRequestsModal, setShowCoordinatorRequestsModal] = useState(false);
+
     useEffect(() => {
         fetchVolunteers();
     }, [eventId]);
@@ -39,12 +48,15 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     const fetchVolunteers = async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
-            const [allUsers, eventBookings, eventInfo, allShifts, eventRoles] = await Promise.all([
+            const [allUsers, eventBookings, eventInfo, allShifts, eventRoles, eventStakes, eventPendingCancellations, eventPendingCoordinatorRequests] = await Promise.all([
                 mockApi.getAllUsers(),
                 mockApi.getBookingsByEvent(eventId),
                 mockApi.getEventById(eventId),
                 mockApi.getShiftsByEvent(eventId),
-                mockApi.getRolesByEvent(eventId)
+                mockApi.getRolesByEvent(eventId),
+                mockApi.getStakesByEvent(eventId),
+                mockApi.getPendingCancellations(eventId),
+                mockApi.getPendingCoordinatorRequests(eventId)
             ]);
 
             // Filtrar solo usuarios que tienen bookings en este evento O son coordinadores en algun turno
@@ -90,7 +102,10 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             setEventDetails(eventInfo);
             setShifts(allShifts);
             setRoles(eventRoles);
+            setStakes(eventStakes);
             setAllSystemUsers(allUsers); // Save all users
+            setPendingCancellations(eventPendingCancellations);
+            setPendingCoordinatorRequests(eventPendingCoordinatorRequests);
         } catch (error) {
             console.error('Error al cargar voluntarios:', error);
             toast.error('Error al cargar voluntarios del evento');
@@ -255,32 +270,93 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         }
     };
 
-    const exportToCSV = () => {
-        const headers = ['DNI', 'Nombre', 'Email', 'Teléfono', 'Rol', 'Turnos Asignados', 'Estado'];
-        const rows = filteredVolunteers.map(v => {
-            const userBookings = bookings.filter(b => b.userId === v.id);
-            return [
-                v.dni,
-                v.fullName,
-                v.email,
-                v.phone,
-                getRoleLabel(v.role),
-                userBookings.length.toString(),
-                v.status || 'active'
-            ];
-        });
+    const exportToExcel = () => {
+        try {
+            const dataToExport = filteredVolunteers.map(v => {
+                const userBookings = bookings.filter(b => b.userId === v.id);
+                return {
+                    'DNI': v.dni,
+                    'Nombre Completo': v.fullName,
+                    'Email': v.email,
+                    'Teléfono': v.phone,
+                    'Rol': getRoleLabel(v.role),
+                    'Turnos Asignados': userBookings.length,
+                    'Estado': v.status || 'active',
+                    'Estaca': getStakeName(v.stakeId)
+                };
+            });
 
-        const csvContent = [
-            headers.join(','),
-            ...rows.map(row => row.join(','))
-        ].join('\n');
+            const ws = XLSX.utils.json_to_sheet(dataToExport);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Voluntarios");
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `voluntarios_evento_${eventId}_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-        toast.success('Exportación completada');
+            const fileName = `Voluntarios_Evento_${eventId}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+            toast.success('Excel generado correctamente');
+        } catch (error) {
+            console.error('Error exporting to excel:', error);
+            toast.error('Error al exportar a Excel');
+        }
+    };
+
+    // Pending Actions Management
+    const handleViewCancellations = async () => {
+        try {
+            const cancellations = await mockApi.getPendingCancellations(eventId);
+            setPendingCancellations(cancellations);
+            setShowCancellationsModal(true);
+        } catch (error) {
+            toast.error('Error al cargar solicitudes de baja');
+        }
+    };
+
+    const handleApproveCancellation = async (bookingId: string) => {
+        try {
+            await mockApi.approveCancellation(bookingId);
+            toast.success('Baja confirmada exitosamente');
+            const updatedCancellations = await mockApi.getPendingCancellations(eventId);
+            setPendingCancellations(updatedCancellations);
+            if (updatedCancellations.length === 0) setShowCancellationsModal(false);
+            fetchVolunteers(true);
+        } catch (error) {
+            toast.error('Error al confirmar baja');
+        }
+    };
+
+    const handleRejectCancellation = async (bookingId: string) => {
+        try {
+            await mockApi.rejectCancellation(bookingId);
+            toast.success('Baja rechazada exitosamente');
+            const updatedCancellations = await mockApi.getPendingCancellations(eventId);
+            setPendingCancellations(updatedCancellations);
+            if (updatedCancellations.length === 0) setShowCancellationsModal(false);
+            fetchVolunteers(true);
+        } catch (error) {
+            toast.error('Error al rechazar baja');
+        }
+    };
+
+    const handleViewCoordinatorRequests = async () => {
+        try {
+            const requests = await mockApi.getPendingCoordinatorRequests(eventId);
+            setPendingCoordinatorRequests(requests);
+            setShowCoordinatorRequestsModal(true);
+        } catch (error) {
+            toast.error('Error al cargar solicitudes de coordinación');
+        }
+    };
+
+    const handleApproveCoordinator = async (bookingId: string) => {
+        try {
+            await mockApi.approveCoordinatorRequest(bookingId);
+            toast.success('Solicitud aprobada y rol asignado');
+            const updatedRequests = await mockApi.getPendingCoordinatorRequests(eventId);
+            setPendingCoordinatorRequests(updatedRequests);
+            if (updatedRequests.length === 0) setShowCoordinatorRequestsModal(false);
+            fetchVolunteers(true);
+        } catch (error) {
+            toast.error('Error al aprobar solicitud');
+        }
     };
 
     const getRoleLabel = (role: string) => {
@@ -291,6 +367,10 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             volunteer: 'Voluntario'
         };
         return labels[role as keyof typeof labels] || role;
+    };
+
+    const getStakeName = (stakeId?: string) => {
+        return stakes.find(s => s.id === stakeId)?.name || 'Sin Estaca';
     };
 
     // Summary Generation Logic
@@ -510,14 +590,37 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                         Total de voluntarios registrados: <span className="font-semibold text-gray-900">{volunteers.length}</span>
                     </p>
                 </div>
-                <button
-                    onClick={exportToCSV}
-                    disabled={filteredVolunteers.length === 0}
-                    className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
-                >
-                    <Download size={18} />
-                    Exportar CSV
-                </button>
+                <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                    <button
+                        onClick={handleViewCancellations}
+                        disabled={pendingCancellations.length === 0}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm font-bold shadow-sm ${pendingCancellations.length > 0
+                            ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
+                            : 'bg-gray-50 text-gray-400 border border-gray-200 cursor-default opacity-60'}`}
+                    >
+                        <AlertCircle size={18} />
+                        {pendingCancellations.length} Bajas Pendientes
+                    </button>
+
+                    <button
+                        onClick={handleViewCoordinatorRequests}
+                        disabled={pendingCoordinatorRequests.length === 0}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm font-bold shadow-sm ${pendingCoordinatorRequests.length > 0
+                            ? 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
+                            : 'bg-gray-50 text-gray-400 border border-gray-200 cursor-default opacity-60'}`}
+                    >
+                        <Shield size={18} />
+                        {pendingCoordinatorRequests.length} Solicitudes Coord.
+                    </button>
+                    <button
+                        onClick={exportToExcel}
+                        disabled={filteredVolunteers.length === 0}
+                        className="flex items-center justify-center gap-2 bg-[#8CB83E] text-white px-4 py-2 rounded-lg hover:bg-[#7cb342] font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        <Download size={18} />
+                        Exportar Excel
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}
@@ -849,6 +952,21 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                     >
                                         <option value="active">Activo</option>
                                         <option value="suspended">Suspendido</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                        Estaca
+                                    </label>
+                                    <select
+                                        value={editingUser.stakeId || ''}
+                                        onChange={(e) => setEditingUser({ ...editingUser, stakeId: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    >
+                                        <option value="">Seleccionar estaca...</option>
+                                        {stakes.map(stake => (
+                                            <option key={stake.id} value={stake.id}>{stake.name}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>
@@ -1200,7 +1318,89 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                 </div>
             )
             }
-        </div >
+            {/* Modal de Solicitudes de Baja */}
+            <Modal
+                isOpen={showCancellationsModal}
+                onClose={() => setShowCancellationsModal(false)}
+                title="Solicitudes de Baja Pendientes"
+            >
+                <div>
+                    {pendingCancellations.length === 0 ? (
+                        <p className="text-center text-gray-500 py-8">No hay solicitudes de baja pendientes.</p>
+                    ) : (
+                        <div className="space-y-4">
+                            {pendingCancellations.map((cancellation) => (
+                                <div key={cancellation.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div>
+                                        <h4 className="font-bold text-gray-900">{cancellation.user?.fullName}</h4>
+                                        <div className="text-sm text-gray-600 space-y-1 mt-1">
+                                            <p><strong>Rol:</strong> {cancellation.shift?.role?.name}</p>
+                                            <p><strong>Turno:</strong> {cancellation.shift?.date ? new Date(cancellation.shift.date + 'T12:00:00').toLocaleDateString() : '-'} - {cancellation.shift?.timeSlot}</p>
+                                            <p><strong>Motivo:</strong> Solicitada el {cancellation.cancelledAt ? new Date(cancellation.cancelledAt).toLocaleDateString() : '-'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 w-full sm:w-auto">
+                                        <button
+                                            onClick={() => handleRejectCancellation(cancellation.id)}
+                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors font-medium"
+                                        >
+                                            <XCircle size={18} />
+                                            Rechazar
+                                        </button>
+                                        <button
+                                            onClick={() => handleApproveCancellation(cancellation.id)}
+                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors font-medium"
+                                        >
+                                            <CheckCircle size={18} />
+                                            Confirmar Baja
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </Modal>
+
+            {/* Modal de Solicitudes de Coordinación */}
+            <Modal
+                isOpen={showCoordinatorRequestsModal}
+                onClose={() => setShowCoordinatorRequestsModal(false)}
+                title="Aprobar Coordinadores"
+            >
+                <div>
+                    {pendingCoordinatorRequests.length === 0 ? (
+                        <p className="text-center text-gray-500 py-8">No hay solicitudes pendientes.</p>
+                    ) : (
+                        <div className="space-y-4">
+                            <p className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded border border-blue-100">
+                                Al aprobar, el usuario quedará inscrito en el turno y se le asignará el rol de <strong>Coordinador</strong> en el sistema global.
+                            </p>
+                            {pendingCoordinatorRequests.map((req) => (
+                                <div key={req.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div>
+                                        <h4 className="font-bold text-gray-900">{req.user?.fullName}</h4>
+                                        <div className="text-sm text-gray-600 space-y-1 mt-1">
+                                            <p><strong>Rol Evento:</strong> {req.shift?.role?.name}</p>
+                                            <p><strong>Turno:</strong> {req.shift?.date ? new Date(req.shift.date + 'T12:00:00').toLocaleDateString() : '-'} - {req.shift?.timeSlot}</p>
+                                            <p><strong>Solicitado:</strong> {req.requestedAt ? new Date(req.requestedAt).toLocaleDateString() : '-'}</p>
+                                            <p className="text-xs text-gray-500 mt-1">Email: {req.user?.email}</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleApproveCoordinator(req.id)}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors font-medium w-full sm:w-auto"
+                                    >
+                                        <UserCheck size={18} />
+                                        Aprobar y Asignar
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </Modal>
+        </div>
     );
 };
 

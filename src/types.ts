@@ -10,6 +10,8 @@ export interface User {
   isOver18: boolean;
   howTheyHeard: string;
   role: 'volunteer' | 'admin' | 'coordinator' | 'superadmin';
+  stakeId?: string; // ID de la estaca a la que pertenece
+  ecclesiasticalPermission?: 'pending' | 'verified' | 'rejected'; // Permiso eclesiástico validado
   password?: string; // Solo para admin y superadmin
   status?: 'active' | 'suspended' | 'deleted'; // Estado del usuario
   createdAt?: string;
@@ -115,5 +117,12 @@ export interface Material {
   quantity?: number;
   category: 'general' | 'clothing' | 'access' | 'food';
   isRequired: boolean; // Si es obligatorio que todos lo tengan
+  createdAt?: string;
+}
+
+export interface Stake {
+  id: string;
+  eventId: string;
+  name: string;
   createdAt?: string;
 }
