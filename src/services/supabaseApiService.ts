@@ -819,69 +819,130 @@ export const supabaseApi = {
 
     // ==================== BOOKINGS ====================
     createBooking: async (userId: string, shiftId: string): Promise<Booking> => {
+        // 1. Obtener datos del turno y rol
         const { data: shift } = await supabase.from('shifts').select('*').eq('id', shiftId).single();
         if (!shift) throw new Error("Turno no encontrado.");
 
-        const { data: existing } = await supabase
-            .from('bookings')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('shift_id', shiftId)
-            .neq('status', 'cancelled')
-            .maybeSingle();
+        const { data: role } = await supabase.from('roles').select('*').eq('id', shift.role_id).single();
 
-        if (existing) throw new Error("Ya estás inscripto en este turno.");
+        // Determinar estado inicial
+        const initialStatus = role?.requires_approval ? 'pending_approval' : 'confirmed';
 
-        const { count } = await supabase
-            .from('bookings')
-            .select('*', { count: 'exact', head: true })
-            .eq('shift_id', shiftId)
-            .eq('status', 'confirmed');
+        let bookingId: string | undefined;
 
-        if (count !== null && count >= shift.total_vacancies) {
-            // Waitlist logic
-            // Get position
-            const { count: posCount } = await supabase.from('waitlist').select('*', { count: 'exact', head: true }).eq('shift_id', shiftId);
-            const position = (posCount || 0) + 1;
+        // 2. Intentar reserva OPTIMIZADA (RPC)
+        // Intentamos usar la función de base de datos para máxima concurrencia
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('book_shift', {
+            p_user_id: userId,
+            p_shift_id: shiftId,
+            p_status: initialStatus
+        });
 
-            await supabase.from('waitlist').insert({
-                id: `wl_${Date.now()}`,
-                user_id: userId,
-                shift_id: shiftId,
-                event_id: shift.event_id,
-                position: position
-            });
+        // 3. Manejo de resultados RPC
+        if (!rpcError) {
+            // El RPC se ejecutó correctamente (exito o rechazo lógico)
+            if (!rpcResult.success) {
+                if (rpcResult.code === 'FULL') {
+                    // Lógica de lista de espera
+                    const { count: posCount } = await supabase.from('waitlist').select('*', { count: 'exact', head: true }).eq('shift_id', shiftId);
+                    const position = (posCount || 0) + 1;
 
-            // Create booking status waitlist
+                    await supabase.from('waitlist').insert({
+                        id: `wl_${Date.now()}`,
+                        user_id: userId,
+                        shift_id: shiftId,
+                        event_id: shift.event_id,
+                        position: position
+                    });
+
+                    // Create booking status waitlist
+                    const newBooking = {
+                        id: `booking_${Date.now()}`,
+                        user_id: userId,
+                        shift_id: shiftId,
+                        event_id: shift.event_id,
+                        status: 'waitlist',
+                        requested_at: new Date().toISOString()
+                    };
+                    await supabase.from('bookings').insert(newBooking);
+                    throw new Error("No hay vacantes disponibles. Te agregamos a la lista de espera.");
+                } else {
+                    throw new Error(rpcResult.message);
+                }
+            } else {
+                // Éxito RPC
+                console.log("%c✅ [DEBUG] Inscripción procesada con RPC (Método Seguro)", "color: green; font-weight: bold; font-size: 12px;");
+                bookingId = rpcResult.booking_id;
+            }
+        } else {
+            // FALLBACK: Si falla el RPC (ej: función no existe), usamos lógica manual (Legacy)
+            console.log("%c⚠️ [DEBUG] RPC falló. Usando método FALLBACK (Legacy)", "color: orange; font-weight: bold; font-size: 12px;", rpcError);
+            console.warn("Detalle error RPC:", rpcError);
+
+            // A. Check existing
+            const { data: existing } = await supabase
+                .from('bookings')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('shift_id', shiftId)
+                .neq('status', 'cancelled')
+                .maybeSingle();
+
+            if (existing) throw new Error("Ya estás inscripto en este turno.");
+
+            // B. Check concurrency manually (Not atomic, but better than fail)
+            const { count } = await supabase
+                .from('bookings')
+                .select('*', { count: 'exact', head: true })
+                .eq('shift_id', shiftId)
+                .eq('status', 'confirmed');
+
+            if (count !== null && count >= shift.total_vacancies) {
+                // Waitlist Logic Duplicated
+                const { count: posCount } = await supabase.from('waitlist').select('*', { count: 'exact', head: true }).eq('shift_id', shiftId);
+                const position = (posCount || 0) + 1;
+
+                await supabase.from('waitlist').insert({
+                    id: `wl_${Date.now()}`,
+                    user_id: userId,
+                    shift_id: shiftId,
+                    event_id: shift.event_id,
+                    position: position
+                });
+
+                const newBooking = {
+                    id: `booking_${Date.now()}`,
+                    user_id: userId,
+                    shift_id: shiftId,
+                    event_id: shift.event_id,
+                    status: 'waitlist',
+                    requested_at: new Date().toISOString()
+                };
+                await supabase.from('bookings').insert(newBooking);
+                throw new Error("No hay vacantes disponibles. Te agregamos a la lista de espera.");
+            }
+
+            // C. Insert Manual
             const newBooking = {
                 id: `booking_${Date.now()}`,
                 user_id: userId,
                 shift_id: shiftId,
                 event_id: shift.event_id,
-                status: 'waitlist',
+                status: initialStatus,
                 requested_at: new Date().toISOString()
             };
-            const { data: bookingData } = await supabase.from('bookings').insert(newBooking).select().single();
-            throw new Error("No hay vacantes disponibles. Te agregamos a la lista de espera.");
+
+            const { data: bookingData, error: insertError } = await supabase.from('bookings').insert(newBooking).select().single();
+            if (insertError) throw new Error("Error técnico al inscribir (Fallback).");
+            bookingId = bookingData.id;
         }
 
-        // Check if role requires approval
-        const { data: role } = await supabase.from('roles').select('*').eq('id', shift.role_id).single();
-        const initialStatus = role?.requires_approval ? 'pending_approval' : 'confirmed';
+        // 4. Lógica Post-Inscripción Común
+        if (!bookingId) throw new Error("Error inesperado: No se pudo confirmar la reserva.");
 
-        const newBooking = {
-            id: `booking_${Date.now()}`,
-            user_id: userId,
-            shift_id: shiftId,
-            event_id: shift.event_id,
-            status: initialStatus,
-            requested_at: new Date().toISOString()
-        };
+        const { data: bookingData } = await supabase.from('bookings').select('*').eq('id', bookingId).single();
 
-        const { data: bookingData } = await supabase.from('bookings').insert(newBooking).select().single();
-
-        // Auto-assign to coordinator_ids if role is coordinator
-        // Update ALL shifts with the same date and time slot
+        // Auto-assign coordinators
         if (role && role.name.toLowerCase().includes('coordinador')) {
             try {
                 // Get all shifts with same date and time slot
@@ -893,8 +954,6 @@ export const supabaseApi = {
                     .eq('time_slot', shift.time_slot);
 
                 if (relatedShifts && relatedShifts.length > 0) {
-                    console.log(`✅ Found ${relatedShifts.length} shifts with date ${shift.date} and time ${shift.time_slot}`);
-
                     // Update each shift to include this coordinator
                     for (const relatedShift of relatedShifts) {
                         const currentIds = relatedShift.coordinator_ids || [];
@@ -904,20 +963,15 @@ export const supabaseApi = {
                                 .from('shifts')
                                 .update({ coordinator_ids: newIds })
                                 .eq('id', relatedShift.id);
-
-                            console.log(`✅ Added coordinator ${userId} to shift ${relatedShift.id}`);
                         }
                     }
-
-                    console.log(`✅ Auto-assigned user ${userId} as coordinator to ${relatedShifts.length} shifts`);
                 }
             } catch (error) {
                 console.error('Error auto-assigning coordinator:', error);
-                // Don't fail the booking if coordinator assignment fails
             }
         }
 
-        // Email
+        // Email Notification
         const { data: event } = await supabase.from('events').select('*').eq('id', shift.event_id).single();
         const { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
 

@@ -27,6 +27,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   const [showEventModal, setShowEventModal] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'shifts' | 'bookings'>('shifts');
+  const [isBooking, setIsBooking] = useState(false);
 
   // Auto-scroll to selected date in mobile view
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -248,8 +249,13 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
 
     const confirmation = window.confirm(message);
     if (confirmation) {
+      setIsBooking(true);
+      const toastId = toast.loading('Procesando inscripción, por favor espere...');
+
       try {
         await mockApi.createBooking(user.id, shiftId);
+
+        toast.dismiss(toastId);
 
         if (role?.requiresApproval) {
           toast.success('Solicitud enviada. Pendiente de aprobación.');
@@ -262,7 +268,10 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
         }
         fetchUserBookings();
       } catch (error: any) {
+        toast.dismiss(toastId);
         toast.error(error.message || 'Error al inscribirse.');
+      } finally {
+        setIsBooking(false);
       }
     }
   };
@@ -1243,14 +1252,21 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                               ) : (
                                 <button
                                   onClick={() => handleSignUp(shift.id)}
-                                  disabled={isFull}
-                                  className={`flex items-center px-4 py-2 rounded-fs text-sm font-bold transition-colors ${isFull
+                                  disabled={isFull || isBooking}
+                                  className={`flex items-center px-4 py-2 rounded-fs text-sm font-bold transition-colors ${isFull || isBooking
                                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                     : 'bg-primary-500 text-white hover:bg-primary-600 shadow-sm'
                                     }`}
                                 >
-                                  {isFull ? 'Completo' : <>{role?.requiresApproval ? <Shield size={16} className="mr-1.5" /> : <Plus size={16} className="mr-1.5" />} {role?.requiresApproval ? 'Postularme' : 'Inscribirme'}</>}
+                                  {isFull
+                                    ? 'Completo'
+                                    : (isBooking
+                                      ? <div className="flex items-center"><div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-gray-500 mr-2"></div></div>
+                                      : <>{role?.requiresApproval ? <Shield size={16} className="mr-1.5" /> : <Plus size={16} className="mr-1.5" />} {role?.requiresApproval ? 'Postularme' : 'Inscribirme'}</>
+                                    )
+                                  }
                                 </button>
+
                               )}
                             </div>
                           </div>
