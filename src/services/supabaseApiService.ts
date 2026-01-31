@@ -701,10 +701,30 @@ export const supabaseApi = {
         return shiftMapped;
     },
 
-    deleteShift: async (shiftId: string): Promise<void> => {
+    deleteShift: async (shiftId: string, force: boolean = false): Promise<void> => {
         const { count } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('shift_id', shiftId).neq('status', 'cancelled');
-        if (count && count > 0) throw new Error('No se puede eliminar un turno con voluntarios inscritos');
-        await supabase.from('shifts').delete().eq('id', shiftId);
+        if (count && count > 0) {
+            if (!force) {
+                throw new Error('No se puede eliminar un turno con voluntarios inscritos');
+            }
+            // Cancel active bookings
+            await supabase.from('bookings').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('shift_id', shiftId).neq('status', 'cancelled');
+        }
+
+        const { error } = await supabase.from('shifts').delete().eq('id', shiftId);
+        if (error) {
+            // Handle FK violation (bookings still exist)
+            if (error.code === '23503' && force) {
+                // Hard delete bookings if we really want to delete the shift and FK restricts it
+                // Or we could leave it if the user just wanted to cancel bookings? No, "permite borrarlo" implies deleting the shift.
+                await supabase.from('bookings').delete().eq('shift_id', shiftId);
+                // Retry delete
+                const { error: retryError } = await supabase.from('shifts').delete().eq('id', shiftId);
+                if (retryError) throw retryError;
+            } else {
+                throw error;
+            }
+        }
     },
 
     getEventShiftDates: async (eventId: string): Promise<string[]> => {
@@ -1306,8 +1326,9 @@ export const supabaseApi = {
         const { data: waitlist } = await supabase.from('waitlist').select('*').eq('event_id', eventId);
         const { data: roles } = await supabase.from('roles').select('*').eq('event_id', eventId); // for names?
         const { data: users } = await supabase.from('users').select('*'); // Should filter by booked user ids for perf
+        const { data: userMaterials } = await supabase.from('user_materials').select('user_id').eq('event_id', eventId);
 
-        if (!shifts || !bookings || !roles || !users) {
+        if (!shifts || !bookings || !roles || !users || !userMaterials) {
             // Return empty metrics?
             return {
                 eventId,
@@ -1327,15 +1348,33 @@ export const supabaseApi = {
                 attendancePercentage: 0,
                 previousExperiencePercentage: 0,
                 pendingCoordinatorRequests: 0,
+                materialsDeliveryPercentage: 0,
+                ecclesiasticalApprovalPercentage: 0,
             };
         }
 
+        // Pre-calculate occupancy including coordinators (deduplicated per shift)
+        let totalOccupiedSlots = 0;
+        const allOccupantIds = new Set<string>();
+
+        shifts.forEach(shift => {
+            const shiftBookings = bookings.filter(b => b.shift_id === shift.id);
+            const shiftBookedIds = shiftBookings.map(b => b.user_id);
+            const shiftCoordIds = shift.coordinator_ids || [];
+
+            // Deduplicate: User booked AND assigned as coordinator in SAME shift counts as 1 slot usage
+            const uniqueShiftOccupants = new Set([...shiftBookedIds, ...shiftCoordIds]);
+            totalOccupiedSlots += uniqueShiftOccupants.size;
+
+            uniqueShiftOccupants.forEach(id => allOccupantIds.add(id));
+        });
+
         const totalVacancies = shifts.reduce((sum, s) => sum + s.total_vacancies, 0);
-        const occupiedVacancies = bookings.length;
-        const availableVacancies = totalVacancies - occupiedVacancies;
+        const occupiedVacancies = totalOccupiedSlots;
+        const availableVacancies = Math.max(0, totalVacancies - occupiedVacancies);
         const occupationPercentage = totalVacancies > 0 ? Math.round((occupiedVacancies / totalVacancies) * 100) : 0;
 
-        const uniqueVolunteers = new Set(bookings.map(b => b.user_id)).size;
+        const uniqueVolunteers = allOccupantIds.size;
         const avgShiftsPerVolunteer = uniqueVolunteers > 0 ? (occupiedVacancies / uniqueVolunteers).toFixed(1) : 0;
 
         const pendingCancellations = allBookings ? allBookings.filter(b => b.status === 'cancellation_requested').length : 0;
@@ -1347,7 +1386,7 @@ export const supabaseApi = {
             const shift = shifts.find(s => s.id === b.shift_id);
             const role = roles.find(r => r.id === shift?.role_id);
             if (role) {
-                const existing = acc.find(r => r.roleName === role.name);
+                const existing = acc.find((r: any) => r.roleName === role.name);
                 if (existing) {
                     existing.count++;
                 } else {
@@ -1357,41 +1396,52 @@ export const supabaseApi = {
             return acc;
         }, []);
 
-        // ADD Coordinators to distribution
+        // Add Coordinators to distribution (those who don't have a booking)
+        const unbookedCoordsPerShift: { shift: any, userId: string }[] = [];
         shifts.forEach(s => {
-            if (s.coordinator_ids && s.coordinator_ids.length > 0) {
-                // A coordinator is technically a role participation.
-                // We should find the role of the shift, or maybe "coordinator" is a separate category?
-                // User asked: "no veo el rol de coordinador en el dashboard". 
-                // Assuming the shift role IS "Coordinador" (or similar), then adding to that count is correct.
-                // But if the shift role is "Cocina" and Freddy is the Coordinator, he counts as "Cocina"? Or "Coordinador"?
-                // Typically, a Coordinator is... a Coordinator.
-                // Let's add them to the role defined in the shift (if the shift is for Coordinators) 
-                // OR simply add a "Coordinadores" category if we can't determine.
-                // BUT, since the user said "assign role to coordinator", likely the shift itself has role_id pointing to "Coordinador".
-                const role = roles.find(r => r.id === s.role_id);
-                if (role) {
-                    // Add count
-                    const existing = roleDistribution.find(r => r.roleName === role.name);
-                    if (existing) {
-                        existing.count += s.coordinator_ids.length;
-                    } else {
-                        roleDistribution.push({ roleName: role.name, count: s.coordinator_ids.length, color: '#10B981' });
-                    }
+            const shiftBookings = bookings.filter(b => b.shift_id === s.id);
+            const bookedUserIds = shiftBookings.map(b => b.user_id);
+            const coordIds = s.coordinator_ids || [];
+
+            coordIds.forEach(cId => {
+                if (!bookedUserIds.includes(cId)) {
+                    unbookedCoordsPerShift.push({ shift: s, userId: cId });
+                }
+            });
+        });
+
+        // Add unbooked coords to role distribution
+        unbookedCoordsPerShift.forEach(item => {
+            const role = roles.find(r => r.id === item.shift.role_id);
+            if (role) {
+                const existing = roleDistribution.find((r: any) => r.roleName === role.name);
+                if (existing) {
+                    existing.count++;
+                } else {
+                    roleDistribution.push({ roleName: role.name, count: 1, color: '#10B981' });
                 }
             }
         });
+
 
         // Daily Occupation
         const uniqueDates = [...new Set(shifts.map(s => s.date))].sort();
         const dailyOccupation = uniqueDates.map(date => {
             const dateShifts = shifts.filter(s => s.date === date);
-            const dateBookings = bookings.filter(b => {
-                const shift = shifts.find(s => s.id === b.shift_id);
-                return shift?.date === date;
+            let dateOccupied = 0;
+            let dateTotal = 0;
+
+            dateShifts.forEach(shift => {
+                const shiftBookings = bookings.filter(b => b.shift_id === shift.id);
+                const shiftBookedIds = shiftBookings.map(b => b.user_id);
+                const shiftCoordIds = shift.coordinator_ids || [];
+                const uniqueShiftOccupants = new Set([...shiftBookedIds, ...shiftCoordIds]).size;
+
+                dateOccupied += uniqueShiftOccupants;
+                dateTotal += shift.total_vacancies;
             });
-            const dateVacancies = dateShifts.reduce((sum, s) => sum + s.total_vacancies, 0);
-            const occupation = dateVacancies > 0 ? Math.round((dateBookings.length / dateVacancies) * 100) : 0;
+
+            const occupation = dateTotal > 0 ? Math.round((dateOccupied / dateTotal) * 100) : 0;
             return { date, occupation };
         });
 
@@ -1400,12 +1450,20 @@ export const supabaseApi = {
         const uniqueTimeSlots = [...new Set(shifts.map(s => s.time_slot))].sort();
         uniqueTimeSlots.forEach(slot => {
             const slotShifts = shifts.filter(s => s.time_slot === slot);
-            const slotBookings = bookings.filter(b => {
-                const shift = shifts.find(s => s.id === b.shift_id);
-                return shift?.time_slot === slot;
+            let slotOccupied = 0;
+            let slotTotal = 0;
+
+            slotShifts.forEach(shift => {
+                const shiftBookings = bookings.filter(b => b.shift_id === shift.id);
+                const shiftBookedIds = shiftBookings.map(b => b.user_id);
+                const shiftCoordIds = shift.coordinator_ids || [];
+                const uniqueShiftOccupants = new Set([...shiftBookedIds, ...shiftCoordIds]).size;
+
+                slotOccupied += uniqueShiftOccupants;
+                slotTotal += shift.total_vacancies;
             });
-            const slotVacancies = slotShifts.reduce((sum, s) => sum + s.total_vacancies, 0);
-            shiftOccupation[slot] = slotVacancies > 0 ? Math.round((slotBookings.length / slotVacancies) * 100) : 0;
+
+            shiftOccupation[slot] = slotTotal > 0 ? Math.round((slotOccupied / slotTotal) * 100) : 0;
         });
 
         // Attendance
@@ -1415,9 +1473,22 @@ export const supabaseApi = {
         const attendancePercentage = totalMarked > 0 ? Math.round((attendedCount / totalMarked) * 100) : 0;
 
         // Experience
-        const uniqueUserIds = [...new Set(bookings.map(b => b.user_id))];
-        const uniqueUsersWithExperience = users.filter(u => uniqueUserIds.includes(u.id) && u.attended_previous).length;
-        const previousExperiencePercentage = uniqueVolunteers > 0 ? Math.round((uniqueUsersWithExperience / uniqueVolunteers) * 100) : 0;
+        let experiencedCount = 0;
+        let approvedEcclesiasticalCount = 0;
+
+        allOccupantIds.forEach(uid => {
+            const u = users.find(user => user.id === uid);
+            if (u) {
+                if (u.attended_previous) experiencedCount++;
+                if (u.ecclesiastical_permission === 'verified') approvedEcclesiasticalCount++;
+            }
+        });
+        const previousExperiencePercentage = uniqueVolunteers > 0 ? Math.round((experiencedCount / uniqueVolunteers) * 100) : 0;
+        const ecclesiasticalApprovalPercentage = uniqueVolunteers > 0 ? Math.round((approvedEcclesiasticalCount / uniqueVolunteers) * 100) : 0;
+
+        // Materials
+        const uniqueMaterialRecipients = new Set((userMaterials || []).map(m => m.user_id)).size;
+        const materialsDeliveryPercentage = uniqueVolunteers > 0 ? Math.round((uniqueMaterialRecipients / uniqueVolunteers) * 100) : 0;
 
         return {
             eventId,
@@ -1437,6 +1508,8 @@ export const supabaseApi = {
             attendancePercentage,
             previousExperiencePercentage,
             pendingCoordinatorRequests,
+            materialsDeliveryPercentage,
+            ecclesiasticalApprovalPercentage
         };
     },
 

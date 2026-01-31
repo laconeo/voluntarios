@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Users, Calendar, AlertCircle, Clock, PieChart, CheckCircle, XCircle, Star, Shield, UserCheck } from 'lucide-react';
+import { TrendingUp, Users, Calendar, AlertCircle, Clock, PieChart, CheckCircle, XCircle, Star, Shield, UserCheck, Shirt } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { DashboardMetrics, Event, Booking } from '../types';
 import { toast } from 'react-hot-toast';
@@ -207,12 +207,36 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                     <p className="text-sm text-gray-600 mb-1">Pendientes</p>
                     <div className="flex items-baseline gap-3">
                         <div>
-                        </div>
-                        <div>
                             <p className="text-2xl font-bold text-gray-900">{metrics.waitlistCount}</p>
                             <p className="text-xs text-gray-500">en espera</p>
                         </div>
                     </div>
+                </div>
+
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-pink-100 rounded-lg">
+                            <Shirt className="text-pink-600" size={24} />
+                        </div>
+                        <span className={`text-2xl font-bold px-3 py-1 rounded-full text-pink-600 bg-pink-100`}>
+                            {metrics.materialsDeliveryPercentage || 0}%
+                        </span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-1">Materiales Entregados</p>
+                    <p className="text-xs text-gray-500 mt-1">voluntarios con kit</p>
+                </div>
+
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-cyan-100 rounded-lg">
+                            <Shield className="text-cyan-600" size={24} />
+                        </div>
+                        <span className={`text-2xl font-bold px-3 py-1 rounded-full text-cyan-600 bg-cyan-100`}>
+                            {metrics.ecclesiasticalApprovalPercentage || 0}%
+                        </span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-1">Aprobación Eclesiástica</p>
+                    <p className="text-xs text-gray-500 mt-1">permisos validados</p>
                 </div>
                 {/* Coordinator Requests Widget */}
 

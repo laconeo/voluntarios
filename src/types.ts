@@ -107,6 +107,8 @@ export interface DashboardMetrics {
   shiftOccupation: Record<string, number>; // Ocupación por franja horaria (timeSlot -> cantidad)
   attendancePercentage?: number;
   previousExperiencePercentage?: number;
+  materialsDeliveryPercentage?: number;
+  ecclesiasticalApprovalPercentage?: number;
 }
 
 export interface Material {
