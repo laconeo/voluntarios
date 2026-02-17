@@ -94,24 +94,15 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
 
     const fetchMetrics = async () => {
         setIsLoading(true);
-        console.log("MetricsDashboard: Starting fetchMetrics for eventId:", eventId);
         try {
-            console.log("MetricsDashboard: Requesting data...");
             const [metricsData, eventData] = await Promise.all([
-                mockApi.getDashboardMetrics(eventId).catch(e => {
-                    console.error("Error fetching dashboard metrics:", e);
-                    throw e;
-                }),
-                mockApi.getEventById(eventId).catch(e => {
-                    console.error("Error fetching event:", e);
-                    throw e;
-                })
+                mockApi.getDashboardMetrics(eventId),
+                mockApi.getEventById(eventId)
             ]);
-            console.log("MetricsDashboard: Data received", { metricsData, eventData });
             setMetrics(metricsData);
             setEvent(eventData);
         } catch (error) {
-            console.error("MetricsDashboard: Final catch", error);
+            console.error(error);
             toast.error('Error al cargar métricas');
         } finally {
             setIsLoading(false);
