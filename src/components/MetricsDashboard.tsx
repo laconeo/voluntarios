@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Users, Calendar, AlertCircle, Clock, PieChart, CheckCircle, XCircle, Star, Shield, UserCheck, Shirt } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
+import { pcControlService } from '../services/pcControlService';
 import type { DashboardMetrics, Event, Booking } from '../types';
 import { toast } from 'react-hot-toast';
 import Modal from './Modal';
@@ -18,20 +19,99 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
     const [showCoordinatorRequestsModal, setShowCoordinatorRequestsModal] = useState(false);
     const [pendingCoordinatorRequests, setPendingCoordinatorRequests] = useState<any[]>([]);
 
+    const [showPCMetrics, setShowPCMetrics] = useState(false);
+    const [pcMetrics, setPcMetrics] = useState<{
+        daily: { date: string, sessions: number, extensions: number, companions: number }[],
+        total: { sessions: number, extensions: number, companions: number }
+    } | null>(null);
+
     useEffect(() => {
         fetchMetrics();
     }, [eventId]);
 
+    const fetchPCMetrics = async () => {
+        try {
+            // Re-enabled logic
+            // Note: Ensure pcControlService is imported at the top of the file
+            const logs = await pcControlService.getBitacora();
+
+            const dailyMap = new Map<string, { sessions: number, extensions: number, companions: number }>();
+            let total = { sessions: 0, extensions: 0, companions: 0 };
+
+            logs.forEach(log => {
+                if (!log.created_at) return;
+
+                let dateStr = '';
+                try {
+                    dateStr = new Date(log.created_at).toISOString().split('T')[0];
+                } catch (e) {
+                    return; // Skip invalid dates
+                }
+
+                if (!dailyMap.has(dateStr)) {
+                    dailyMap.set(dateStr, { sessions: 0, extensions: 0, companions: 0 });
+                }
+                const entry = dailyMap.get(dateStr)!;
+
+                entry.sessions += 1;
+
+                // Safe access
+                let extensions = 0;
+                let companions = 0;
+
+                if (log.acciones_reportadas && typeof log.acciones_reportadas === 'object') {
+                    // pyre-ignore
+                    extensions = Number(log.acciones_reportadas.extensions) || 0;
+                    // pyre-ignore
+                    companions = Number(log.acciones_reportadas.people_helped) || 0;
+                }
+
+                entry.extensions += extensions;
+                entry.companions += companions;
+
+                total.sessions += 1;
+                total.extensions += extensions;
+                total.companions += companions;
+            });
+
+            // Sort by date
+            const daily = Array.from(dailyMap.entries())
+                .map(([date, stats]) => ({ date, ...stats }))
+                .sort((a, b) => a.date.localeCompare(b.date));
+
+            setPcMetrics({ daily, total });
+        } catch (error) {
+            console.error(error);
+            toast.error('Error al cargar métricas de PC');
+        }
+    };
+
+    useEffect(() => {
+        if (showPCMetrics && !pcMetrics) {
+            fetchPCMetrics();
+        }
+    }, [showPCMetrics]);
+
     const fetchMetrics = async () => {
         setIsLoading(true);
+        console.log("MetricsDashboard: Starting fetchMetrics for eventId:", eventId);
         try {
+            console.log("MetricsDashboard: Requesting data...");
             const [metricsData, eventData] = await Promise.all([
-                mockApi.getDashboardMetrics(eventId),
-                mockApi.getEventById(eventId)
+                mockApi.getDashboardMetrics(eventId).catch(e => {
+                    console.error("Error fetching dashboard metrics:", e);
+                    throw e;
+                }),
+                mockApi.getEventById(eventId).catch(e => {
+                    console.error("Error fetching event:", e);
+                    throw e;
+                })
             ]);
+            console.log("MetricsDashboard: Data received", { metricsData, eventData });
             setMetrics(metricsData);
             setEvent(eventData);
         } catch (error) {
+            console.error("MetricsDashboard: Final catch", error);
             toast.error('Error al cargar métricas');
         } finally {
             setIsLoading(false);
@@ -117,6 +197,8 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
         return 'text-red-600 bg-red-100';
     };
 
+
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -125,7 +207,85 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                 <p className="text-sm text-fs-meta">
                     Dashboard de métricas y seguimiento de convocatoria
                 </p>
+                <button
+                    onClick={() => setShowPCMetrics(!showPCMetrics)}
+                    className="mt-4 px-4 py-2 bg-primary-100 text-primary-700 rounded-lg text-sm font-medium hover:bg-primary-200 transition-colors"
+                >
+                    {showPCMetrics ? 'Ocultar Métricas de Computadoras' : 'Ver Métricas de Computadoras'}
+                </button>
             </div>
+
+            {showPCMetrics && pcMetrics && (
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border animate-fade-in">
+                    <div className="flex items-center gap-2 mb-6 border-b pb-4">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                            <PieChart className="text-blue-600" size={24} />
+                        </div>
+                        <h3 className="font-serif text-xl text-fs-text">Evolución de Uso de Computadoras</h3>
+                    </div>
+
+                    <div className="space-y-6">
+                        {/* Daily Evolution */}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-gray-50 text-gray-600 font-medium">
+                                    <tr>
+                                        <th className="px-4 py-3 rounded-l-lg">Fecha</th>
+                                        <th className="px-4 py-3">Sesiones (Uso)</th>
+                                        <th className="px-4 py-3">Tiempo Extendido</th>
+                                        <th className="px-4 py-3 rounded-r-lg">Acompañantes</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {pcMetrics.daily.map((day) => {
+                                        const date = new Date(day.date + 'T12:00:00');
+                                        const dayName = date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+                                        return (
+                                            <tr key={day.date} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-4 py-3 font-medium text-gray-900 capitalize whitespace-nowrap">{dayName}</td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold">{day.sessions}</span>
+                                                        <span className="text-xs text-gray-500">experiencias</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-yellow-600">{day.extensions}</span>
+                                                        <span className="text-xs text-gray-500">veces</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-green-600">{day.companions}</span>
+                                                        <span className="text-xs text-gray-500">personas</span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Summary */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-6 rounded-xl border border-gray-200">
+                            <div className="text-center">
+                                <p className="text-gray-500 text-sm mb-1">Total Experiencias</p>
+                                <p className="text-3xl font-bold text-primary-600">{pcMetrics.total.sessions}</p>
+                            </div>
+                            <div className="text-center border-l border-gray-200">
+                                <p className="text-gray-500 text-sm mb-1">Total Extensiones</p>
+                                <p className="text-3xl font-bold text-yellow-600">{pcMetrics.total.extensions}</p>
+                            </div>
+                            <div className="text-center border-l border-gray-200">
+                                <p className="text-gray-500 text-sm mb-1">Total Acompañantes</p>
+                                <p className="text-3xl font-bold text-green-600">{pcMetrics.total.companions}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* KPIs Principales */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

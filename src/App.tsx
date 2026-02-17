@@ -5,8 +5,11 @@ import { supabaseApi as mockApi } from './services/supabaseApiService';
 import VolunteerPortal from './components/VolunteerPortal';
 import AdminDashboard from './components/AdminDashboard';
 import CoordinatorDashboard from './components/CoordinatorDashboard';
+import ReceptionistDashboard from './components/ReceptionistDashboard';
 import Login from './components/Login';
 import ResetPassword from './components/ResetPassword';
+import PCOverlay from './components/PCOverlay';
+import PCSetupInstructions from './components/PCSetupInstructions';
 import { supabase } from './lib/supabaseClient';
 import Header from './components/Header';
 import UserProfile from './components/UserProfile';
@@ -196,8 +199,8 @@ const AppContent: React.FC = () => {
         setCurrentUser(user);
         toast.success(`Bienvenido/a ${user.fullName.split(' ')[0]}!`);
 
-        // Redirigir a home para admin, superadmin y coordinator
-        if (user.role === 'admin' || user.role === 'superadmin' || user.role === 'coordinator') {
+        // Redirigir a home para admin, superadmin, coordinator y receptionist
+        if (user.role === 'admin' || user.role === 'superadmin' || user.role === 'coordinator' || user.role === 'receptionist') {
           navigate('/');
         }
         return true;
@@ -287,12 +290,18 @@ const AppContent: React.FC = () => {
                 <AdminDashboard user={currentUser} onLogout={handleLogout} />
               ) : currentUser.role === 'coordinator' ? (
                 <CoordinatorDashboard user={currentUser} onLogout={handleLogout} />
+              ) : currentUser.role === 'receptionist' ? (
+                <ReceptionistDashboard user={currentUser} onLogout={handleLogout} />
               ) : (
                 <VolunteerHomeRedirect user={currentUser} />
               )
             } />
 
             <Route path="/reset-password" element={<ResetPassword />} />
+
+            <Route path="/pc-overlay/:pcId" element={<PCOverlay />} />
+
+            <Route path="/pc-setup" element={<PCSetupInstructions />} />
 
             {/* Dynamic Event Route */}
             <Route path="/:eventSlug" element={

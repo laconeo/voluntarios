@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, Users, MoreHorizontal, ChevronRight, X, Package, ChevronDown, FileText, CheckSquare, Contact } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, Users, MoreHorizontal, ChevronRight, X, Package, ChevronDown, FileText, CheckSquare, Contact, Monitor } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { Event, User } from '../types';
 import { toast } from 'react-hot-toast';
@@ -12,6 +12,7 @@ import StakeManagement from './StakeManagement';
 import EcclesiasticalPermission from './EcclesiasticalPermission';
 import EventVolunteersList from './EventVolunteersList';
 import VolunteerBadges from './VolunteerBadges';
+import PCMonitor from './PCMonitor';
 
 interface SuperAdminDashboardProps {
     user: User;
@@ -20,7 +21,7 @@ interface SuperAdminDashboardProps {
 }
 
 const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewMetrics }) => {
-    const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar' | 'delivery' | 'permiso-eclesiastico' | 'voluntarios' | 'credenciales'>('listado');
+    const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar' | 'delivery' | 'permiso-eclesiastico' | 'voluntarios' | 'credenciales' | 'pc_monitor'>('listado');
     const [activeTab, setActiveTab] = useState<'details' | 'roles' | 'shifts' | 'materials' | 'stakes'>('details');
     const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
     const [eventoSeleccionado, setEventoSeleccionado] = useState<Event | null>(null);
@@ -229,6 +230,27 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                 eventId={eventoSeleccionado.id}
                 onClose={() => setVistaActual('listado')}
             />
+        );
+    }
+
+    if (vistaActual === 'pc_monitor') {
+        return (
+            <div className="min-h-screen font-sans text-gray-900 bg-[#F7F7F7]">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex items-center justify-between">
+                    <button
+                        onClick={() => setVistaActual('listado')}
+                        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                        <ChevronRight className="rotate-180" size={20} />
+                        Volver al listado de eventos
+                    </button>
+                    <div className="text-right">
+                        <h2 className="text-xl font-bold text-gray-900">{eventoSeleccionado?.nombre}</h2>
+                        <p className="text-sm text-gray-500">Monitor de Stand (PCs)</p>
+                    </div>
+                </div>
+                <PCMonitor />
+            </div>
         );
     }
 
@@ -525,6 +547,21 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                                         >
                                                             <Contact size={16} />
                                                             <span>Credenciales</span>
+                                                        </button>
+
+                                                        <div className="my-1 border-t border-gray-100" />
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEventoSeleccionado(evento);
+                                                                setVistaActual('pc_monitor');
+                                                                setActiveDropdownId(null);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                                        >
+                                                            <Monitor size={16} />
+                                                            <span>Monitor de Stand</span>
                                                         </button>
 
                                                         {evento.voluntarios === 0 && (

@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   dni: string;
@@ -9,7 +10,7 @@ export interface User {
   attendedPrevious: boolean;
   isOver18: boolean;
   howTheyHeard: string;
-  role: 'volunteer' | 'admin' | 'coordinator' | 'superadmin';
+  role: 'volunteer' | 'admin' | 'coordinator' | 'superadmin' | 'receptionist';
   stakeId?: string; // ID de la estaca a la que pertenece
   ecclesiasticalPermission?: 'pending' | 'verified' | 'rejected'; // Permiso eclesiástico validado
   password?: string; // Solo para admin y superadmin
@@ -127,4 +128,25 @@ export interface Stake {
   eventId: string;
   name: string;
   createdAt?: string;
+}
+
+export type PCEstado = 'disponible' | 'ocupada' | 'bloqueada' | 'mantenimiento';
+
+export interface PCStatus {
+  id: number;
+  estado: PCEstado;
+  voluntario_id?: string;
+  inicio_sesion?: string;
+  tiempo_limite?: string;
+  created_at?: string;
+  voluntario?: User; // Joined
+}
+
+export interface BitacoraUso {
+  id: string;
+  pc_id: number;
+  voluntario_id: string;
+  acciones_reportadas: any;
+  duracion_total: number;
+  created_at: string;
 }
