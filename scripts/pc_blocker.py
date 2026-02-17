@@ -5,8 +5,8 @@ import logging
 from typing import Optional
 from datetime import datetime, timezone
 
-# PySide6 imports
-# pyre-ignore[21]: PySide6 imports not found by linter
+# Importaciones de PySide6
+# pyre-ignore[21]: Importaciones de PySide6 no encontradas por el linter
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QStackedWidget
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtCore import QUrl, QTimer, Qt, Slot
@@ -17,9 +17,38 @@ import requests # pyre-ignore[21]
 # ================= CONFIGURACIÓN =================
 SUPABASE_URL = "https://apmykrlvahdllakrjdbp.supabase.co" 
 SUPABASE_KEY = "sb_publishable_sbG7mEBN9__P-JnZlwnjng_tbbuNMnT"
-APP_URL = "http://localhost:3005" # Cambiar por URL real si es necesario
 
-# ================= REST CLIENT =================
+def get_app_url():
+    """
+    Determina la URL de la aplicación.
+    Intenta conectar a servidores de desarrollo locales comunes.
+    Si no encuentra ninguno, usa la URL de producción.
+    """
+    dev_urls = [
+        "http://localhost:5173", # Vite por defecto
+        "http://localhost:3000", # React/Next por defecto
+        "http://localhost:3005", # Configuración previa del usuario
+        "http://127.0.0.1:5173"
+    ]
+    
+    # Intentar detectar entorno de desarrollo
+    for url in dev_urls:
+        try:
+            # Timeout corto para no demorar el inicio
+            requests.get(url, timeout=0.5)
+            logging.info(f"Entorno de desarrollo detectado en: {url}")
+            return url
+        except requests.exceptions.RequestException:
+            continue
+            
+    # Fallback a producción
+    prod_url = "https://laconeo.github.io/voluntarios"
+    logging.info(f"Usando entorno de producción: {prod_url}")
+    return prod_url
+
+APP_URL = get_app_url()
+
+# ================= CLIENTE REST =================
 class ApiClient:
     def __init__(self, pc_id: int):
         self.pc_id = pc_id
@@ -46,7 +75,7 @@ class ApiClient:
                 return data[0] if data else None
             return None
         except Exception as e:
-            logging.error(f"Error checking PC status: {e}")
+            logging.error(f"Error comprobando estado de PC: {e}")
             return None
 
     def register_pc(self):
@@ -54,44 +83,50 @@ class ApiClient:
             url = f"{SUPABASE_URL}/rest/v1/pcs_status"
             requests.post(url, headers=self.headers, json={"id": self.pc_id})
         except Exception as e:
-            logging.error(f"Error registering PC: {e}")
+            logging.error(f"Error registrando PC: {e}")
 
-# ================= KIOSK WINDOW =================
+# ================= VENTANA KIOSKO =================
 class PCBlockerKiosk(QMainWindow):
     def __init__(self, pc_id: int):
         super().__init__()
         self.pc_id = pc_id
         self.api = ApiClient(pc_id)
-        self.is_minimized_by_logic = False # Track if we minimized it intentionally
-        self.is_blocking = True # Start assuming we should block
+        self.is_minimized_by_logic = False # Rastrea si minimizamos intencionalmente
+        self.is_blocking = True # Inicia asumiendo que debe bloquear
         
         self.setup_ui()
         self.setup_shortcuts()
         self.setup_timer()
         
-        # Check connection once at startup
+        # Comprobar conexión una vez al inicio
         self.api.check_supabase_connection()
 
     def setup_ui(self):
         self.setWindowTitle(f"Control PC {self.pc_id}")
         
-        # Central widget with layout
+        # Widget central con layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Stacked Widget to switch between WebView and Message
+        # Stacked Widget para cambiar entre WebView y Mensaje
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
 
-        # 1. WebView (Index 0)
+        # 1. WebView (Índice 0)
         self.webview = QWebEngineView()
-        initial_url = f"{APP_URL}/#/pc-overlay/{self.pc_id}"
+        # Nota: Ajustar la URL para incluir el hash router correctamente
+        if "github.io" in APP_URL:
+            initial_url = f"{APP_URL}/#/pc-overlay/{self.pc_id}"
+        else:
+            initial_url = f"{APP_URL}/#/pc-overlay/{self.pc_id}"
+            
+        logging.info(f"Cargando URL: {initial_url}")
         self.webview.setUrl(QUrl(initial_url))
         self.stack.addWidget(self.webview)
 
-        # 2. Message Label (Index 1)
+        # 2. Etiqueta de Mensaje (Índice 1)
         self.message_label = QLabel()
         self.message_label.setText("Espere un momento que estamos preparando todo\npara que puedas seguir sirviendo")
         self.message_label.setAlignment(Qt.AlignCenter)
@@ -100,15 +135,15 @@ class PCBlockerKiosk(QMainWindow):
         self.message_label.setFont(font)
         self.stack.addWidget(self.message_label)
 
-        # Set window flags for Kiosk mode (Fullscreen, On Top, No Frame)
+        # Establecer banderas de ventana para modo Kiosko (Pantalla completa, Siempre visible, Sin marco)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool) 
         
-        # Start in fullscreen showing webview
+        # Iniciar en pantalla completa mostrando webview
         self.stack.setCurrentIndex(0)
         self.showFullScreen()
 
     def setup_shortcuts(self):
-        # Ctrl+Q to quit
+        # Ctrl+Q para salir
         self.quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
         self.quit_shortcut.setContext(Qt.ApplicationShortcut)
         self.quit_shortcut.activated.connect(QApplication.instance().quit)
@@ -116,14 +151,14 @@ class PCBlockerKiosk(QMainWindow):
     def setup_timer(self):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.check_status)
-        self.timer.start(5000) # Check every 5 seconds
+        self.timer.start(5000) # Comprobar cada 5 segundos
 
     @Slot()
     def check_status(self):
         pc_data = self.api.get_pc_status()
         
         if not pc_data:
-            # If not found, register and stay blocking (default safe state)
+            # Si no se encuentra, registrar y mantener bloqueo (estado seguro por defecto)
             self.api.register_pc()
             self.set_blocking_mode(True)
             return
@@ -141,46 +176,46 @@ class PCBlockerKiosk(QMainWindow):
                     remaining = (limit_dt - now_dt).total_seconds()
                     
                     if remaining > 0:
-                        should_block = False # User still has time
+                        should_block = False # El usuario todavía tiene tiempo
                 except ValueError:
-                    logging.error("Invalid date format from API")
+                    logging.error("Formato de fecha inválido desde API")
         
         self.set_blocking_mode(should_block)
 
     def set_blocking_mode(self, should_block: bool):
         if should_block:
-            # SHOW BLOCKER
-            # Ensure we are blocking. If we were not blocking, or minimized, restore.
+            # MOSTRAR BLOQUEADOR
+            # Asegurar que estamos bloqueando. Si no estábamos bloqueando, o minimizados, restaurar.
             if not self.is_blocking or self.isMinimized() or not self.isVisible():
                 self.is_blocking = True
-                self.stack.setCurrentIndex(0) # Show WebView
-                self.showNormal() # Restore first
+                self.stack.setCurrentIndex(0) # Mostrar WebView
+                self.showNormal() # Restaurar primero
                 self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
                 self.showFullScreen()
-                self.webview.reload() # Reload to ensure fresh state
+                self.webview.reload() # Recargar para asegurar estado fresco
                 self.activateWindow()
                 self.raise_()
         else:
-            # HIDE BLOCKER (Allow usage)
-            # If we were blocking, we handle the transition.
+            # OCULTAR BLOQUEADOR (Permitir uso)
+            # Si estábamos bloqueando, manejamos la transición.
             if self.is_blocking:
                 self.is_blocking = False
                 
-                # Show "Wait a moment" message
+                # Mostrar mensaje "Espere un momento"
                 self.stack.setCurrentIndex(1)
-                self.showFullScreen() # Ensure visible
+                self.showFullScreen() # Asegurar visible
                 
-                # Wait 3 seconds then minimize
+                # Esperar 3 segundos luego minimizar
                 QTimer.singleShot(3000, self.minimize_window)
 
     def minimize_window(self):
-        # Only minimize if we are still supposed to be unblocked
+        # Solo minimizar si todavía se supone que estamos desbloqueados
         if not self.is_blocking:
             self.showMinimized()
-            self.stack.setCurrentIndex(0) # Reset to webview for next time
-            # We can't easily rely on just showMinimized() to keep it hidden if user alt-tabs back.
-            # But normally user clicks on something else.
-            # Ideally we would hide(), but we want the app to keep running.
+            self.stack.setCurrentIndex(0) # Resetear a webview para la próxima vez
+            # No podemos confiar fácilmente solo en showMinimized() para mantenerlo oculto si el usuario hace alt-tab.
+            # Pero normalmente el usuario hace clic en otra cosa.
+            # Idealmente ocultaríamos hide(), pero queremos que la app siga corriendo.
             # self.hide()
 
 # ================= MAIN =================
