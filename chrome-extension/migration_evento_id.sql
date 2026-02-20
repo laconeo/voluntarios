@@ -24,3 +24,16 @@ CREATE OR REPLACE VIEW pcs_por_evento AS
   FROM pcs_status ps
   LEFT JOIN events e ON e.id = ps.evento_id
   LEFT JOIN users u ON u.id = ps.voluntario_id;
+
+-- ============================================================
+-- Migración: comodín "Otro" — voluntario no registrado en el SGV
+-- ============================================================
+
+-- 5. Columna para nombre libre en pcs_status (cuando el voluntario no está en la lista)
+ALTER TABLE pcs_status
+  ADD COLUMN IF NOT EXISTS voluntario_nombre_libre text;
+
+-- 6. Misma columna en bitacora_uso para trazabilidad del reporte
+ALTER TABLE bitacora_uso
+  ADD COLUMN IF NOT EXISTS voluntario_nombre_libre text;
+

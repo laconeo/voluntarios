@@ -139,7 +139,8 @@ async function checkStatus() {
         estado: pcData.estado || 'disponible',
         tiempo_limite: pcData.tiempo_limite || null,
         voluntario_id: pcData.voluntario_id || null,
-        voluntario_nombre: pcData.voluntario?.full_name || null,
+        voluntario_nombre: pcData.voluntario?.full_name || pcData.voluntario_nombre_libre || null,
+        voluntario_nombre_libre: pcData.voluntario_nombre_libre || null,
     });
 }
 
@@ -263,12 +264,15 @@ async function getEvents() {
     return (data || []).map(e => ({ id: e.id, nombre: e.nombre }));
 }
 
-async function startSession(id, userId, durationMinutes = 20) {
+async function startSession(id, userId, nombreLibre, durationMinutes = 20) {
     const now = new Date();
     const limit = new Date(now.getTime() + durationMinutes * 60000);
     const body = {
-        estado: 'ocupada', voluntario_id: userId,
-        inicio_sesion: now.toISOString(), tiempo_limite: limit.toISOString(),
+        estado: 'ocupada',
+        voluntario_id: userId || null,
+        voluntario_nombre_libre: nombreLibre || null,  // comodín si no está en el SGV
+        inicio_sesion: now.toISOString(),
+        tiempo_limite: limit.toISOString(),
     };
     if (eventoId) body.evento_id = eventoId;
     await supabasePatch(`pcs_status?id=eq.${id}`, body);
@@ -284,16 +288,18 @@ async function snoozePc(id) {
     });
 }
 
-async function submitReport(id, voluntarioId, actions, peopleCount, extensionsCount) {
+async function submitReport(id, voluntarioId, nombreLibre, actions, peopleCount, extensionsCount) {
     const bitacora = {
-        pc_id: id, voluntario_id: voluntarioId,
+        pc_id: id,
+        voluntario_id: voluntarioId || null,
+        voluntario_nombre_libre: nombreLibre || null,
         acciones_reportadas: { description: actions, people_helped: peopleCount, extensions: extensionsCount },
         duracion_total: 20 + extensionsCount * 5,
     };
     if (eventoId) bitacora.evento_id = eventoId;
     await supabasePost('bitacora_uso', bitacora);
     await supabasePatch(`pcs_status?id=eq.${id}`, {
-        estado: 'disponible', voluntario_id: null,
+        estado: 'disponible', voluntario_id: null, voluntario_nombre_libre: null,
         inicio_sesion: null, tiempo_limite: null,
     });
 }
@@ -366,7 +372,7 @@ async function handleMessage(message, sender, sendResponse) {
 
             case 'START_SESSION': {
                 if (!pcId) throw new Error('PC no configurada');
-                await startSession(pcId, message.userId, 20);
+                await startSession(pcId, message.userId, message.nombreLibre, 20);
                 await checkStatus();
                 sendResponse({ success: true });
                 break;
@@ -383,7 +389,7 @@ async function handleMessage(message, sender, sendResponse) {
             case 'SUBMIT_REPORT': {
                 if (!pcId) throw new Error('PC no configurada');
                 await submitReport(
-                    pcId, message.voluntarioId,
+                    pcId, message.voluntarioId, message.nombreLibre,
                     message.actions, message.peopleCount, message.extensionsCount
                 );
                 await checkStatus();

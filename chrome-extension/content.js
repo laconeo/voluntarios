@@ -201,48 +201,101 @@
       headerTitle: `PC Disponible`,
       headerSub: 'Seleccioná tu nombre para comenzar',
       body: `
-        <div style="margin-bottom:18px;">
+        <div style="margin-bottom:14px;">
           <label class="__fs-label__">Voluntario</label>
           <select id="__fs-vol__" class="__fs-select__">
             <option value="">Cargando lista…</option>
           </select>
         </div>
+
+        <!-- Input libre (se muestra solo al elegir "Otro") -->
+        <div id="__fs-otro-wrap__" style="margin-bottom:18px;display:none;">
+          <label class="__fs-label__">Ingresá tu nombre completo</label>
+          <input
+            type="text"
+            id="__fs-otro-nombre__"
+            placeholder="Nombre y apellido"
+            maxlength="80"
+            style="
+              width:100%;padding:10px 12px;
+              border:1px solid ${FS.border};border-radius:4px;
+              font-size:14px;color:${FS.text};background:${FS.bg};
+              box-sizing:border-box;outline:none;
+              transition:border-color .18s,box-shadow .18s;
+            "
+          />
+        </div>
+
         <button id="__fs-start__" class="__fs-btn-primary__">
           Iniciar sesión &mdash; 20 min
         </button>
         <div id="__fs-lmsg__" class="__fs-notice__"></div>
         <p style="font-size:12px;color:${FS.textLight};text-align:center;margin:18px 0 0;">
-          Si no encontrás tu nombre, consultá al coordinador
+          ¿No estás en la lista? Seleccioná <strong>Otro (comodín)</strong> e ingresá tu nombre.
         </p>
       `
     });
   }
 
+
   async function wireLogin(pcId, state) {
     const sel = document.getElementById('__fs-vol__');
     const btn = document.getElementById('__fs-start__');
+    const wrap = document.getElementById('__fs-otro-wrap__');
+    const input = document.getElementById('__fs-otro-nombre__');
     if (!sel || !btn) return;
 
     try {
       const res = await chrome.runtime.sendMessage({ type: 'GET_VOLUNTEERS' });
       if (res?.success && res.volunteers?.length > 0) {
         sel.innerHTML = '<option value="">— Seleccioná tu nombre —</option>' +
-          res.volunteers.map(v => `<option value="${escHtml(v.id)}">${escHtml(v.fullName)}</option>`).join('');
+          res.volunteers.map(v => `<option value="${escHtml(v.id)}">${escHtml(v.fullName)}</option>`).join('') +
+          '<option value="__otro__">——————————</option>' +
+          '<option value="__otro__">👤 Otro (comodín)</option>';
       } else {
-        sel.innerHTML = `<option value="">⚠ ${escHtml(res?.error || 'Sin voluntarios activos')}</option>`;
+        sel.innerHTML = `<option value="">⚠ ${escHtml(res?.error || 'Sin voluntarios activos')}</option>` +
+          '<option value="__otro__">👤 Otro (comodín)</option>';
       }
     } catch (e) {
-      sel.innerHTML = `<option value="">⚠ Error: ${escHtml(e.message)}</option>`;
+      sel.innerHTML = `<option value="">⚠ Error: ${escHtml(e.message)}</option>` +
+        '<option value="__otro__">👤 Otro (comodín)</option>';
     }
 
+    // Mostrar/ocultar input libre al seleccionar "Otro"
+    sel.addEventListener('change', () => {
+      const esOtro = sel.value === '__otro__';
+      if (wrap) wrap.style.display = esOtro ? 'block' : 'none';
+      if (esOtro && input) {
+        input.style.borderColor = FS.border;
+        input.style.boxShadow = '';
+        setTimeout(() => input.focus(), 50);
+      }
+    });
+
     btn.addEventListener('click', async () => {
-      const userId = sel.value;
-      if (!userId) { notice('__fs-lmsg__', 'Seleccioná tu nombre antes de continuar.', 'warn'); return; }
+      const isOtro = sel.value === '__otro__';
+      const userId = isOtro ? null : sel.value;
+      const nombre = isOtro ? input?.value?.trim() : null;
+
+      if (!isOtro && !userId) {
+        notice('__fs-lmsg__', 'Seleccioná tu nombre antes de continuar.', 'warn');
+        return;
+      }
+      if (isOtro && !nombre) {
+        notice('__fs-lmsg__', 'Ingresá tu nombre completo.', 'warn');
+        if (input) { input.style.borderColor = '#e53935'; input.focus(); }
+        return;
+      }
+
       btn.disabled = true; btn.textContent = 'Iniciando…';
       try {
-        const res = await chrome.runtime.sendMessage({ type: 'START_SESSION', userId });
+        const res = await chrome.runtime.sendMessage({
+          type: 'START_SESSION',
+          userId,
+          nombreLibre: nombre,   // null si no es comodín
+        });
         if (res?.success) {
-          sessionExtensions = 0; // reset al iniciar nueva sesión
+          sessionExtensions = 0;
           notice('__fs-lmsg__', '¡Sesión iniciada! Podés comenzar a trabajar.', 'ok');
           setTimeout(() => hideOverlay(), 1600);
         } else throw new Error(res?.error || 'Error desconocido');
@@ -349,6 +402,7 @@
         const res = await chrome.runtime.sendMessage({
           type: 'SUBMIT_REPORT',
           voluntarioId: state?.voluntario_id,
+          nombreLibre: state?.voluntario_nombre_libre || null,
           actions, peopleCount: count, extensionsCount: sessionExtensions
         });
         if (res?.success) {
