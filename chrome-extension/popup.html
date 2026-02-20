@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PC Stand - Modo Kiosk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ---- Design Tokens FamilySearch Frontier ---- */
+    :root {
+      --fs-green: #8CB83E;
+      --fs-green-hover: #7cb342;
+      --fs-green-dark: #558b2f;
+      --fs-blue: #005994;
+      --fs-text: #282829;
+      --fs-text-light: #575757;
+      --fs-border: #dcdcdc;
+      --fs-bg: #ffffff;
+      --fs-bg-alt: #f3f3f3;
+      --fs-shadow-card: 0 2px 4px rgba(0, 0, 0, .10);
+      --fs-shadow-modal: 0 4px 16px rgba(0, 0, 0, .14);
+      --fs-radius: 4px;
+      --fs-radius-pill: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 340px;
+      min-height: 180px;
+      font-family: 'Roboto', 'Segoe UI', Arial, sans-serif;
+      background: var(--fs-bg-alt);
+      color: var(--fs-text);
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---- HEADER ---- */
+    .header {
+      background: var(--fs-green);
+      color: #fff;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-icon {
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .header-text h1 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: .2px;
+    }
+
+    .header-text p {
+      font-size: 11px;
+      opacity: .8;
+      margin-top: 1px;
+      font-weight: 400;
+    }
+
+    /* ---- CONTENT ---- */
+    .content {
+      padding: 16px;
+    }
+
+    /* ---- STATUS BADGE ---- */
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: var(--fs-radius);
+      margin-bottom: 14px;
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid var(--fs-border);
+      background: var(--fs-bg);
+    }
+
+    .status-badge.disponible {
+      background: #f1f8e9;
+      border-color: #aed581;
+      color: #33691e;
+    }
+
+    .status-badge.ocupada {
+      background: #e3f2fd;
+      border-color: #90caf9;
+      color: #0d47a1;
+    }
+
+    .status-badge.bloqueada {
+      background: #fce4ec;
+      border-color: #f48fb1;
+      color: #880e4f;
+    }
+
+    .status-badge.sin-config {
+      background: var(--fs-bg-alt);
+      border-color: var(--fs-border);
+      color: var(--fs-text-light);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .disponible .status-dot {
+      background: var(--fs-green);
+    }
+
+    .ocupada .status-dot {
+      background: var(--fs-blue);
+      animation: fsPulse 2s infinite;
+    }
+
+    .bloqueada .status-dot {
+      background: #e91e63;
+    }
+
+    .sin-config .status-dot {
+      background: var(--fs-border);
+    }
+
+    @keyframes fsPulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: .35;
+      }
+    }
+
+    /* ---- CARD ---- */
+    .card {
+      background: var(--fs-bg);
+      border: 1px solid var(--fs-border);
+      border-radius: var(--fs-radius);
+      box-shadow: var(--fs-shadow-card);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    /* ---- LABELS ---- */
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fs-text-light);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 6px;
+    }
+
+    /* ---- INPUTS & SELECTS (estilo Frontier) ---- */
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid var(--fs-border);
+      border-radius: var(--fs-radius);
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+      color: var(--fs-text);
+      background: var(--fs-bg);
+      outline: none;
+      transition: border-color .18s, box-shadow .18s;
+      appearance: auto;
+    }
+
+    input[type="number"]:focus,
+    select:focus {
+      border-color: var(--fs-blue);
+      box-shadow: 0 0 0 3px rgba(0, 89, 148, .10);
+    }
+
+    .input-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-group input {
+      flex: 1;
+    }
+
+    /* ---- BOTONES (pill, uppercase — estilo FS) ---- */
+    .btn {
+      padding: 9px 18px;
+      border: none;
+      border-radius: var(--fs-radius-pill);
+      font-family: 'Roboto', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background .18s, opacity .15s;
+      white-space: nowrap;
+    }
+
+    .btn:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .btn:active {
+      opacity: .85;
+    }
+
+    .btn-primary {
+      background: var(--fs-green);
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--fs-green-hover);
+    }
+
+    .btn-ghost {
+      background: var(--fs-bg);
+      color: var(--fs-text-light);
+      border: 1px solid var(--fs-border);
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+      background: var(--fs-bg-alt);
+    }
+
+    .btn-danger {
+      background: var(--fs-bg);
+      color: #c62828;
+      border: 1px solid #ef9a9a;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: #fdecea;
+    }
+
+    .btn-full {
+      width: 100%;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* ---- INFO ROWS ---- */
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--fs-bg-alt);
+      font-size: 13px;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      color: var(--fs-text-light);
+      font-weight: 400;
+    }
+
+    .info-value {
+      color: var(--fs-text);
+      font-weight: 500;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    /* ---- TIMER ---- */
+    .timer-display {
+      text-align: center;
+      padding: 10px;
+      background: #e3f2fd;
+      border: 1px solid #90caf9;
+      border-radius: var(--fs-radius);
+      margin-bottom: 12px;
+    }
+
+    .timer-display .timer-label {
+      font-size: 11px;
+      color: var(--fs-text-light);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      margin-bottom: 2px;
+    }
+
+    .timer-display .timer-value {
+      font-size: 28px;
+      font-weight: 300;
+      color: var(--fs-blue);
+      letter-spacing: 2px;
+    }
+
+    .timer-display.warning {
+      background: #fff8e1;
+      border-color: #ffe082;
+    }
+
+    .timer-display.warning .timer-value {
+      color: #e65100;
+    }
+
+    .timer-display.critical {
+      background: #fce4ec;
+      border-color: #f48fb1;
+    }
+
+    .timer-display.critical .timer-value {
+      color: #c62828;
+    }
+
+    /* ---- NOTICE ---- */
+    .notice {
+      padding: 8px 12px;
+      border-radius: var(--fs-radius);
+      font-size: 12px;
+      font-weight: 500;
+      margin-top: 8px;
+    }
+
+    .notice.success {
+      background: #f1f8e9;
+      border: 1px solid #c5e1a5;
+      color: #33691e;
+    }
+
+    .notice.error {
+      background: #fdecea;
+      border: 1px solid #ef9a9a;
+      color: #c62828;
+    }
+
+    .notice.info {
+      background: #e3f2fd;
+      border: 1px solid #90caf9;
+      color: #0d47a1;
+    }
+
+    /* ---- DIVIDER ---- */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--fs-border);
+      margin: 12px 0;
+    }
+
+    /* ---- FOOTER ---- */
+    .footer {
+      padding: 8px 16px;
+      border-top: 1px solid var(--fs-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--fs-bg);
+    }
+
+    .footer-text {
+      font-size: 10px;
+      color: var(--fs-text-light);
+      opacity: .6;
+    }
+
+    /* ---- UTILITY ---- */
+    .hidden {
+      display: none !important;
+    }
+
+    .mb-10 {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-icon">💻</div>
+    <div class="header-text">
+      <h1>PC Stand — Modo Kiosk</h1>
+      <p>FamilySearch · SGV — Gestión de Voluntarios</p>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- STATUS BADGE -->
+    <div id="status-badge" class="status-badge sin-config">
+      <div class="status-dot"></div>
+      <span id="status-text">Sin configurar</span>
+    </div>
+
+    <!-- CONFIGURACIÓN -->
+    <div id="config-section" class="card">
+
+      <!-- Selector de Evento -->
+      <div class="mb-10">
+        <label>Evento</label>
+        <select id="evento-select">
+          <option value="">⏳ Cargando eventos...</option>
+        </select>
+      </div>
+
+      <!-- Número de PC -->
+      <label>Número de PC</label>
+      <div class="input-group">
+        <input type="number" id="pc-id-input" min="1" max="99" placeholder="Ej: 1" />
+        <button class="btn btn-primary" id="config-btn">Guardar</button>
+      </div>
+
+      <div id="config-notice" class="hidden"></div>
+    </div>
+
+    <!-- INFO (cuando está configurado) -->
+    <div id="info-section" class="hidden">
+
+      <!-- Datos de sesión -->
+      <div class="card">
+        <div class="info-row">
+          <span class="info-label">Evento</span>
+          <span class="info-value" id="info-evento">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">PC #</span>
+          <span class="info-value" id="info-pc-id">—</span>
+        </div>
+        <div class="info-row" id="info-volunteer-row">
+          <span class="info-label">Voluntario</span>
+          <span class="info-value" id="info-volunteer">—</span>
+        </div>
+      </div>
+
+      <!-- Timer (solo cuando está ocupada) -->
+      <div id="timer-section" class="hidden">
+        <div class="timer-display" id="timer-display">
+          <div class="timer-label">Tiempo restante</div>
+          <div class="timer-value" id="timer-value">--:--</div>
+        </div>
+      </div>
+
+      <!-- Acciones -->
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="refresh-btn" title="Actualizar estado">
+          🔄 Actualizar
+        </button>
+        <button class="btn btn-danger" id="reset-btn">
+          ⚙️ Cambiar PC
+        </button>
+      </div>
+
+      <div id="action-notice" class="hidden"></div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <span class="footer-text">PC Stand · Modo Kiosk v1.1</span>
+    <span class="footer-text" id="last-update-text">—</span>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>

@@ -2,8 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { pcControlService } from '../services/pcControlService';
 import type { PCStatus } from '../types';
-import { Clock, CheckSquare, Users, Save, PlusCircle, AlertCircle } from 'lucide-react';
+import { Clock, CheckSquare, Save, PlusCircle, Laptop } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+
+/** Returns true if the session time has run out (or if there is no time limit). */
+function isTimeExpired(pc: PCStatus): boolean {
+    if (!pc.tiempo_limite) return true;
+    try {
+        const limit = new Date(pc.tiempo_limite).getTime();
+        return Date.now() >= limit;
+    } catch {
+        return true;
+    }
+}
 
 const AvailablePCView: React.FC<{ pc: PCStatus, onStartSession: () => void }> = ({ pc, onStartSession }) => {
     const [volunteers, setVolunteers] = useState<{ id: string, fullName: string }[]>([]);
@@ -163,6 +174,26 @@ const PCOverlay: React.FC = () => {
     // If PC is available, show Login prompt
     if (pc.estado === 'disponible') {
         return <AvailablePCView pc={pc} onStartSession={() => fetchPcStatus()} />;
+    }
+
+    // If PC is occupied but time has NOT expired yet, show a neutral in-session screen.
+    // The Python script will hide this window automatically; this is just a fallback.
+    if (pc.estado === 'ocupada' && !isTimeExpired(pc)) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
+                <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center">
+                    <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Laptop size={40} className="text-indigo-600" />
+                    </div>
+                    <h1 className="text-2xl font-bold text-gray-800 mb-2">Sesión en Curso</h1>
+                    <p className="text-gray-500 text-sm">
+                        {pc.voluntario?.fullName
+                            ? `${pc.voluntario.fullName.split(' ')[0]} está usando esta PC.`
+                            : 'Esta PC está siendo utilizada.'}
+                    </p>
+                </div>
+            </div>
+        );
     }
 
     return (

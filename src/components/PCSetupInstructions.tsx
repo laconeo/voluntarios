@@ -1,401 +1,263 @@
 import React, { useState } from 'react';
-import { Terminal, Download, Play, Info, Check, Copy } from 'lucide-react';
+import { Chrome, Download, Info, Check, Copy, AlertTriangle, Wifi, Monitor, Zap, ChevronDown, ChevronUp, Clock, Shield, Layers } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
+interface StepProps {
+    number: number;
+    color: string;
+    title: string;
+    children: React.ReactNode;
+}
+
+const Step: React.FC<StepProps> = ({ number, color, title, children }) => (
+    <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex items-start gap-4">
+            <div className={`flex-shrink-0 w-10 h-10 rounded-full ${color} flex items-center justify-center font-bold text-lg`}>
+                {number}
+            </div>
+            <div className="flex-1 w-full min-w-0">
+                <h2 className="text-xl font-semibold mb-3">{title}</h2>
+                {children}
+            </div>
+        </div>
+    </section>
+);
+
+interface CodeBlockProps {
+    code: string;
+    copyText?: string;
+}
+
+const CodeBlock: React.FC<CodeBlockProps> = ({ code, copyText }) => (
+    <div className="bg-gray-900 rounded-lg p-4 font-mono text-sm text-gray-300 flex items-center justify-between gap-4">
+        <span className="break-all">{code}</span>
+        <button
+            onClick={() => { navigator.clipboard.writeText(copyText ?? code); toast.success("Copiado"); }}
+            className="flex-shrink-0 p-1.5 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-white"
+            title="Copiar"
+        >
+            <Copy size={16} />
+        </button>
+    </div>
+);
+
 const PCSetupInstructions: React.FC = () => {
-    const [copied, setCopied] = useState(false);
-
-    const scriptContent = `import sys
-from typing import Optional, Dict
-import tkinter as tk
-from tkinter import ttk, messagebox
-import webbrowser
-from datetime import datetime, timedelta, timezone
-import requests
-# from supabase import create_client, Client # Removing supabase dependency due to build issues on Windows/Py3.14
-
-# ================= CONFIGURACIÓN =================
-SUPABASE_URL = "https://apmykrlvahdllakrjdbp.supabase.co" 
-SUPABASE_KEY = "sb_publishable_sbG7mEBN9__P-JnZlwnjng_tbbuNMnT"
-APP_URL = "http://localhost:5173" # Cambiar por la URL de producción (ej: https://tudominio.com)
-
-# ================= LÓGICA =================
-
-class PCBlockerApp:
-    def __init__(self, root: tk.Tk, pc_id: int):
-        self.root = root
-        self.pc_id = pc_id
-        self.root.title(f"Control PC {pc_id}")
-        
-        # Window Setup
-        # Configure window to be somewhat blocking (fullscreen, top)
-        self.root.attributes("-fullscreen", True)
-        self.root.attributes("-topmost", True)
-        self.root.overrideredirect(True) # Remove title bar
-        self.root.configure(bg="#f0f0f0")
-        
-        # UI Setup
-        # Container
-        self.container = tk.Frame(self.root, bg="#f0f0f0")
-        self.container.place(relx=0.5, rely=0.5, anchor="center")
-
-        # Header
-        self.header_label = tk.Label(self.container, text=f"PC {self.pc_id}", font=("Segoe UI", 32, "bold"), bg="#f0f0f0", fg="#333")
-        self.header_label.pack(pady=20)
-
-        # Status
-        self.status_label = tk.Label(self.container, text="Iniciando...", font=("Segoe UI", 16), bg="#f0f0f0", fg="#666")
-        self.status_label.pack(pady=10)
-
-        # Login Frame (Hidden by default)
-        self.login_frame = tk.Frame(self.container, bg="#f0f0f0")
-        self.volunteers_combo = ttk.Combobox(self.login_frame, state="readonly", width=40, font=("Segoe UI", 12))
-        self.volunteers_combo.pack(pady=10)
-        
-        self.start_btn = tk.Button(self.login_frame, text="Iniciar Sesión (20 min)", command=self.start_session, 
-                                   bg="#8CB83E", fg="white", font=("Segoe UI", 14, "bold"), padx=20, pady=10, relief="flat")
-        self.start_btn.pack(pady=20)
-
-        # Blocked Frame
-        self.blocked_frame = tk.Frame(self.container, bg="#f0f0f0")
-        self.blocked_msg = tk.Label(self.blocked_frame, text="Esta PC está bloqueada.", font=("Segoe UI", 24), bg="#f0f0f0", fg="#d32f2f")
-        self.blocked_msg.pack(pady=20)
-        
-        self.volunteer_map: Dict[str, str] = {}
-        
-        # Connect to Supabase (Check connection)
-        try:
-            # Simple check to see if we can reach Supabase
-            headers = {
-                "apikey": SUPABASE_KEY,
-                "Authorization": f"Bearer {SUPABASE_KEY}"
-            }
-            response = requests.get(f"{SUPABASE_URL}/rest/v1/", headers=headers, timeout=5)
-            # 404 is expected for root, or 200 for health check depending on config, 
-            # but usually we just want to ensure we don't get a connection error.
-            
-            if self.status_label:
-                self.status_label.config(text="Conectado a la base de datos...")
-        except Exception as e:
-            messagebox.showerror("Error de Conexión", f"No se pudo conectar a Supabase: {e}")
-            sys.exit(1)
-
-        # Start Polling
-        self.check_status()
-
-    def show_view(self, view_name):
-        self.login_frame.pack_forget()
-        self.blocked_frame.pack_forget()
-        
-        if view_name == "login":
-            self.login_frame.pack()
-            self.root.deiconify()
-        elif view_name == "blocked":
-            self.blocked_frame.pack()
-            self.root.deiconify()
-        elif view_name == "hidden":
-            self.root.withdraw()
-
-    def load_volunteers(self):
-        try:
-            # Fetch active bookings ideally. Here fetching all users for demo.
-            headers = {
-                "apikey": SUPABASE_KEY,
-                "Authorization": f"Bearer {SUPABASE_KEY}",
-                "Content-Type": "application/json"
-            }
-            # REST: GET /users?select=id,full_name&status=eq.active
-            url = f"{SUPABASE_URL}/rest/v1/users?select=id,full_name&status=eq.active"
-            
-            response = requests.get(url, headers=headers)
-            if response.status_code != 200:
-                print(f"Error fetching users: {response.text}")
-                return
-
-            users = response.json()
-            # Sort by name
-            users.sort(key=lambda x: x.get('full_name') or "")
-            self.volunteer_map = {u['full_name']: u['id'] for u in users if u.get('full_name')}
-            
-            if self.volunteers_combo:
-                 self.volunteers_combo['values'] = list(self.volunteer_map.keys())
-        except Exception as e:
-            print("Error loading volunteers:", e)
-
-    def start_session(self):
-        selected_name = self.volunteers_combo.get()
-        if not selected_name:
-            messagebox.showwarning("Atención", "Por favor selecciona tu nombre.")
-            return
-            
-        user_id = self.volunteer_map[selected_name]
-        
-        # Calculate times (UTC)
-        now = datetime.now(timezone.utc)
-        limit = now + timedelta(minutes=20)
-        
-        try:
-            headers = {
-                "apikey": SUPABASE_KEY,
-                "Authorization": f"Bearer {SUPABASE_KEY}",
-                "Content-Type": "application/json",
-                "Prefer": "return=minimal"
-            }
-            # REST: PATCH /pcs_status?id=eq.{pc_id}
-            url = f"{SUPABASE_URL}/rest/v1/pcs_status?id=eq.{self.pc_id}"
-            
-            data = {
-                "estado": "ocupada",
-                "voluntario_id": user_id,
-                "inicio_sesion": now.isoformat(),
-                "tiempo_limite": limit.isoformat()
-            }
-            
-            response = requests.patch(url, headers=headers, json=data)
-            if response.status_code not in [200, 204]:
-                raise Exception(f"API Error: {response.text}")
-            
-            # Hide window immediately
-            self.show_view("hidden")
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo iniciar sesión: {e}")
-
-    def check_status(self):
-        try:
-            headers = {
-                "apikey": SUPABASE_KEY,
-                "Authorization": f"Bearer {SUPABASE_KEY}",
-                "Content-Type": "application/json"
-            }
-            # REST: GET /pcs_status?select=*&id=eq.{pc_id}
-            url = f"{SUPABASE_URL}/rest/v1/pcs_status?select=*&id=eq.{self.pc_id}"
-            
-            response = requests.get(url, headers=headers)
-            if response.status_code != 200:
-                print(f"Error checking status: {response.text}")
-                # Retry later
-                self.root.after(5000, self.check_status)
-                return
-
-            data = response.json()
-            pc_data = data[0] if data else None
-            
-            if not pc_data:
-                # If PC doesn't exist in DB, insert it
-                # REST: POST /pcs_status
-                insert_url = f"{SUPABASE_URL}/rest/v1/pcs_status"
-                requests.post(insert_url, headers=headers, json={"id": self.pc_id})
-                return
-
-            status = pc_data.get('estado', 'disponible')
-            
-            if status == 'disponible':
-                if not self.login_frame.winfo_viewable() or self.root.state() == 'withdrawn':
-                    self.load_volunteers()
-                    self.show_view("login")
-                    self.status_label.config(text="PC Disponible")
-
-            elif status == 'ocupada':
-                limit_str = pc_data.get('tiempo_limite')
-                if limit_str:
-                    limit_dt = datetime.fromisoformat(limit_str.replace('Z', '+00:00'))
-                    now_dt = datetime.now(timezone.utc)
-                    
-                    remaining = (limit_dt - now_dt).total_seconds()
-                    
-                    if remaining <= 0:
-                        # Time is UP!
-                        # We should show the React Overlay URL
-                        # Check if we already launched it? Hard to know. 
-                        # We can just show a blocking message here pointing to the browser.
-                        if self.root.state() == 'withdrawn':
-                           webbrowser.open(f"{APP_URL}/#/pc-overlay/{self.pc_id}")
-                           self.show_view("blocked")
-                           self.blocked_msg.config(text="¡Tiempo Terminado!\\nPor favor completa el reporte en el navegador.")
-                    elif remaining < 120:
-                         # Warning logic could go here (e.g. system notification)
-                         self.show_view("hidden")
-                    else:
-                        self.show_view("hidden")
-                else:
-                    self.show_view("hidden")
-
-            elif status in ['bloqueada', 'mantenimiento']:
-                self.show_view("blocked")
-                self.blocked_msg.config(text=f"PC {status.capitalize()}")
-
-        except Exception as e:
-            print(f"Error checking status: {e}")
-        
-        # Check again in 5 seconds
-        self.root.after(5000, self.check_status)
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Uso: python pc_blocker.py <PC_ID>")
-        sys.exit(1)
-        
-    pc_id = int(sys.argv[1])
-    
-    root = tk.Tk()
-    app = PCBlockerApp(root, pc_id)
-    root.mainloop()
-`;
-
-    const handleCopy = () => {
-        navigator.clipboard.writeText(scriptContent);
-        setCopied(true);
-        toast.success("Script copiado al portapapeles");
-        setTimeout(() => setCopied(false), 2000);
-    };
-
-    const downloadScript = () => {
-        const element = document.createElement("a");
-        const file = new Blob([scriptContent], { type: 'text/plain' });
-        element.href = URL.createObjectURL(file);
-        element.download = "pc_blocker.py";
-        document.body.appendChild(element); // Required for this to work in FireFox
-        element.click();
-        document.body.removeChild(element);
-    };
+    const [showTroubleshooting, setShowTroubleshooting] = useState(false);
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-900">
-            <header className="bg-white border-b border-gray-200">
-                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <h1 className="text-3xl font-bold text-gray-900">Configuración de Puesto de Trabajo</h1>
-                    <p className="mt-2 text-gray-600">Guía técnica para instalar y configurar el script de control de PC.</p>
+            <header className="bg-white border-b border-gray-200 mb-2">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="flex items-center gap-3 mb-2">
+                        <Chrome size={28} className="text-blue-600" />
+                        <h1 className="text-3xl font-bold text-gray-900">Configuración de PC del Stand</h1>
+                    </div>
+                    <p className="text-gray-500 text-base">
+                        Instalación de la Extensión de Chrome — Sin Python, sin dependencias.
+                    </p>
                 </div>
             </header>
 
-            <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+            <main className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
 
-                {/* Paso 1: Python */}
-                <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-                    <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">
-                            1
-                        </div>
-                        <div className="flex-1">
-                            <h2 className="text-xl font-semibold mb-2">Instalar Python</h2>
-                            <p className="text-gray-600 mb-4">
-                                Asegúrate de tener Python instalado en la computadora. Se recomienda la versión 3.10 o superior.
-                                Al instalar, marca la opción "Add Python to PATH".
-                            </p>
-                            <a
-                                href="https://www.python.org/downloads/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium"
-                            >
-                                Descargar Python <span className="ml-1">&rarr;</span>
-                            </a>
+                {/* Ventajas */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+                        <Layers size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm text-blue-800">
+                            <strong>Funciona en todo:</strong> Windows, ChromeOS Flex y Mac. Solo necesitás Chrome.
                         </div>
                     </div>
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
+                        <Zap size={20} className="text-green-500 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm text-green-800">
+                            <strong>Sin instalaciones:</strong> Solo copiá la carpeta del pendrive y cargala en Chrome.
+                        </div>
+                    </div>
+                    <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-start gap-3">
+                        <Clock size={20} className="text-purple-500 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm text-purple-800">
+                            <strong>Timer visible:</strong> El voluntario ve el tiempo restante en todo momento.
+                        </div>
+                    </div>
+                </div>
+
+                {/* Nota sobre PC ID */}
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+                    <AlertTriangle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-amber-800">
+                        <strong>¿Qué número de PC usar?</strong> El administrador del evento asigna un ID único a cada computadora (ej: PC 1, PC 2, PC 3...). Consultalo antes de continuar — lo vas a necesitar en el Paso 3.
+                    </div>
+                </div>
+
+                {/* Paso 1: Copiar la carpeta */}
+                <Step number={1} color="bg-blue-100 text-blue-600" title="Obtener la Extensión">
+                    <p className="text-gray-600 mb-3">
+                        La extensión ya está lista para usar. Copiá la carpeta <code className="bg-gray-100 px-1 rounded">chrome-extension/</code> a un <strong>pendrive USB</strong> o accedé a ella directamente desde la red si las PCs tienen acceso compartido.
+                    </p>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <p className="text-sm font-semibold text-gray-700 mb-2">La carpeta contiene:</p>
+                        <ul className="text-sm text-gray-600 space-y-1 font-mono">
+                            <li>📄 <span className="text-blue-700">manifest.json</span> — Configuración de la extensión</li>
+                            <li>⚙️ <span className="text-blue-700">background.js</span> — Control de sesión y Supabase</li>
+                            <li>🖥️ <span className="text-blue-700">content.js / content.css</span> — Overlay y timer flotante</li>
+                            <li>🪟 <span className="text-blue-700">popup.html / popup.js</span> — Panel de control</li>
+                            <li>🖼️ <span className="text-blue-700">icons/</span> — Íconos de la extensión</li>
+                        </ul>
+                    </div>
+                </Step>
+
+                {/* Paso 2: Cargar en Chrome */}
+                <Step number={2} color="bg-indigo-100 text-indigo-600" title="Cargar la Extensión en Chrome">
+                    <p className="text-gray-600 mb-4">
+                        En cada PC del stand, seguí estos pasos para instalar la extensión:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-4 text-sm text-gray-700">
+                        <li>
+                            Abrí Chrome y navegá a:
+                            <div className="mt-1">
+                                <CodeBlock code="chrome://extensions" />
+                            </div>
+                        </li>
+                        <li>
+                            Activá el <strong>"Modo desarrollador"</strong> usando el toggle en la <strong>esquina superior derecha</strong> de la página.
+                        </li>
+                        <li>
+                            Hacé clic en el botón <strong>"Cargar extensión sin empaquetar"</strong> que aparece a la izquierda.
+                        </li>
+                        <li>
+                            Navegá hasta la carpeta <code className="bg-gray-100 px-1 rounded">chrome-extension/</code> y hacé clic en <strong>"Seleccionar carpeta"</strong>.
+                        </li>
+                        <li>
+                            La extensión aparece en la lista con el nombre <strong>"PC Stand Controller"</strong>. ✅
+                        </li>
+                    </ol>
+                    <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+                        ✅ El ícono 💻 de la extensión aparece en la barra de herramientas de Chrome (puede estar dentro del menú de extensiones 🧩).
+                    </div>
+                </Step>
+
+                {/* Paso 3: Configurar PC ID */}
+                <Step number={3} color="bg-green-100 text-green-600" title="Configurar el Número de PC">
+                    <p className="text-gray-600 mb-4">
+                        Una vez instalada, ingresá el número de PC que el administrador te asignó:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-3 text-sm text-gray-700">
+                        <li>
+                            Hacé clic en el ícono 💻 de la extensión en la barra de Chrome (o en el menú 🧩).
+                        </li>
+                        <li>
+                            Aparece el panel de control. En el campo <strong>"Número de PC"</strong>, ingresá el número asignado (ej: <code className="bg-gray-100 px-1 rounded">1</code>).
+                        </li>
+                        <li>
+                            Hacé clic en <strong>"Guardar"</strong>.
+                        </li>
+                    </ol>
+                    <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                        🎉 ¡Listo! La extensión se activa inmediatamente. Si la PC está disponible, verás el formulario de login de voluntario cubriendo la pantalla. Si está ocupada, verás el timer flotante.
+                    </div>
+                </Step>
+
+                {/* Paso 4: Cómo se usa */}
+                <Step number={4} color="bg-purple-100 text-purple-600" title="Flujo de Uso (para el día del evento)">
+                    <div className="space-y-4">
+                        <div className="flex gap-3">
+                            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">A</div>
+                            <div>
+                                <p className="font-semibold text-gray-800 text-sm">PC Disponible</p>
+                                <p className="text-sm text-gray-600">La extensión bloquea la pantalla y muestra el selector de voluntario. El voluntario elige su nombre y hace clic en "Iniciar Sesión (20 min)".</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">B</div>
+                            <div>
+                                <p className="font-semibold text-gray-800 text-sm">Sesión Activa</p>
+                                <p className="text-sm text-gray-600">El overlay desaparece y el voluntario puede navegar libremente en FamilySearch. Un <strong>timer flotante</strong> en la esquina inferior derecha muestra el tiempo restante.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">C</div>
+                            <div>
+                                <p className="font-semibold text-gray-800 text-sm">Tiempo Expirado</p>
+                                <p className="text-sm text-gray-600">La extensión vuelve a bloquear la pantalla con el formulario de reporte. El voluntario puede pedir <strong>+5 minutos</strong> o completar el reporte y liberar la PC.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center text-xs font-bold">D</div>
+                            <div>
+                                <p className="font-semibold text-gray-800 text-sm">Reporte Enviado</p>
+                                <p className="text-sm text-gray-600">La PC queda libre y vuelve al estado "Disponible" para el siguiente voluntario.</p>
+                            </div>
+                        </div>
+                    </div>
+                </Step>
+
+                {/* Troubleshooting */}
+                <section className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+                    <button
+                        onClick={() => setShowTroubleshooting(prev => !prev)}
+                        className="w-full flex items-center justify-between p-6 text-left hover:bg-gray-50 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                                <AlertTriangle size={18} className="text-red-600" />
+                            </div>
+                            <span className="text-xl font-semibold">Solución de Problemas</span>
+                        </div>
+                        {showTroubleshooting ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+                    </button>
+                    {showTroubleshooting && (
+                        <div className="px-6 pb-6 border-t border-gray-100 pt-4 space-y-5">
+
+                            <div>
+                                <h3 className="font-semibold text-gray-800 mb-1">❌ El ícono de la extensión no aparece</h3>
+                                <p className="text-sm text-gray-600">Buscalo en el menú de extensiones (ícono 🧩 en la barra de Chrome). Podés fijarlo haciendo clic en el pin 📌 al lado de "PC Stand Controller".</p>
+                            </div>
+
+                            <div>
+                                <h3 className="font-semibold text-gray-800 mb-1">❌ El overlay no aparece en la PC</h3>
+                                <p className="text-sm text-gray-600">Verificá que la extensión esté activa (no desactivada) en <code className="bg-gray-100 px-1 rounded">chrome://extensions</code>. También asegurate de haber guardado el número de PC en el popup.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="font-semibold text-gray-800 mb-1">❌ "Error al conectar" al cargar voluntarios</h3>
+                                <p className="text-sm text-gray-600">La PC no tiene conexión a internet o Supabase no está disponible. Verificá la conexión de red e intentá de nuevo.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="font-semibold text-gray-800 mb-1">❌ La extensión no bloquea nuevas pestañas</h3>
+                                <p className="text-sm text-gray-600">El content script se injecta cuando la pestaña termina de cargar. Si el voluntario abre una nueva pestaña muy rápido, puede tardar 1-2 segundos en aparecer el overlay. Es normal.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="font-semibold text-gray-800 mb-1">❌ Necesito desactivar la extensión de urgencia</h3>
+                                <p className="text-sm text-gray-600">
+                                    Navegá a <code className="bg-gray-100 px-1 rounded">chrome://extensions</code> y desactivá "PC Stand Controller" temporalmente, o usá el popup para cambiar el número de PC a uno no registrado.
+                                </p>
+                            </div>
+
+                            <div>
+                                <h3 className="font-semibold text-gray-800 mb-1">❌ ChromeOS Flex no permite instalar extensiones no empaquetadas</h3>
+                                <p className="text-sm text-gray-600">
+                                    En algunos ChromeOS administrados, el modo desarrollador puede estar restringido. En ese caso, pedí al administrador del dominio que la publique en la Chrome Web Store privada, o usá una cuenta no administrada.
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </section>
 
-                {/* Paso 2: Dependencias */}
-                <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-                    <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-lg">
-                            2
-                        </div>
-                        <div className="flex-1 w-full">
-                            <h2 className="text-xl font-semibold mb-2">Instalar Dependencias</h2>
-                            <p className="text-gray-600 mb-4">
-                                Abre una terminal (CMD o PowerShell) y ejecuta el siguiente comando para instalar las librerías necesarias:
-                            </p>
-                            <div className="bg-gray-900 rounded-lg p-4 font-mono text-sm text-gray-300 flex items-center justify-between group">
-                                <span>pip install requests</span>
-                                <button
-                                    onClick={() => { navigator.clipboard.writeText("pip install requests"); toast.success("Copiado"); }}
-                                    className="p-1.5 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-white"
-                                    title="Copiar comando"
-                                >
-                                    <Copy size={16} />
-                                </button>
-                            </div>
-                            <div className="mt-2 flex items-center gap-2 text-sm text-amber-600 bg-amber-50 p-2 rounded">
-                                <Info size={16} />
-                                <span>Nota: 'tkinter' suele venir instalado por defecto con Python.</span>
-                            </div>
-                        </div>
+                {/* Resumen rápido */}
+                <section className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 mb-8">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Zap size={18} className="text-indigo-600" />
+                        <h3 className="font-semibold text-indigo-900">Resumen rápido (PC ya configurada)</h3>
                     </div>
-                </section>
-
-                {/* Paso 3: Script */}
-                <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-                    <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-lg">
-                            3
-                        </div>
-                        <div className="flex-1 w-full overflow-hidden">
-                            <h2 className="text-xl font-semibold mb-2">Descargar Script</h2>
-                            <p className="text-gray-600 mb-4">
-                                Descarga el script <code>pc_blocker.py</code> o copia el código fuente a un archivo con ese nombre.
-                            </p>
-
-                            <div className="flex gap-4 mb-4">
-                                <button
-                                    onClick={downloadScript}
-                                    className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium shadow-sm"
-                                >
-                                    <Download size={18} className="mr-2" />
-                                    Descargar Archivo .py
-                                </button>
-                                <button
-                                    onClick={handleCopy}
-                                    className={`inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-sm ${copied ? 'text-green-600 border-green-300' : ''}`}
-                                >
-                                    {copied ? <Check size={18} className="mr-2" /> : <Copy size={18} className="mr-2" />}
-                                    {copied ? 'Copiado!' : 'Copiar Código'}
-                                </button>
-                            </div>
-
-                            <details className="border rounded-lg bg-gray-50">
-                                <summary className="p-3 cursor-pointer font-medium text-gray-700 hover:text-gray-900 select-none">Ver código fuente</summary>
-                                <div className="p-4 bg-gray-900 overflow-x-auto border-t border-gray-200">
-                                    <pre className="text-gray-300 font-mono text-sm leading-relaxed">
-                                        {scriptContent}
-                                    </pre>
-                                </div>
-                            </details>
-                        </div>
-                    </div>
-                </section>
-
-                {/* Paso 4: Ejecutar */}
-                <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-                    <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-lg">
-                            4
-                        </div>
-                        <div className="flex-1 w-full">
-                            <h2 className="text-xl font-semibold mb-2">Ejecutar Script</h2>
-                            <p className="text-gray-600 mb-4">
-                                Para iniciar el bloqueo, ejecuta el script pasando el ID de la PC como argumento.
-                                <br />Reemplaza <code>&lt;ID&gt;</code> por el número de la PC (ej: 1, 2, 3..).
-                            </p>
-                            <div className="bg-gray-900 rounded-lg p-4 font-mono text-sm text-gray-300 flex items-center justify-between group">
-                                <span>python pc_blocker.py &lt;ID&gt;</span>
-                                <button
-                                    onClick={() => { navigator.clipboard.writeText("python pc_blocker.py "); toast.success("Copiado parcial"); }}
-                                    className="p-1.5 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-white"
-                                    title="Copiar comando"
-                                >
-                                    <Copy size={16} />
-                                </button>
-                            </div>
-                            <div className="mt-4 p-4 bg-yellow-50 text-yellow-800 rounded-lg flex items-start gap-3 text-sm">
-                                <Terminal size={18} className="mt-0.5 flex-shrink-0" />
-                                <div>
-                                    <strong>Tip Pro:</strong> Crea un acceso directo en el escritorio y edita sus propiedades para agregar el ID al final de la linea "Destino".
-                                    <br />Ejemplo: <code>python.exe C:\Ruta\pc_blocker.py 1</code>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <p className="text-sm text-indigo-800 mb-3">Si la extensión ya está instalada de una sesión anterior, solo verificá:</p>
+                    <ol className="list-decimal list-inside text-sm text-indigo-800 space-y-1">
+                        <li>Que Chrome esté abierto</li>
+                        <li>Que la extensión esté activa en <code className="bg-indigo-100 px-1 rounded">chrome://extensions</code></li>
+                        <li>Que el número de PC sea correcto (verificar en el popup 💻)</li>
+                    </ol>
                 </section>
 
             </main>

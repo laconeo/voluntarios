@@ -1,0 +1,55 @@
+/* Estilos mínimos inyectados junto al content script */
+/* La mayoría de los estilos del overlay se aplican via JS para evitar
+   conflictos con las CSS de los sitios donde se inyecta */
+
+#__pc-stand-overlay__ *,
+#__pc-stand-timer__ *,
+#__pc-toast__ * {
+  box-sizing: border-box;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif !important;
+}
+
+#__pc-stand-overlay__ select option {
+  background: #1a1a2e;
+  color: #fff;
+}
+
+#__pc-stand-overlay__ button:active {
+  transform: scale(0.97);
+}
+
+#__pc-stand-overlay__ button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes __pc-fadeIn__ {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+#__pc-stand-overlay__ > div {
+  animation: __pc-fadeIn__ 0.3s ease;
+}
+
+@keyframes __pc-slideInRight__ {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+#__pc-toast__ {
+  animation: __pc-slideInRight__ 0.3s ease !important;
+}
+
+/* Scrollbar del overlay */
+#__pc-stand-overlay__ > div::-webkit-scrollbar {
+  width: 6px;
+}
+#__pc-stand-overlay__ > div::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+}
+#__pc-stand-overlay__ > div::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 3px;
+}
