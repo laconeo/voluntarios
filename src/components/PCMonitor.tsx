@@ -2,15 +2,26 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { pcControlService } from '../services/pcControlService';
 import type { PCStatus } from '../types';
-import { Monitor, User, Clock, AlertTriangle, RefreshCw, Unlock } from 'lucide-react';
+import { Monitor, User, Clock, AlertTriangle, RefreshCw, Unlock, Calendar } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useParams } from 'react-router-dom';
+import { supabaseApi as mockApi } from '../services/supabaseApiService';
+import type { Event } from '../types';
 
 const PCMonitor: React.FC = () => {
     const [pcs, setPcs] = useState<PCStatus[]>([]);
     const [loading, setLoading] = useState(true);
+    const { eventSlug } = useParams<{ eventSlug: string }>();
+    const [eventData, setEventData] = useState<Event | null>(null);
 
     useEffect(() => {
         fetchPcs();
+
+        if (eventSlug) {
+            mockApi.getEventBySlug(eventSlug).then(data => {
+                if (data) setEventData(data);
+            });
+        }
 
         // Subscribe to realtime changes
         const channel = supabase
@@ -172,10 +183,22 @@ const PCMonitor: React.FC = () => {
 
     return (
         <div className="p-4">
-            <div className="mb-6 flex justify-between items-center">
+            <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Monitor de Stand</h2>
-                    <p className="text-gray-600 text-sm">Control de tiempo y disponibilidad de computadoras</p>
+                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                        <Monitor className="text-primary-600" />
+                        Monitor de Stand
+                    </h2>
+                    {eventData ? (
+                        <p className="text-gray-600 font-medium flex items-center gap-1 mt-1">
+                            {eventData.nombre}
+                            <span className="text-gray-400 text-sm ml-2 font-normal">
+                                {eventData.fechaInicio ? new Date(eventData.fechaInicio).toLocaleDateString() : ''}
+                            </span>
+                        </p>
+                    ) : (
+                        <p className="text-gray-600 text-sm mt-1">Control de tiempo y disponibilidad de computadoras</p>
+                    )}
                 </div>
                 <div className="flex gap-2">
                     <div className="flex items-center gap-1 text-xs">

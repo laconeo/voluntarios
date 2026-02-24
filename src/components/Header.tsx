@@ -1,6 +1,6 @@
 import React from 'react';
 import type { User } from '../types';
-import { LogOut, User as UserIcon, TreePine } from 'lucide-react';
+import { LogOut, User as UserIcon, TreePine, MessageCircle } from 'lucide-react';
 
 interface HeaderProps {
   user: User | null;
@@ -33,13 +33,29 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onProfileClick, onLogoC
                 </div>
                 <span className="font-normal font-sans text-sm text-fs-text">{user.fullName}</span>
               </button>
+
+              <div className="h-6 w-px bg-gray-200 hidden sm:block"></div> {/* Separator */}
+
+              <a
+                href="https://laconeo.github.io/centro-virtual/"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Ayuda por un misionero de servicio"
+                className="flex items-center space-x-1 font-semibold text-[#8CB83E] hover:text-[#7ba135] transition-colors"
+                aria-label="Ayuda por un misionero de servicio"
+              >
+                <MessageCircle size={22} />
+              </a>
+
+              <div className="h-6 w-px bg-gray-200 hidden sm:block"></div> {/* Separator */}
+
               <button
                 onClick={onLogout}
-                className="flex items-center text-sm font-semibold text-fs-blue hover:text-blue-800 hover:underline transition-colors focus:outline-none"
+                className="flex items-center font-semibold text-fs-blue hover:text-blue-800 transition-colors focus:outline-none cursor-pointer"
                 aria-label="Cerrar sesión"
+                title="Cerrar sesión"
               >
-                <LogOut size={16} className="mr-1" />
-                Salir
+                <LogOut size={22} />
               </button>
             </div>
           )}

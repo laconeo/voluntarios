@@ -24,7 +24,7 @@ const StakeManagement: React.FC<StakeManagementProps> = ({ eventId }) => {
             const data = await mockApi.getStakesByEvent(eventId);
             setStakes(data);
         } catch (error) {
-            toast.error('Error al cargar estacas');
+            toast.error('Error al cargar estacas/barrios');
         } finally {
             setIsLoading(false);
         }
@@ -32,7 +32,7 @@ const StakeManagement: React.FC<StakeManagementProps> = ({ eventId }) => {
 
     const handleAddStake = async () => {
         if (!newStakeName.trim()) {
-            toast.error('El nombre de la estaca es requerido');
+            toast.error('El nombre de la estaca/barrio es requerido');
             return;
         }
 
@@ -42,27 +42,27 @@ const StakeManagement: React.FC<StakeManagementProps> = ({ eventId }) => {
                 eventId,
                 name: newStakeName.trim(),
             });
-            toast.success('Estaca agregada exitosamente');
+            toast.success('Estaca/Barrio agregada exitosamente');
             setNewStakeName('');
             fetchStakes();
         } catch (error: any) {
-            toast.error(error.message || 'Error al agregar estaca');
+            toast.error(error.message || 'Error al agregar estaca/barrio');
         } finally {
             setIsAdding(false);
         }
     };
 
     const handleDeleteStake = async (stakeId: string) => {
-        if (!confirm('¿Estás seguro de eliminar esta estaca?')) {
+        if (!confirm('¿Estás seguro de eliminar esta estaca/barrio?')) {
             return;
         }
 
         try {
             await mockApi.deleteStake(stakeId);
-            toast.success('Estaca eliminada');
+            toast.success('Estaca/Barrio eliminada');
             fetchStakes();
         } catch (error: any) {
-            toast.error(error.message || 'Error al eliminar estaca');
+            toast.error(error.message || 'Error al eliminar estaca/barrio');
         }
     };
 
@@ -83,16 +83,16 @@ const StakeManagement: React.FC<StakeManagementProps> = ({ eventId }) => {
     return (
         <div className="space-y-6">
             <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Gestión de Estacas</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Gestión de Estacas / Barrios</h3>
                 <p className="text-sm text-gray-500">
-                    Agrega las estacas involucradas en este evento.
+                    Agrega las estacas/barrios involucrados en este evento.
                 </p>
             </div>
 
             {/* Add New Stake */}
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Agregar Nueva Estaca
+                    Agregar Nueva Estaca / Barrio
                 </label>
                 <div className="flex gap-2">
                     <input
@@ -100,7 +100,7 @@ const StakeManagement: React.FC<StakeManagementProps> = ({ eventId }) => {
                         value={newStakeName}
                         onChange={(e) => setNewStakeName(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        placeholder="Nombre de la estaca"
+                        placeholder="Nombre de la estaca/barrio"
                         className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#8CB83E] focus:border-[#8CB83E]"
                         disabled={isAdding}
                     />
@@ -121,10 +121,10 @@ const StakeManagement: React.FC<StakeManagementProps> = ({ eventId }) => {
                     <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
                         <AlertCircle className="mx-auto h-12 w-12 text-gray-300 mb-3" />
                         <h3 className="text-sm font-medium text-gray-900 mb-1">
-                            No hay estacas registradas
+                            No hay estacas/barrios registrados
                         </h3>
                         <p className="text-sm text-gray-500">
-                            Comienza agregando la primera estaca para este evento.
+                            Comienza agregando la primera estaca/barrio para este evento.
                         </p>
                     </div>
                 ) : (
@@ -186,10 +186,10 @@ const StakeManagement: React.FC<StakeManagementProps> = ({ eventId }) => {
                         <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 mr-3" />
                         <div>
                             <h4 className="text-sm font-medium text-blue-900">
-                                Total de estacas: {stakes.length}
+                                Total de estacas/barrios: {stakes.length}
                             </h4>
                             <p className="text-sm text-blue-700 mt-1">
-                                Estas estacas están asociadas a este evento.
+                                Estas estacas/barrios están asociadas a este evento.
                             </p>
                         </div>
                     </div>

@@ -184,7 +184,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
     setFormData(prev => ({ ...prev, [name]: val }));
   };
 
-  const isFormValid = agreed && formData.isOver18 && formData.isMember;
+  const isFormValid = agreed && formData.isOver18 && formData.isMember && formData.stakeId;
 
   const inputClasses = "w-full px-3 py-2.5 bg-white border border-fs-border rounded-fs focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-fs-text placeholder-gray-400 transition-colors";
   const labelClasses = "block text-sm font-semibold text-gray-600 mb-1.5";
@@ -354,11 +354,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
               </div>
             </div>
             <div>
-              <label className={labelClasses}>Estaca</label>
+              <label className={labelClasses}>Estaca / Barrio</label>
               <div className="relative">
                 <select name="stakeId" value={formData.stakeId || ''} onChange={handleInputChange}
-                  className={`${inputClasses} appearance-none`}>
-                  <option value="">Selecciona tu estaca (opcional)</option>
+                  className={`${inputClasses} appearance-none`} required>
+                  <option value="">Selecciona tu Estaca/Barrio</option>
                   {stakes.map(stake => (
                     <option key={stake.id} value={stake.id}>{stake.name}</option>
                   ))}
@@ -445,7 +445,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
                     ? "Debes ser mayor de 18 años para continuar"
                     : !formData.isMember
                       ? "Debes ser miembro de la iglesia para continuar"
-                      : "Finalizar Registro"}
+                      : !formData.stakeId
+                        ? "Selecciona tu Estaca/Barrio"
+                        : "Finalizar Registro"}
             </button>
           </div>
         </form>

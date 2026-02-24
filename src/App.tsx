@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
 import type { User, Event } from './types';
 import { supabaseApi as mockApi } from './services/supabaseApiService';
 import VolunteerPortal from './components/VolunteerPortal';
@@ -10,6 +10,7 @@ import Login from './components/Login';
 import ResetPassword from './components/ResetPassword';
 import PCOverlay from './components/PCOverlay';
 import PCSetupInstructions from './components/PCSetupInstructions';
+import PCMonitor from './components/PCMonitor';
 import { supabase } from './lib/supabaseClient';
 import Header from './components/Header';
 import UserProfile from './components/UserProfile';
@@ -172,6 +173,8 @@ const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<'portal' | 'profile' | 'admin'>('portal');
   const navigate = useNavigate();
+  const locationObj = useLocation();
+  const isStandMonitor = locationObj.pathname.includes('/stand-monitor');
 
   useEffect(() => {
     // Listen for Password Recovery event
@@ -266,18 +269,20 @@ const AppContent: React.FC = () => {
           fontFamily: '"Noto Sans", sans-serif'
         }
       }} />
-      <div className="print:hidden">
-        <Header
-          user={currentUser}
-          onLogout={currentUser ? handleLogout : undefined}
-          onProfileClick={() => setCurrentView('profile')}
-          onLogoClick={() => {
-            setCurrentView('portal');
-            navigate('/');
-          }}
-        />
-      </div>
-      <main className="sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      {!isStandMonitor && (
+        <div className="print:hidden">
+          <Header
+            user={currentUser}
+            onLogout={currentUser ? handleLogout : undefined}
+            onProfileClick={() => setCurrentView('profile')}
+            onLogoClick={() => {
+              setCurrentView('portal');
+              navigate('/');
+            }}
+          />
+        </div>
+      )}
+      <main className={isStandMonitor ? 'w-full' : 'sm:p-6 lg:p-8 max-w-7xl mx-auto'}>
         {currentView === 'profile' && currentUser ? (
           <UserProfile user={currentUser} onUpdate={handleUpdateProfile} onCancel={() => setCurrentView('portal')} />
         ) : (
@@ -302,6 +307,8 @@ const AppContent: React.FC = () => {
             <Route path="/pc-overlay/:pcId" element={<PCOverlay />} />
 
             <Route path="/pc-setup" element={<PCSetupInstructions />} />
+
+            <Route path="/:eventSlug/stand-monitor" element={<PCMonitor />} />
 
             {/* Dynamic Event Route */}
             <Route path="/:eventSlug" element={

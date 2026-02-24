@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { User, Event, Shift, Booking, Role } from '../types';
-import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown, Utensils } from 'lucide-react';
+import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown, Utensils, Monitor } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
@@ -334,18 +334,9 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
     if (isLoading) return <div className="p-8 text-center">Cargando...</div>;
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="bg-white shadow print:hidden">
-                <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                    <h1 className="text-2xl font-bold text-gray-900">Panel de Coordinador</h1>
-                    <div className="flex items-center gap-4">
-                        <span className="text-gray-600">Hola, {user.fullName}</span>
-                        <button onClick={onLogout} className="text-sm text-red-600 hover:text-red-800">Cerrar Sesión</button>
-                    </div>
-                </div>
-            </div>
-
+        <div className="min-h-screen bg-transparent">
             <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 lg:pb-8 pb-32">
+                <h1 className="text-3xl font-bold text-gray-900 mb-8 print:hidden">Panel de Coordinador</h1>
                 {/* Print Header */}
                 <div className="hidden print:block mb-8">
                     <h1 className="text-2xl font-bold text-gray-900 mb-2">Listado de Voluntarios</h1>
@@ -403,48 +394,61 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                             />
                         </div>
 
-                        {/* Desktop Action Buttons - Dropdown */}
-                        <div className="hidden lg:relative lg:block">
+                        {/* Desktop Action Buttons */}
+                        <div className="hidden lg:flex lg:items-center lg:gap-2">
                             <button
-                                onClick={() => setShowActionsMenu(!showActionsMenu)}
-                                className="flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium shadow-sm"
+                                onClick={() => {
+                                    const evt = events.find(e => e.id === selectedEventId);
+                                    if (evt) window.open(`/#/${evt.slug}/stand-monitor`, '_blank');
+                                }}
+                                className="flex items-center px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors font-medium shadow-sm"
                             >
-                                Acciones
-                                <ChevronDown size={16} className="ml-2" />
+                                <Monitor size={16} className="mr-2" />
+                                Monitor de Stand
                             </button>
 
-                            {showActionsMenu && (
-                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
-                                    <button
-                                        onClick={() => { handleShareWhatsApp(); setShowActionsMenu(false); }}
-                                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                    >
-                                        <Share2 size={16} className="mr-2 text-green-600" />
-                                        WhatsApp
-                                    </button>
-                                    <button
-                                        onClick={() => { handleDownloadPDF(); setShowActionsMenu(false); }}
-                                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                    >
-                                        <FileText size={16} className="mr-2 text-indigo-600" />
-                                        Descargar PDF
-                                    </button>
-                                    <button
-                                        onClick={() => { handlePrint(); setShowActionsMenu(false); }}
-                                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                    >
-                                        <Printer size={16} className="mr-2 text-gray-600" />
-                                        Imprimir
-                                    </button>
-                                    <button
-                                        onClick={() => { exportToCSV(); setShowActionsMenu(false); }}
-                                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                    >
-                                        <Download size={16} className="mr-2 text-green-700" />
-                                        Exportar Excel
-                                    </button>
-                                </div>
-                            )}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowActionsMenu(!showActionsMenu)}
+                                    className="flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium shadow-sm"
+                                >
+                                    Acciones
+                                    <ChevronDown size={16} className="ml-2" />
+                                </button>
+
+                                {showActionsMenu && (
+                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                                        <button
+                                            onClick={() => { handleShareWhatsApp(); setShowActionsMenu(false); }}
+                                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                        >
+                                            <Share2 size={16} className="mr-2 text-green-600" />
+                                            WhatsApp
+                                        </button>
+                                        <button
+                                            onClick={() => { handleDownloadPDF(); setShowActionsMenu(false); }}
+                                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                        >
+                                            <FileText size={16} className="mr-2 text-indigo-600" />
+                                            Descargar PDF
+                                        </button>
+                                        <button
+                                            onClick={() => { handlePrint(); setShowActionsMenu(false); }}
+                                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                        >
+                                            <Printer size={16} className="mr-2 text-gray-600" />
+                                            Imprimir
+                                        </button>
+                                        <button
+                                            onClick={() => { exportToCSV(); setShowActionsMenu(false); }}
+                                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                        >
+                                            <Download size={16} className="mr-2 text-green-700" />
+                                            Exportar Excel
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -701,6 +705,19 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 {/* Mobile Menu Dropup */}
                 {showMobileMenu && (
                     <div className="border-b border-gray-200 bg-gray-50 animate-in slide-in-from-bottom duration-200">
+                        <button
+                            onClick={() => {
+                                const evt = events.find(e => e.id === selectedEventId);
+                                if (evt) window.open(`/#/${evt.slug}/stand-monitor`, '_blank');
+                                setShowMobileMenu(false);
+                            }}
+                            className="flex items-center w-full px-6 py-4 text-gray-700 hover:bg-gray-100 border-b border-gray-200"
+                        >
+                            <div className="bg-blue-100 p-2 rounded-full mr-3">
+                                <Monitor size={20} className="text-blue-600" />
+                            </div>
+                            <span className="font-medium">Ver Monitor de Stand</span>
+                        </button>
                         <button
                             onClick={() => { handleDownloadPDF(); setShowMobileMenu(false); }}
                             className="flex items-center w-full px-6 py-4 text-gray-700 hover:bg-gray-100 border-b border-gray-200"

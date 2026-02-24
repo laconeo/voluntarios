@@ -282,7 +282,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     'Rol': getRoleLabel(v.role),
                     'Turnos Asignados': userBookings.length,
                     'Estado': v.status || 'active',
-                    'Estaca': getStakeName(v.stakeId)
+                    'Estaca / Barrio': getStakeName(v.stakeId)
                 };
             });
 
@@ -370,7 +370,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     };
 
     const getStakeName = (stakeId?: string) => {
-        return stakes.find(s => s.id === stakeId)?.name || 'Sin Estaca';
+        return stakes.find(s => s.id === stakeId)?.name || 'Sin Estaca/Barrio';
     };
 
     // Summary Generation Logic
@@ -956,14 +956,15 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Estaca
+                                        Estaca / Barrio
                                     </label>
                                     <select
                                         value={editingUser.stakeId || ''}
                                         onChange={(e) => setEditingUser({ ...editingUser, stakeId: e.target.value })}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        required
                                     >
-                                        <option value="">Seleccionar estaca...</option>
+                                        <option value="">Seleccionar Estaca/Barrio...</option>
                                         {stakes.map(stake => (
                                             <option key={stake.id} value={stake.id}>{stake.name}</option>
                                         ))}

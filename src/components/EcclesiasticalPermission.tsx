@@ -65,7 +65,7 @@ const EcclesiasticalPermission: React.FC<EcclesiasticalPermissionProps> = ({ eve
             const dataToExport = filteredVolunteers.map(v => ({
                 'Nombre Completo': v.fullName,
                 'DNI': v.dni,
-                'Estaca': getStakeName(v.stakeId),
+                'Estaca / Barrio': getStakeName(v.stakeId),
                 'Email': v.email,
                 'Teléfono': v.phone,
                 'Estado Permiso': v.ecclesiasticalPermission === 'verified' ? 'VERIFICADO' :
@@ -95,7 +95,7 @@ const EcclesiasticalPermission: React.FC<EcclesiasticalPermissionProps> = ({ eve
     });
 
     const getStakeName = (stakeId?: string) => {
-        return stakes.find(s => s.id === stakeId)?.name || 'Sin Estaca';
+        return stakes.find(s => s.id === stakeId)?.name || 'Sin Estaca/Barrio';
     };
 
     const stats = {
@@ -176,7 +176,7 @@ const EcclesiasticalPermission: React.FC<EcclesiasticalPermissionProps> = ({ eve
                             value={selectedStake}
                             onChange={(e) => setSelectedStake(e.target.value)}
                         >
-                            <option value="all">Todas las Estacas</option>
+                            <option value="all">Todas las Estacas/Barrios</option>
                             {stakes.map(stake => (
                                 <option key={stake.id} value={stake.id}>{stake.name}</option>
                             ))}
@@ -215,7 +215,7 @@ const EcclesiasticalPermission: React.FC<EcclesiasticalPermissionProps> = ({ eve
                             <tr className="bg-gray-50 border-b border-gray-200">
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Voluntario</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">DNI</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Estaca</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Estaca / Barrio</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Contacto</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Permiso</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Acciones</th>
