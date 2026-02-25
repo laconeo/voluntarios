@@ -21,7 +21,7 @@ const sendEmail = async (payload: EmailPayload) => {
     const templateParams = {
         email: payload.to[0].email,
         to_name: payload.to[0].name,
-        subject: payload.subject,
+        subject: `Voluntarios FamilySearch - ${payload.subject}`,
         html_content: payload.htmlContent,
     };
 
@@ -52,17 +52,17 @@ const sendEmail = async (payload: EmailPayload) => {
 export const emailService = {
     // 1. Registro (CU-01)
     sendWelcomeEmail: async (user: User, password?: string) => {
-        const subject = "¡Bienvenido al equipo de voluntarios de FamilySearch!";
+        const subject = "¡Bienvenido al equipo!";
         const htmlContent = `
       <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #4f46e5;">¡Bienvenido, ${user.fullName.split(' ')[0]}!</h1>
+        <h1 style="color: #8CB83E;">¡Bienvenido, ${user.fullName.split(' ')[0]}!</h1>
         <p>Gracias por unirte a nuestro equipo de voluntarios. Estamos emocionados de contar contigo.</p>
         
         ${password ? `
         <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <p style="margin: 0; font-weight: bold;">Tus credenciales de acceso:</p>
           <p style="margin: 10px 0;">📧 Email: ${user.email}</p>
-          <p style="margin: 0;">🔑 Contraseña: <strong style="font-size: 1.2em; color: #4f46e5;">${password}</strong></p>
+          <p style="margin: 0;">🔑 Contraseña: <strong style="font-size: 1.2em; color: #8CB83E;">${password}</strong></p>
         </div>
         <p>Por favor, guarda esta contraseña en un lugar seguro. Podrás usarla para ingresar al portal y gestionar tus turnos.</p>
         ` : `
@@ -70,7 +70,7 @@ export const emailService = {
         `}
 
         <div style="text-align: center; margin-top: 30px;">
-          <a href="${window.location.origin}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Ir al Portal</a>
+          <a href="https://laconeo.github.io/voluntarios/" style="background-color: #8CB83E; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Ir al Portal</a>
         </div>
       </div>
     `;
@@ -135,10 +135,9 @@ export const emailService = {
       <p><strong>Agendar:</strong> <a href="${googleUrl}" target="_blank">Agregar a Google Calendar</a> | <a href="${outlookUrl}" target="_blank">Outlook</a></p>
       
       <div style="margin: 20px 0;">
-        <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir a la Aplicación</a>
+        <a href="https://laconeo.github.io/voluntarios/" style="background-color: #8CB83E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir a la Aplicación</a>
       </div>
 
-      <p>Por favor, llega 15 minutos antes de tu horario.</p>
     `;
         await sendEmail({
             to: [{ email: user.email, name: user.fullName }],
@@ -185,7 +184,7 @@ export const emailService = {
             <p><strong>Por lo tanto, tu turno sigue vigente.</strong></p>
             <p>Si tienes alguna duda, por favor comunícate con tu coordinador.</p>
             <div style="margin: 20px 0;">
-                <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Revisar mis Turnos</a>
+                <a href="https://laconeo.github.io/voluntarios/" style="background-color: #8CB83E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Revisar mis Turnos</a>
             </div>
         `;
         await sendEmail({
@@ -253,7 +252,7 @@ export const emailService = {
       <p>Esperamos contar contigo nuevamente.</p>
       <p><em>"Cuando estamos al servicio de nuestros semejantes, solo estamos al servicio de nuestro Dios."</em></p>
       <div style="margin: 20px 0;">
-         <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Portal</a>
+         <a href="https://laconeo.github.io/voluntarios/" style="background-color: #8CB83E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Portal</a>
       </div>
      `;
         await sendEmail({
@@ -276,7 +275,7 @@ export const emailService = {
       </div>
       <p>Te echamos de menos en el equipo y esperamos verte en una próxima oportunidad.</p>
       <div style="margin: 20px 0;">
-         <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Revisar mis turnos</a>
+         <a href="https://laconeo.github.io/voluntarios/" style="background-color: #8CB83E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Revisar mis turnos</a>
       </div>
      `;
         await sendEmail({
@@ -300,7 +299,7 @@ export const emailService = {
       <p>Ya no tienes este compromiso asignado en tu calendario.</p>
       <p>Si crees que esto es un error, por favor contacta a tu coordinador.</p>
       <div style="margin: 20px 0;">
-         <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ver mis turnos actuales</a>
+         <a href="https://laconeo.github.io/voluntarios/" style="background-color: #8CB83E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ver mis turnos actuales</a>
       </div>
      `;
         await sendEmail({
@@ -312,7 +311,7 @@ export const emailService = {
 
     // 9. Recuperación de Contraseña (Solicitado por User)
     sendPasswordRecovery: async (user: User) => {
-        const subject = "Recuperación de Contraseña - Voluntarios";
+        const subject = "Recuperación de Contraseña";
         const htmlContent = `
             <h1>Hola ${user.fullName.split(' ')[0]}</h1>
             <p>Has solicitado recuperar tu contraseña para acceder al sistema de gestión de voluntarios.</p>
@@ -322,7 +321,7 @@ export const emailService = {
             </div>
             <p>Te recomendamos eliminar este correo después de iniciar sesión por seguridad.</p>
             <div style="margin: 20px 0;">
-                 <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir a Iniciar Sesión</a>
+                 <a href="https://laconeo.github.io/voluntarios/" style="background-color: #8CB83E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir a Iniciar Sesión</a>
             </div>
         `;
         await sendEmail({
@@ -334,7 +333,7 @@ export const emailService = {
 
     // 10. Envío de credenciales para Admin/Coordinador
     sendAdminCredentials: async (user: User, passwordStr: string) => {
-        const subject = "Asignación de Rol y Credenciales - Voluntarios";
+        const subject = "Asignación de Rol y Credenciales";
         const roleLabel = user.role === 'admin' ? 'Administrador' : user.role === 'coordinator' ? 'Coordinador' : 'Usuario';
 
         const htmlContent = `
@@ -347,7 +346,7 @@ export const emailService = {
             </div>
             <p>Por favor, ingresa al sistema y gestiona tus tareas.</p>
             <div style="margin: 20px 0;">
-                 <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ingresar al Sistema</a>
+                 <a href="https://laconeo.github.io/voluntarios/" style="background-color: #8CB83E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ingresar al Sistema</a>
             </div>
         `;
         await sendEmail({
@@ -378,7 +377,7 @@ export const emailService = {
                 </ul>
             </div>
             <div style="margin: 20px 0;">
-                 <a href="${window.location.origin}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Panel de Administración</a>
+                 <a href="https://laconeo.github.io/voluntarios/" style="background-color: #8CB83E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Panel de Administración</a>
             </div>
         `;
 

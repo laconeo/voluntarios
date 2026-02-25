@@ -142,7 +142,7 @@ const MaterialDeliveryList: React.FC<MaterialDeliveryListProps> = ({ eventId, on
         const doc = new jsPDF();
 
         doc.setFontSize(18);
-        doc.text('Entrega de Materiales', 14, 22);
+        doc.text('Voluntarios FamilySearch - Entrega de Materiales', 14, 22);
 
         // Subtitle with filters info
         doc.setFontSize(10);
@@ -161,6 +161,7 @@ const MaterialDeliveryList: React.FC<MaterialDeliveryListProps> = ({ eventId, on
             head: [['Voluntario', 'Talle', ...visibleMaterials.map(m => m.name)]],
             body: tableData,
             startY: 35,
+            headStyles: { fillColor: [140, 184, 62], textColor: 255 }
         });
 
         doc.save(`entrega-materiales-${selectedMaterialId !== 'all' ? 'filtrado' : 'completo'}.pdf`);

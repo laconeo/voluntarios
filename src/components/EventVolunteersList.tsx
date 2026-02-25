@@ -437,7 +437,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
         doc.setFontSize(20);
         doc.setTextColor(17, 24, 39);
-        doc.text("Recordatorio de Asignaciones", 14, 20);
+        doc.text("Voluntarios FamilySearch - Resumen de asignaciones", 14, 20);
 
         // Event Info in Header
         doc.setFontSize(14);
@@ -476,7 +476,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             head: [tableColumn],
             body: warningBookings,
             theme: 'grid',
-            headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+            headStyles: { fillColor: [140, 184, 62], textColor: 255 },
             styles: { fontSize: 10, cellPadding: 3 },
             alternateRowStyles: { fillColor: [249, 250, 251] }
         });

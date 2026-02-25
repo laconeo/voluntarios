@@ -17,7 +17,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onProfileClick, onLogoC
           <div className="flex items-center gap-2 cursor-pointer" onClick={onLogoClick}>
             <div className="flex flex-col">
               <h1 className="text-[20px] text-[#8CB83E] font-serif tracking-tight font-bold leading-tight">
-                Sistema de Gestión de Voluntarios (SGV)
+                Voluntarios FamilySearch
               </h1>
               <span className="text-sm text-gray-500 font-sans">
                 Centro Virtual

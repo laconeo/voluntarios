@@ -199,7 +199,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
         doc.rect(0, 0, 210, 30, 'F');
         doc.setFontSize(16);
         doc.setTextColor(17, 24, 39);
-        doc.text("Planilla de Asistencia", 14, 15);
+        doc.text("Voluntarios FamilySearch - Resumen de asignaciones", 14, 15);
 
         doc.setFontSize(10);
         doc.setTextColor(55, 65, 81);
@@ -243,7 +243,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 head: [tableColumn],
                 body: tableRows,
                 theme: 'grid', // 'striped', 'grid', 'plain'
-                headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+                headStyles: { fillColor: [140, 184, 62], textColor: 255 },
                 styles: { fontSize: 9, cellPadding: 2 },
                 // @ts-ignore
                 didDrawPage: (data) => {

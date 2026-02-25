@@ -465,10 +465,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
 
   return (
     <div className="max-w-md mx-auto mt-16 px-4">
-      <div className="bg-white p-10 rounded-lg shadow-card border border-fs-border text-center">
-        <div className="mb-8">
-          <h2 className="text-3xl font-serif text-fs-text mb-3">Bienvenido</h2>
-          <p className="text-fs-meta text-sm">Portal de Voluntarios para servir en evento</p>
+      <div className="bg-white px-10 pb-10 pt-6 rounded-lg shadow-card border border-fs-border text-center">
+        <div className="mb-6 flex flex-col items-center">
+          <img
+            src={`${import.meta.env.BASE_URL}FamilySearch-logo.png`}
+            alt="FamilySearch Logo"
+            className="w-48 sm:w-64 h-auto object-contain mb-1"
+          />
+          <p className="text-fs-meta text-sm">Portal del Voluntario para servir en {selectedEvent ? selectedEvent.nombre : 'eventos'}</p>
         </div>
 
         <form onSubmit={handleIdentifierSubmit} className="space-y-6">

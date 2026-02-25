@@ -458,7 +458,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
     doc.setFillColor(243, 244, 246);
     doc.rect(0, 0, 210, 40, 'F');
     doc.setFontSize(22);
-    doc.text("Resumen de Asignaciones", 14, 25);
+    doc.text("Voluntarios FamilySearch - Resumen de asignaciones", 14, 25);
     let yPos = 55;
     doc.setFontSize(14);
     doc.text(event?.nombre || 'Evento', 14, yPos);
@@ -477,7 +477,12 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
       booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'
     ]);
 
-    autoTable(doc, { startY: yPos, head: [tableColumn], body: tableRows });
+    autoTable(doc, {
+      startY: yPos,
+      head: [tableColumn],
+      body: tableRows,
+      headStyles: { fillColor: [140, 184, 62], textColor: 255 }
+    });
     doc.save(`resumen_voluntariado_${event?.slug || 'evento'}.pdf`);
     toast.success('PDF descargado correctamente');
   };
