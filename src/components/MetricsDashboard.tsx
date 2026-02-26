@@ -8,9 +8,10 @@ import Modal from './Modal';
 
 interface MetricsDashboardProps {
     eventId: string;
+    onNavigateToVolunteers?: () => void;
 }
 
-const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
+const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId, onNavigateToVolunteers }) => {
     const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
     const [event, setEvent] = useState<Event | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -358,8 +359,26 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                     <p className="text-sm text-gray-600 mb-1">Pendientes</p>
                     <div className="flex items-baseline gap-3">
                         <div>
-                            <p className="text-2xl font-bold text-gray-900">{metrics.waitlistCount}</p>
-                            <p className="text-xs text-gray-500">en espera</p>
+                            <p className="text-2xl font-bold text-gray-900">{metrics.pendingCoordinatorRequests || 0}</p>
+                            <p className="text-xs text-gray-500">coordinadores en espera</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    onClick={onNavigateToVolunteers || handleViewCancellations}
+                    className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border cursor-pointer hover:bg-gray-50 hover:shadow-md transition-all"
+                >
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-red-100 rounded-lg">
+                            <AlertCircle className="text-red-600" size={24} />
+                        </div>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-1">Bajas Solicitadas</p>
+                    <div className="flex items-baseline gap-3">
+                        <div>
+                            <p className="text-2xl font-bold text-gray-900">{metrics.pendingCancellations || 0}</p>
+                            <p className="text-xs text-gray-500 text-red-600 font-medium mt-1">Ver detalles</p>
                         </div>
                     </div>
                 </div>
@@ -449,6 +468,8 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                 </div>
             </div>
 
+
+
             {/* Ocupación Diaria */}
             <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border">
                 <h3 className="font-serif text-lg text-fs-text mb-6">Ocupación por Día</h3>
@@ -483,35 +504,34 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId }) => {
                 </div>
             </div>
 
-            {/* Alertas */}
-            {(metrics.occupationPercentage < 30 || metrics.pendingCancellations > 0 || (metrics.pendingCoordinatorRequests || 0) > 0) && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 sm:p-6 rounded-lg">
-                    <div className="flex items-start gap-3">
-                        <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
-                        <div>
-                            <h4 className="font-semibold text-yellow-800 mb-2">Alertas del Sistema</h4>
-                            <ul className="text-sm text-yellow-700 space-y-1">
-                                {metrics.occupationPercentage < 30 && (
-                                    <li>• La ocupación general está por debajo del 30%. Considera promover más la convocatoria.</li>
-                                )}
-                                {metrics.pendingCancellations > 0 && (
-                                    <li>
-                                        • Hay {metrics.pendingCancellations} solicitudes de baja pendientes.{' '}
-                                        <button onClick={handleViewCancellations} className="underline font-semibold hover:text-yellow-900">
-                                            Revisar ahora
-                                        </button>
-                                    </li>
-                                )}
-                                {(metrics.pendingCoordinatorRequests || 0) > 0 && (
-                                    <li>
-                                        • Hay {metrics.pendingCoordinatorRequests} solicitudes de rol Coordinador pendientes.{' '}
-                                        <button onClick={handleViewCoordinatorRequests} className="underline font-semibold hover:text-yellow-900">
-                                            Revisar ahora
-                                        </button>
-                                    </li>
-                                )}
-                            </ul>
-                        </div>
+
+
+            {/* Ocupación por Estaca */}
+            {metrics.stakeDistribution && metrics.stakeDistribution.length > 0 && (
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-card border border-fs-border overflow-x-auto">
+                    <h3 className="font-serif text-lg text-fs-text mb-6">Participación por Estaca</h3>
+                    <div className="flex h-64 items-end gap-1 pb-2 min-w-max px-2 justify-start">
+                        {metrics.stakeDistribution.map((stake) => {
+                            const maxCount = Math.max(...metrics.stakeDistribution!.map(s => s.count));
+                            const percentage = maxCount > 0 ? (stake.count / maxCount) * 100 : 0;
+                            const totalOccupationPercentage = metrics.occupiedVacancies > 0 ? ((stake.count / metrics.occupiedVacancies) * 100).toFixed(1) : 0;
+
+                            return (
+                                <div key={stake.stakeName} className="flex flex-col items-center w-14 h-full justify-end flex-shrink-0">
+                                    <span className="text-sm font-bold text-gray-900 mb-1">{stake.count}</span>
+                                    <div className="w-10 bg-gray-100 rounded-t-md relative flex-1 flex flex-col justify-end overflow-hidden">
+                                        <div
+                                            className="w-full bg-primary-500 transition-all duration-500 hover:bg-primary-600"
+                                            style={{ height: `${percentage}%` }}
+                                        ></div>
+                                    </div>
+                                    <div className="mt-2 text-xs font-medium text-gray-700 text-center truncate max-w-full px-1" title={stake.stakeName}>
+                                        {stake.stakeName}
+                                    </div>
+                                    <span className="text-[10px] text-gray-500 mt-0.5">{totalOccupationPercentage}%</span>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}

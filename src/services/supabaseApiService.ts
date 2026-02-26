@@ -1327,6 +1327,7 @@ export const supabaseApi = {
         const { data: roles } = await supabase.from('roles').select('*').eq('event_id', eventId); // for names?
         const { data: users } = await supabase.from('users').select('*'); // Should filter by booked user ids for perf
         const { data: userMaterials } = await supabase.from('user_materials').select('user_id').eq('event_id', eventId);
+        const { data: stakes } = await supabase.from('stakes').select('*').eq('event_id', eventId);
 
         if (!shifts || !bookings || !roles || !users || !userMaterials) {
             // Return empty metrics?
@@ -1356,6 +1357,9 @@ export const supabaseApi = {
         // Pre-calculate occupancy including coordinators (deduplicated per shift)
         let totalOccupiedSlots = 0;
         const allOccupantIds = new Set<string>();
+
+        // Add anyone who has a confirmed booking for the event
+        bookings.forEach(b => allOccupantIds.add(b.user_id));
 
         shifts.forEach(shift => {
             const shiftBookings = bookings.filter(b => b.shift_id === shift.id);
@@ -1490,6 +1494,45 @@ export const supabaseApi = {
         const uniqueMaterialRecipients = new Set((userMaterials || []).map(m => m.user_id)).size;
         const materialsDeliveryPercentage = uniqueVolunteers > 0 ? Math.round((uniqueMaterialRecipients / uniqueVolunteers) * 100) : 0;
 
+        // Stake Distribution
+        const stakeDistributionMap = new Map<string, number>();
+
+        allOccupantIds.forEach(uid => {
+            const u = users.find(user => user.id === uid);
+            let stakeGroup = 'Desconocida';
+
+            if (u && u.stake_id) {
+                const stake = stakes?.find(s => s.id === u.stake_id);
+                if (stake) {
+                    let rawName = stake.name || '';
+                    const parts = rawName.split(/[/\\-]/);
+                    let baseName = parts[0].trim();
+
+                    // Remove "Estaca" from the beginning case-insensitively to group properly
+                    baseName = baseName.replace(/^estaca\s+/i, '');
+
+                    const barrioIndex = baseName.toLowerCase().indexOf('barrio');
+                    if (barrioIndex > 0) {
+                        baseName = baseName.substring(0, barrioIndex);
+                    }
+                    baseName = baseName.trim();
+
+                    // Convert to Title Case for consistent grouping
+                    stakeGroup = baseName.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase());
+                } else {
+                    stakeGroup = 'Desconocida';
+                }
+            }
+
+            if (!stakeGroup) stakeGroup = 'Desconocida';
+            stakeDistributionMap.set(stakeGroup, (stakeDistributionMap.get(stakeGroup) || 0) + 1);
+        });
+
+        const stakeDistribution: { stakeName: string; count: number }[] = Array.from(stakeDistributionMap.entries()).map(([stakeName, count]) => ({ stakeName, count }));
+
+        // Sort by count descending
+        stakeDistribution.sort((a, b) => b.count - a.count);
+
         return {
             eventId,
             totalVacancies,
@@ -1509,7 +1552,8 @@ export const supabaseApi = {
             previousExperiencePercentage,
             pendingCoordinatorRequests,
             materialsDeliveryPercentage,
-            ecclesiasticalApprovalPercentage
+            ecclesiasticalApprovalPercentage,
+            stakeDistribution
         };
     },
 

@@ -12,6 +12,7 @@ interface AdminDashboardProps {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   const [selectedView, setSelectedView] = useState<'events' | 'metrics' | 'users'>('events');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [targetAction, setTargetAction] = useState<{ type: string, eventId: string } | null>(null);
 
   const handleViewMetrics = (eventIdOrView: string) => {
     if (eventIdOrView === 'users') {
@@ -25,6 +26,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   const handleBackToEvents = () => {
     setSelectedView('events');
     setSelectedEventId(null);
+    setTargetAction(null);
   };
 
   if (selectedView === 'users') {
@@ -43,7 +45,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
           </button>
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <MetricsDashboard eventId={selectedEventId} />
+          <MetricsDashboard
+            eventId={selectedEventId}
+            onNavigateToVolunteers={() => {
+              setTargetAction({ type: 'voluntarios', eventId: selectedEventId });
+              setSelectedView('events');
+            }}
+          />
         </div>
       </div>
     );
@@ -54,6 +62,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
       user={user}
       onLogout={onLogout}
       onViewMetrics={handleViewMetrics}
+      initialAction={targetAction}
     />
   );
 };

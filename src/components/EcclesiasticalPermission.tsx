@@ -85,18 +85,28 @@ const EcclesiasticalPermission: React.FC<EcclesiasticalPermissionProps> = ({ eve
         }
     };
 
+    const getStakeName = (stakeId?: string) => {
+        return stakes.find(s => s.id === stakeId)?.name || 'Sin Estaca/Barrio';
+    };
+
+    const getEstacaName = (stakeId?: string) => {
+        const fullName = getStakeName(stakeId);
+        if (fullName === 'Sin Estaca/Barrio') return fullName;
+        return fullName.split('/')[0].trim();
+    };
+
     const filteredVolunteers = volunteers.filter(v => {
+        const stakeName = getStakeName(v.stakeId);
+        const estacaName = getEstacaName(v.stakeId);
         const matchesSearch = v.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            v.dni.includes(searchTerm);
+            v.dni.includes(searchTerm) ||
+            stakeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            estacaName.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesStake = selectedStake === 'all' || v.stakeId === selectedStake;
         const matchesPermission = filterPermission === 'all' || v.ecclesiasticalPermission === filterPermission;
 
         return matchesSearch && matchesStake && matchesPermission;
     });
-
-    const getStakeName = (stakeId?: string) => {
-        return stakes.find(s => s.id === stakeId)?.name || 'Sin Estaca/Barrio';
-    };
 
     const stats = {
         total: volunteers.length,
@@ -104,6 +114,20 @@ const EcclesiasticalPermission: React.FC<EcclesiasticalPermissionProps> = ({ eve
         pending: volunteers.filter(v => v.ecclesiasticalPermission === 'pending' || !v.ecclesiasticalPermission).length,
         rejected: volunteers.filter(v => v.ecclesiasticalPermission === 'rejected').length
     };
+
+    const statsByEstaca = volunteers.reduce((acc, v) => {
+        const estaca = getEstacaName(v.stakeId);
+        if (!acc[estaca]) {
+            acc[estaca] = { total: 0, verified: 0, pending: 0, rejected: 0 };
+        }
+        acc[estaca].total += 1;
+        if (v.ecclesiasticalPermission === 'verified') acc[estaca].verified += 1;
+        else if (v.ecclesiasticalPermission === 'rejected') acc[estaca].rejected += 1;
+        else acc[estaca].pending += 1;
+        return acc;
+    }, {} as Record<string, { total: number, verified: number, pending: number, rejected: number }>);
+
+    const estacasStatsArray = Object.entries(statsByEstaca).sort((a, b) => a[0].localeCompare(b[0]));
 
     if (isLoading) {
         return (
@@ -115,9 +139,9 @@ const EcclesiasticalPermission: React.FC<EcclesiasticalPermissionProps> = ({ eve
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 animate-fade-in">
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 animate-fade-in">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div className="flex flex-col gap-4 mb-6">
                 <div>
                     <button
                         onClick={onClose}
@@ -129,29 +153,58 @@ const EcclesiasticalPermission: React.FC<EcclesiasticalPermissionProps> = ({ eve
                     <h2 className="text-3xl font-sans font-bold text-gray-900">Permiso Eclesiástico</h2>
                     <p className="text-gray-500 mt-1">Valida la autorización de los voluntarios por estaca.</p>
                 </div>
+            </div>
 
-                <div className="flex gap-3">
-                    <div className="bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm flex items-center gap-4">
-                        <div className="text-center">
-                            <p className="text-xs text-gray-400 uppercase font-bold">Total</p>
-                            <p className="text-lg font-bold text-gray-900">{stats.total}</p>
-                        </div>
-                        <div className="h-8 border-l border-gray-100"></div>
-                        <div className="text-center">
-                            <p className="text-xs text-green-500 uppercase font-bold">Verificados</p>
-                            <p className="text-lg font-bold text-green-600">{stats.verified}</p>
-                        </div>
-                        <div className="h-8 border-l border-gray-100"></div>
-                        <div className="text-center">
-                            <p className="text-xs text-orange-400 uppercase font-bold">Pendientes</p>
-                            <p className="text-lg font-bold text-orange-500">{stats.pending}</p>
-                        </div>
-                        <div className="h-8 border-l border-gray-100"></div>
-                        <div className="text-center">
-                            <p className="text-xs text-red-400 uppercase font-bold">Rechazados</p>
-                            <p className="text-lg font-bold text-red-500">{stats.rejected}</p>
+            {/* Dashboard Indicators (Grouping by Estaca) */}
+            <div className="mb-8 overflow-x-auto pb-4 custom-scrollbar">
+                <div className="flex gap-4">
+                    {/* General / Global */}
+                    <div className="bg-[#8CB83E]/10 p-5 rounded-xl border border-[#8CB83E]/20 shadow-sm min-w-[320px] flex-shrink-0">
+                        <h3 className="font-bold text-[#7cb342] mb-3 text-lg">Total General</h3>
+                        <div className="flex justify-between items-center text-sm">
+                            <div className="text-center">
+                                <p className="text-xs text-gray-500 uppercase font-bold">Total</p>
+                                <p className="text-xl font-bold text-gray-900">{stats.total}</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-xs text-[#8CB83E] uppercase font-bold">Verificados</p>
+                                <p className="text-xl font-bold text-[#8CB83E]">{stats.verified}</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-xs text-[#005994] uppercase font-bold">Pendientes</p>
+                                <p className="text-xl font-bold text-[#005994]">{stats.pending}</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-xs text-red-500 uppercase font-bold">Rechaz.</p>
+                                <p className="text-xl font-bold text-red-500">{stats.rejected}</p>
+                            </div>
                         </div>
                     </div>
+
+                    {/* Por Estaca */}
+                    {estacasStatsArray.map(([estaca, estacaStats]) => (
+                        <div key={estaca} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm min-w-[320px] flex-shrink-0 hover:shadow-md transition-shadow">
+                            <h3 className="font-bold text-gray-800 mb-3 truncate text-lg" title={estaca}>{estaca}</h3>
+                            <div className="flex justify-between items-center text-sm">
+                                <div className="text-center">
+                                    <p className="text-xs text-gray-400 uppercase font-bold">Total</p>
+                                    <p className="text-xl font-bold text-gray-900">{estacaStats.total}</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-xs text-[#8CB83E] uppercase font-bold">Verificados</p>
+                                    <p className="text-xl font-bold text-[#8CB83E]">{estacaStats.verified}</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-xs text-[#005994] uppercase font-bold">Pendientes</p>
+                                    <p className="text-xl font-bold text-[#005994]">{estacaStats.pending}</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-xs text-red-400 uppercase font-bold">Rechaz.</p>
+                                    <p className="text-xl font-bold text-red-500">{estacaStats.rejected}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -213,37 +266,37 @@ const EcclesiasticalPermission: React.FC<EcclesiasticalPermissionProps> = ({ eve
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200">
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Voluntario</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">DNI</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Estaca / Barrio</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Contacto</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Permiso</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Acciones</th>
+                                <th className="px-2 sm:px-4 py-3 text-[11px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider">Voluntario</th>
+                                <th className="px-2 py-3 text-[11px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider w-20 sm:w-24">DNI</th>
+                                <th className="px-2 py-3 text-[11px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider">Estaca / Barrio</th>
+                                <th className="px-2 py-3 text-[11px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider">Contacto</th>
+                                <th className="px-2 py-3 text-[11px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">Permiso</th>
+                                <th className="px-2 py-3 text-[11px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-32">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {filteredVolunteers.length > 0 ? (
                                 filteredVolunteers.map((volunteer) => (
                                     <tr key={volunteer.id} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="font-medium text-gray-900">{volunteer.fullName}</div>
+                                        <td className="px-2 sm:px-4 py-3">
+                                            <div className="font-medium text-gray-900 text-sm truncate max-w-[120px] sm:max-w-xs" title={volunteer.fullName}>{volunteer.fullName}</div>
                                             <div className="text-xs text-gray-500 capitalize">{volunteer.role}</div>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-gray-600">
+                                        <td className="px-2 py-3 text-sm text-gray-600 whitespace-nowrap">
                                             {volunteer.dni}
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                        <td className="px-2 py-3">
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100 truncate max-w-[100px] sm:max-w-[180px]" title={getStakeName(volunteer.stakeId)}>
                                                 {getStakeName(volunteer.stakeId)}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-gray-500">
-                                            <div>{volunteer.email}</div>
-                                            <div className="text-xs">{volunteer.phone}</div>
+                                        <td className="px-2 py-3 text-sm text-gray-500">
+                                            <div className="truncate max-w-[100px] sm:max-w-[180px]" title={volunteer.email}>{volunteer.email}</div>
+                                            <div className="text-xs whitespace-nowrap">{volunteer.phone}</div>
                                         </td>
-                                        <td className="px-6 py-4 text-center">
+                                        <td className="px-2 py-3 text-center">
                                             {volunteer.ecclesiasticalPermission === 'verified' ? (
-                                                <span className="inline-flex items-center gap-1 text-green-600 font-medium text-sm">
+                                                <span className="inline-flex items-center gap-1 text-[#8CB83E] font-medium text-sm">
                                                     <CheckCircle size={16} />
                                                     Verificado
                                                 </span>
@@ -253,43 +306,43 @@ const EcclesiasticalPermission: React.FC<EcclesiasticalPermissionProps> = ({ eve
                                                     Rechazado
                                                 </span>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1 text-orange-500 font-medium text-sm">
+                                                <span className="inline-flex items-center gap-1 text-[#005994] font-medium text-sm">
                                                     <AlertCircle size={16} />
                                                     Pendiente
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex justify-center gap-2">
+                                        <td className="px-2 py-3">
+                                            <div className="flex justify-center gap-1 sm:gap-2">
                                                 <button
                                                     onClick={() => updatePermission(volunteer, 'rejected')}
-                                                    className={`p-2 rounded-lg transition-all ${volunteer.ecclesiasticalPermission === 'rejected'
+                                                    className={`p-1.5 sm:p-2 rounded-lg transition-all ${volunteer.ecclesiasticalPermission === 'rejected'
                                                         ? 'bg-red-50 text-red-600 border border-red-100 shadow-sm'
                                                         : 'text-gray-300 hover:bg-gray-50 hover:text-gray-500'
                                                         }`}
                                                     title="Marcar como Rechazado"
                                                 >
-                                                    <XCircle size={22} />
+                                                    <XCircle size={20} className="sm:w-6 sm:h-6" />
                                                 </button>
                                                 <button
                                                     onClick={() => updatePermission(volunteer, 'pending')}
-                                                    className={`p-2 rounded-lg transition-all ${volunteer.ecclesiasticalPermission === 'pending' || !volunteer.ecclesiasticalPermission
-                                                        ? 'bg-orange-50 text-orange-600 border border-orange-100 shadow-sm'
+                                                    className={`p-1.5 sm:p-2 rounded-lg transition-all ${volunteer.ecclesiasticalPermission === 'pending' || !volunteer.ecclesiasticalPermission
+                                                        ? 'bg-[#005994]/10 text-[#005994] border border-[#005994]/20 shadow-sm'
                                                         : 'text-gray-300 hover:bg-gray-50 hover:text-gray-500'
                                                         }`}
                                                     title="Marcar como Pendiente"
                                                 >
-                                                    <AlertCircle size={22} />
+                                                    <AlertCircle size={20} className="sm:w-6 sm:h-6" />
                                                 </button>
                                                 <button
                                                     onClick={() => updatePermission(volunteer, 'verified')}
-                                                    className={`p-2 rounded-lg transition-all ${volunteer.ecclesiasticalPermission === 'verified'
-                                                        ? 'bg-green-50 text-green-600 border border-green-100 shadow-sm'
+                                                    className={`p-1.5 sm:p-2 rounded-lg transition-all ${volunteer.ecclesiasticalPermission === 'verified'
+                                                        ? 'bg-[#8CB83E]/10 text-[#8CB83E] border border-[#8CB83E]/20 shadow-sm'
                                                         : 'text-gray-300 hover:bg-gray-50 hover:text-gray-500'
                                                         }`}
                                                     title="Marcar como Verificado"
                                                 >
-                                                    <CheckCircle size={22} />
+                                                    <CheckCircle size={20} className="sm:w-6 sm:h-6" />
                                                 </button>
                                             </div>
                                         </td>

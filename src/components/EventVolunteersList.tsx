@@ -1330,34 +1330,53 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                         <p className="text-center text-gray-500 py-8">No hay solicitudes de baja pendientes.</p>
                     ) : (
                         <div className="space-y-4">
-                            {pendingCancellations.map((cancellation) => (
-                                <div key={cancellation.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                    <div>
-                                        <h4 className="font-bold text-gray-900">{cancellation.user?.fullName}</h4>
-                                        <div className="text-sm text-gray-600 space-y-1 mt-1">
-                                            <p><strong>Rol:</strong> {cancellation.shift?.role?.name}</p>
-                                            <p><strong>Turno:</strong> {cancellation.shift?.date ? new Date(cancellation.shift.date + 'T12:00:00').toLocaleDateString() : '-'} - {cancellation.shift?.timeSlot}</p>
-                                            <p><strong>Motivo:</strong> Solicitada el {cancellation.cancelledAt ? new Date(cancellation.cancelledAt).toLocaleDateString() : '-'}</p>
+                            {pendingCancellations.map((cancellation) => {
+                                let waPhone = cancellation.user?.phone?.replace(/\D/g, '') || '';
+                                if (waPhone.length === 10) waPhone = '549' + waPhone;
+                                else if (waPhone.length === 11 && waPhone.startsWith('0')) waPhone = '549' + waPhone.substring(1);
+
+                                return (
+                                    <div key={cancellation.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                        <div>
+                                            <h4 className="font-bold text-gray-900">{cancellation.user?.fullName}</h4>
+                                            <div className="text-sm text-gray-600 space-y-1 mt-1">
+                                                <p><strong>Email:</strong> {cancellation.user?.email}</p>
+                                                <p>
+                                                    <strong>Teléfono:</strong>{' '}
+                                                    <a
+                                                        href={`https://wa.me/${waPhone}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-green-600 hover:text-green-800 font-medium"
+                                                    >
+                                                        {cancellation.user?.phone}
+                                                    </a>
+                                                </p>
+                                                <p><strong>Estaca / Barrio:</strong> {getStakeName(cancellation.user?.stakeId)}</p>
+                                                <p><strong>Rol:</strong> {cancellation.shift?.role?.name}</p>
+                                                <p><strong>Turno:</strong> {cancellation.shift?.date ? new Date(cancellation.shift.date + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'} - {cancellation.shift?.timeSlot}</p>
+                                                <p><strong>Fecha:</strong> Solicitada el {cancellation.cancelledAt ? new Date(cancellation.cancelledAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2 w-full sm:w-auto">
+                                            <button
+                                                onClick={() => handleRejectCancellation(cancellation.id)}
+                                                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors font-medium"
+                                            >
+                                                <XCircle size={18} />
+                                                Rechazar
+                                            </button>
+                                            <button
+                                                onClick={() => handleApproveCancellation(cancellation.id)}
+                                                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors font-medium"
+                                            >
+                                                <CheckCircle size={18} />
+                                                Confirmar Baja
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex gap-2 w-full sm:w-auto">
-                                        <button
-                                            onClick={() => handleRejectCancellation(cancellation.id)}
-                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors font-medium"
-                                        >
-                                            <XCircle size={18} />
-                                            Rechazar
-                                        </button>
-                                        <button
-                                            onClick={() => handleApproveCancellation(cancellation.id)}
-                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors font-medium"
-                                        >
-                                            <CheckCircle size={18} />
-                                            Confirmar Baja
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>

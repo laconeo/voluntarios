@@ -110,6 +110,7 @@ export interface DashboardMetrics {
   previousExperiencePercentage?: number;
   materialsDeliveryPercentage?: number;
   ecclesiasticalApprovalPercentage?: number;
+  stakeDistribution?: { stakeName: string; count: number }[];
 }
 
 export interface Material {

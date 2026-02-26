@@ -195,6 +195,10 @@ const AppContent: React.FC = () => {
     };
   }, [navigate]);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [locationObj.pathname]);
+
   const handleLogin = async (identifier: string, password?: string): Promise<boolean | 'password_required' | 'register'> => {
     try {
       const user = await mockApi.login(identifier, password);

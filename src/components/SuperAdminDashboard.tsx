@@ -18,9 +18,10 @@ interface SuperAdminDashboardProps {
     user: User;
     onLogout: () => void;
     onViewMetrics?: (eventIdOrView: string) => void;
+    initialAction?: { type: string, eventId: string } | null;
 }
 
-const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewMetrics }) => {
+const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewMetrics, initialAction }) => {
     const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar' | 'delivery' | 'permiso-eclesiastico' | 'voluntarios' | 'credenciales' | 'pc_monitor'>('listado');
     const [activeTab, setActiveTab] = useState<'details' | 'roles' | 'shifts' | 'materials' | 'stakes'>('details');
     const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
@@ -71,6 +72,14 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         try {
             const data = await mockApi.getAllEvents();
             setEventos(data);
+
+            if (initialAction?.type === 'voluntarios') {
+                const ev = data.find(e => e.id === initialAction.eventId);
+                if (ev) {
+                    setEventoSeleccionado(ev);
+                    setVistaActual('voluntarios');
+                }
+            }
         } catch (error) {
             toast.error('Error al cargar eventos');
         } finally {

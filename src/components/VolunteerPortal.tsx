@@ -557,8 +557,14 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
               ) : (
                 <div className="space-y-4">
                   {Object.entries(groupedShifts).sort().map(([timeSlot, shiftsInSlot]: [string, Shift[]]) => shiftsInSlot.length > 0 && (
-                    <div key={timeSlot}>
-                      <div className="flex items-center mb-2 px-1"><Clock size={14} className="text-primary-600 mr-2" /><span className="text-sm font-bold text-fs-text">{timeSlot} hs</span><div className="h-px bg-gray-200 flex-grow ml-3"></div></div>
+                    <div key={timeSlot} className="mb-8 relative">
+                      <div className="flex items-center mb-4 sticky top-[75px] bg-gray-50/95 backdrop-blur-sm py-2 z-10 -mx-2 px-2">
+                        <div className="bg-primary-100 text-primary-800 px-4 py-2 rounded-lg text-base font-extrabold flex items-center border border-primary-200 shadow-sm">
+                          <Clock size={18} className="mr-2 text-primary-600" />
+                          {timeSlot} hs
+                        </div>
+                        <div className="h-px bg-primary-200 flex-grow ml-4 opacity-70"></div>
+                      </div>
                       <div className="space-y-3">
                         {shiftsInSlot.map(shift => {
                           const role = roles.find(r => r.id === shift.roleId);

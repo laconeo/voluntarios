@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { User, Stake, Event as AppEvent } from '../types';
-import { Lock, AlertTriangle, Info } from 'lucide-react';
+import { Lock, AlertTriangle, Info, HelpCircle, MessageCircle } from 'lucide-react';
 import Modal from './Modal';
 import { toast } from 'react-hot-toast';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
@@ -19,6 +19,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
+  const [showPasswordHelpModal, setShowPasswordHelpModal] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [isRegistering, setIsRegistering] = useState(!!initialDni);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -121,6 +122,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
 
     // Validar que el campo no esté vacío
     if (!identifier.trim()) {
+      return;
+    }
+
+    if (showPassword && !password.trim()) {
+      toast.error('Por favor ingresa tu contraseña');
       return;
     }
 
@@ -240,7 +246,10 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
 
             <button
               type="button"
-              onClick={() => setShowRecovery(false)}
+              onClick={() => {
+                setShowRecovery(false);
+                setShowPassword(false);
+              }}
               className="text-sm text-fs-blue hover:text-fs-blue-hover underline mt-4 block mx-auto"
               disabled={loading}
             >
@@ -507,13 +516,21 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
                   disabled={loading}
                 />
               </div>
-              <div className="text-right mt-2">
+              <div className="flex justify-end items-center gap-1 mt-2">
                 <button
                   type="button"
                   onClick={() => setShowRecovery(true)}
-                  className="text-xs text-fs-blue hover:underline"
+                  className="text-xs text-fs-blue hover:underline font-medium"
                 >
-                  ¿Olvidaste tu contraseña?
+                  ¿Olvidaste tu contraseña o no la sabes?
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordHelpModal(true)}
+                  className="text-fs-blue hover:text-fs-blue-hover transition-colors rounded-full"
+                  title="Ayuda sobre tu contraseña"
+                >
+                  <HelpCircle size={15} />
                 </button>
               </div>
             </div>
@@ -551,6 +568,42 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
         </p>
 
       </div>
+
+      <Modal
+        isOpen={showPasswordHelpModal}
+        onClose={() => setShowPasswordHelpModal(false)}
+        title="¿Sobre mi Contraseña?"
+      >
+        <div className="text-gray-700 space-y-4">
+          <p>
+            Cuando te inscribiste, el sistema te había enviado un correo de bienvenida que incluía tu <strong>contraseña inicial</strong> generada automáticamente.
+          </p>
+          <p>
+            Si no la recuerdas o no encuentras ese correo, simplemente haz clic en el botón de <strong>"Recuperar mi contraseña ahora"</strong> aquí abajo para que generes una nueva y te la enviemos al instante a tu correo electrónico.
+          </p>
+          <div className="pt-4 flex flex-col sm:flex-row justify-center gap-3 items-center">
+            <button
+              onClick={() => {
+                setShowPasswordHelpModal(false);
+                setShowRecovery(true);
+              }}
+              className="btn-primary py-2 px-6 w-full sm:w-auto text-center"
+            >
+              Recuperar mi contraseña ahora
+            </button>
+            <a
+              href="https://laconeo.github.io/centro-virtual/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary py-2 px-6 w-full sm:w-auto text-center flex items-center justify-center gap-2"
+            >
+              <MessageCircle size={20} />
+              Pedir ayuda a un misionero de servicio
+            </a>
+          </div>
+        </div>
+      </Modal>
+
     </div>
   );
 };
