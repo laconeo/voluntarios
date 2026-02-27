@@ -115,7 +115,25 @@ const isWithin24Hours = (shiftDate: string, shiftTime: string): boolean => {
     return hoursUntilShift <= 24 && hoursUntilShift > 0;
 };
 
-// No delay needed for Supabase calls ideally, but network latency is there.
+// Helper for fetching more than the Supabase max-rows limit (1000)
+const fetchAllPaginated = async <T>(baseQuery: () => any): Promise<T[]> => {
+    let allData: T[] = [];
+    let from = 0;
+    const step = 1000;
+    let hasMore = true;
+    while (hasMore) {
+        const { data, error } = await baseQuery().range(from, from + step - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            from += step;
+            if (data.length < step) hasMore = false;
+        } else {
+            hasMore = false;
+        }
+    }
+    return allData;
+};
 
 export const supabaseApi = {
     // ==================== AUTH ====================
@@ -378,9 +396,8 @@ export const supabaseApi = {
     },
 
     getAllUsers: async (): Promise<User[]> => {
-        const { data, error } = await supabase.from('users').select('*');
-        if (error) throw error;
-        return data.map(mapUser);
+        const users = await fetchAllPaginated<any>(() => supabase.from('users').select('*'));
+        return users.map(mapUser);
     },
 
     getUserById: async (userId: string): Promise<User | null> => {
@@ -391,23 +408,20 @@ export const supabaseApi = {
 
     getUsersByIds: async (userIds: string[]): Promise<User[]> => {
         if (!userIds || userIds.length === 0) return [];
-        const { data, error } = await supabase.from('users').select('*').in('id', userIds);
-        if (error) throw error;
+        const data = await fetchAllPaginated<any>(() => supabase.from('users').select('*').in('id', userIds));
         return (data || []).map(mapUser);
     },
 
 
     // ==================== EVENTS ====================
     getAllEvents: async (): Promise<Event[]> => {
-        const { data: events, error } = await supabase.from('events').select('*');
+        const { data: events, error } = await supabase.from('events').select('*').limit(10000);
         if (error) throw error;
 
-        // Fetch active bookings to calculate volunteer counts
-        // Using "confirmed" status to count actual volunteers
-        const { data: bookings } = await supabase
-            .from('bookings')
-            .select('event_id, user_id')
-            .eq('status', 'confirmed');
+        // Fetch active bookings recursively to bypass 1000 row limit
+        const bookings = await fetchAllPaginated<any>(() =>
+            supabase.from('bookings').select('event_id, user_id').eq('status', 'confirmed')
+        );
 
         const eventsWithCounts = events.map(event => {
             const mapped = mapEvent(event);
@@ -618,9 +632,8 @@ export const supabaseApi = {
     },
 
     getShiftsByEvent: async (eventId: string): Promise<Shift[]> => {
-        const { data, error } = await supabase.from('shifts').select('*').eq('event_id', eventId);
-        if (error) throw error;
-        return data.map(mapShift);
+        const shifts = await fetchAllPaginated<any>(() => supabase.from('shifts').select('*').eq('event_id', eventId));
+        return shifts.map(mapShift);
     },
 
     getShiftById: async (shiftId: string): Promise<Shift | null> => {
@@ -1035,7 +1048,7 @@ export const supabaseApi = {
     },
 
     getBookingsByEvent: async (eventId: string): Promise<Booking[]> => {
-        const { data } = await supabase.from('bookings').select('*').eq('event_id', eventId).neq('status', 'cancelled');
+        const data = await fetchAllPaginated<any>(() => supabase.from('bookings').select('*').eq('event_id', eventId).neq('status', 'cancelled'));
         return (data || []).map(mapBooking);
     },
 
@@ -1320,14 +1333,15 @@ export const supabaseApi = {
     getDashboardMetrics: async (eventId: string): Promise<DashboardMetrics> => {
         // Calculate heavily.
         // Fetch all bookings and shifts for event.
-        const { data: shifts } = await supabase.from('shifts').select('*').eq('event_id', eventId);
-        const { data: bookings } = await supabase.from('bookings').select('*').eq('event_id', eventId).eq('status', 'confirmed');
-        const { data: allBookings } = await supabase.from('bookings').select('*').eq('event_id', eventId);
-        const { data: waitlist } = await supabase.from('waitlist').select('*').eq('event_id', eventId);
+        const shifts = await fetchAllPaginated<any>(() => supabase.from('shifts').select('*').eq('event_id', eventId));
+        const bookings = await fetchAllPaginated<any>(() => supabase.from('bookings').select('*').eq('event_id', eventId).eq('status', 'confirmed'));
+        const allBookings = await fetchAllPaginated<any>(() => supabase.from('bookings').select('*').eq('event_id', eventId));
+        const waitlist = await fetchAllPaginated<any>(() => supabase.from('waitlist').select('*').eq('event_id', eventId));
+        const users = await fetchAllPaginated<any>(() => supabase.from('users').select('*')); // Filter later
+        const userMaterials = await fetchAllPaginated<any>(() => supabase.from('user_materials').select('user_id').eq('event_id', eventId));
+
         const { data: roles } = await supabase.from('roles').select('*').eq('event_id', eventId); // for names?
-        const { data: users } = await supabase.from('users').select('*'); // Should filter by booked user ids for perf
-        const { data: userMaterials } = await supabase.from('user_materials').select('user_id').eq('event_id', eventId);
-        const { data: stakes } = await supabase.from('stakes').select('*').eq('event_id', eventId);
+        const { data: stakes } = await supabase.from('stakes').select('*').eq('event_id', eventId).limit(10000);
 
         if (!shifts || !bookings || !roles || !users || !userMaterials) {
             // Return empty metrics?

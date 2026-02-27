@@ -75,21 +75,21 @@ const PCSetupInstructions: React.FC = () => {
 
                 {/* ---- VENTAJAS ---- */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
-                        <Layers size={20} className="text-green-600 flex-shrink-0 mt-0.5" />
-                        <div className="text-sm text-green-800">
+                    <div className="bg-primary-50 border border-primary-200 rounded-xl p-4 flex items-start gap-3">
+                        <Layers size={20} className="text-primary-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm text-primary-800">
                             <strong>Multi-OS:</strong> Windows, ChromeOS Flex y Mac. Solo necesitás Chrome instalado.
                         </div>
                     </div>
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-                        <Package size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                        <div className="text-sm text-blue-800">
+                    <div className="bg-[#eef5f9] border border-[#cce1f0] rounded-xl p-4 flex items-start gap-3">
+                        <Package size={20} className="text-fs-blue flex-shrink-0 mt-0.5" />
+                        <div className="text-sm text-fs-blue">
                             <strong>Fácil distribución:</strong> Descargá el ZIP, descomprimilo y cargalo en Chrome. Sin instaladores.
                         </div>
                     </div>
-                    <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-start gap-3">
-                        <Calendar size={20} className="text-purple-600 flex-shrink-0 mt-0.5" />
-                        <div className="text-sm text-purple-800">
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex items-start gap-3">
+                        <Calendar size={20} className="text-gray-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm text-gray-700">
                             <strong>Multi-evento:</strong> Elegís a qué evento pertenece cada PC al configurarla.
                         </div>
                     </div>
@@ -114,7 +114,7 @@ const PCSetupInstructions: React.FC = () => {
 
                     {/* Botón de descarga */}
                     <a
-                        href="/chrome-extension/pc-stand-modo-kiosk.zip"
+                        href="/voluntarios/chrome-extension/pc-stand-modo-kiosk.zip"
                         download="pc-stand-modo-kiosk.zip"
                         className="inline-flex items-center gap-2 bg-[#8CB83E] hover:bg-[#7cb342] text-white font-semibold px-6 py-3 rounded-full transition-colors text-sm uppercase tracking-wide mb-4"
                     >
@@ -133,13 +133,13 @@ const PCSetupInstructions: React.FC = () => {
                         </ul>
                     </div>
 
-                    <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-                        💡 También podés copiar la carpeta <code className="bg-blue-100 px-1 rounded">chrome-extension/</code> desde un pendrive si ya la tenés disponible.
+                    <div className="mt-3 bg-[#eef5f9] border border-[#cce1f0] rounded-lg p-3 text-sm text-fs-blue">
+                        💡 También podés copiar la carpeta <code className="bg-[#d5e7f5] border border-[#cce1f0] px-1 rounded">chrome-extension/</code> desde un pendrive si ya la tenés disponible.
                     </div>
                 </Step>
 
                 {/* ---- PASO 2: INSTALAR EN CHROME ---- */}
-                <Step number={2} color="bg-blue-100 text-blue-700" title="Instalar la Extensión en Chrome">
+                <Step number={2} color="bg-[#8CB83E] text-white" title="Instalar la Extensión en Chrome">
                     <p className="text-gray-600 mb-4">
                         Hacé esto en <strong>cada PC del stand</strong>:
                     </p>
@@ -161,13 +161,13 @@ const PCSetupInstructions: React.FC = () => {
                             La extensión aparece con el nombre <strong>"PC Stand — Modo Kiosk"</strong> ✅
                         </li>
                     </ol>
-                    <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+                    <div className="mt-4 bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm text-primary-800">
                         ✅ El ícono 💻 aparece en la barra de Chrome. Si no lo ves, buscalo en el menú de extensiones 🧩 y fijalo con el pin 📌.
                     </div>
                 </Step>
 
                 {/* ---- PASO 3: CONFIGURAR ---- */}
-                <Step number={3} color="bg-green-100 text-green-700" title="Configurar Evento y Número de PC">
+                <Step number={3} color="bg-[#8CB83E] text-white" title="Configurar Evento y Número de PC">
                     <p className="text-gray-600 mb-4">
                         Al hacer clic en el ícono 💻 de la extensión, aparece el panel de configuración:
                     </p>
@@ -191,15 +191,15 @@ const PCSetupInstructions: React.FC = () => {
                 </Step>
 
                 {/* ---- PASO 4: USO DIARIO ---- */}
-                <Step number={4} color="bg-purple-100 text-purple-700" title="Flujo de Uso (día del evento)">
+                <Step number={4} color="bg-[#8CB83E] text-white" title="Flujo de Uso (día del evento)">
                     <div className="space-y-4">
                         <FlowStep
-                            letter="A" color="bg-green-100 text-green-700"
+                            letter="A" color="bg-primary-100 text-primary-800"
                             title="PC Disponible → Login"
                             desc='La extensión bloquea la pantalla y muestra el selector de voluntario. El voluntario elige su nombre y hace clic en "Iniciar Sesión — 20 min".'
                         />
                         <FlowStep
-                            letter="B" color="bg-blue-100 text-blue-700"
+                            letter="B" color="bg-[#eef5f9] text-fs-blue"
                             title="Sesión Activa → Timer flotante"
                             desc="El overlay desaparece. Un badge verde en la esquina inferior derecha muestra el tiempo restante. Al hacer clic se abre el menú de accesos rápidos a actividades de FamilySearch."
                         />
