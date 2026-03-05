@@ -13,6 +13,8 @@ import EcclesiasticalPermission from './EcclesiasticalPermission';
 import EventVolunteersList from './EventVolunteersList';
 import VolunteerBadges from './VolunteerBadges';
 import PCMonitor from './PCMonitor';
+import ExperienceStationManager from './ExperienceStationManager';
+import StandMetrics from './StandMetrics';
 
 interface SuperAdminDashboardProps {
     user: User;
@@ -22,7 +24,7 @@ interface SuperAdminDashboardProps {
 }
 
 const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewMetrics, initialAction }) => {
-    const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar' | 'delivery' | 'permiso-eclesiastico' | 'voluntarios' | 'credenciales' | 'pc_monitor'>('listado');
+    const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar' | 'delivery' | 'permiso-eclesiastico' | 'voluntarios' | 'credenciales' | 'pc_monitor' | 'experience_stations' | 'stand_metrics'>('listado');
     const [activeTab, setActiveTab] = useState<'details' | 'roles' | 'shifts' | 'materials' | 'stakes'>('details');
     const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
     const [eventoSeleccionado, setEventoSeleccionado] = useState<Event | null>(null);
@@ -49,6 +51,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         fechaFin: '',
         descripcion: '',
         estado: 'Inactivo' as 'Activo' | 'Inactivo' | 'Archivado',
+        cantidadPCs: '' as string | number,
     });
 
     const nombreEventoInputRef = React.useRef<HTMLInputElement>(null);
@@ -112,7 +115,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
     };
 
     const iniciarCrearEvento = () => {
-        setFormData({ nombre: '', slug: '', ubicacion: '', pais: '', contactEmail: '', fechaInicio: '', fechaFin: '', descripcion: '', estado: 'Inactivo' });
+        setFormData({ nombre: '', slug: '', ubicacion: '', pais: '', contactEmail: '', fechaInicio: '', fechaFin: '', descripcion: '', estado: 'Inactivo', cantidadPCs: '' });
         setVistaActual('crear');
     };
 
@@ -128,6 +131,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
             fechaFin: evento.fechaFin,
             descripcion: evento.descripcion,
             estado: evento.estado,
+            cantidadPCs: evento.cantidadPCs !== undefined ? evento.cantidadPCs : '',
         });
         setVistaActual('editar');
     };
@@ -160,11 +164,29 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
 
     const guardarEvento = async () => {
         try {
+            const payload: any = { ...formData };
+            // Convert cantidadPCs to number or undefined
+            if (formData.cantidadPCs !== '' && formData.cantidadPCs !== null && formData.cantidadPCs !== undefined) {
+                payload.cantidadPCs = Number(formData.cantidadPCs);
+            } else {
+                delete payload.cantidadPCs;
+            }
+
+            const slug = payload.slug || eventoSeleccionado?.slug;
+
             if (vistaActual === 'crear') {
-                await mockApi.createEvent(formData);
+                await mockApi.createEvent(payload);
+                // Guardar en localStorage como fallback para el PCMonitor
+                if (payload.cantidadPCs && slug) {
+                    localStorage.setItem(`pc_monitor_config_${slug}`, JSON.stringify({ count: payload.cantidadPCs }));
+                }
                 toast.success('Evento creado exitosamente');
             } else if (eventoSeleccionado) {
-                await mockApi.updateEvent(eventoSeleccionado.id, formData);
+                await mockApi.updateEvent(eventoSeleccionado.id, payload);
+                // Guardar en localStorage como fallback para el PCMonitor
+                if (payload.cantidadPCs && slug) {
+                    localStorage.setItem(`pc_monitor_config_${slug}`, JSON.stringify({ count: payload.cantidadPCs }));
+                }
                 toast.success('Evento actualizado');
             }
             fetchEventos();
@@ -173,6 +195,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
             toast.error(error.message || 'Error al guardar evento');
         }
     };
+
 
     const getBadgeColor = (estado: string) => {
         if (estado === 'Activo') return 'bg-[#e8f5e9] text-[#2e7d32] border border-[#c8e6c9]'; // Green 50/800
@@ -258,7 +281,59 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                         <p className="text-sm text-gray-500">Monitor de Stand (PCs)</p>
                     </div>
                 </div>
-                <PCMonitor />
+                <PCMonitor
+                    eventSlugProp={eventoSeleccionado?.slug}
+                    eventIdProp={eventoSeleccionado?.id}
+                />
+            </div>
+        );
+    }
+
+    if (vistaActual === 'experience_stations' && eventoSeleccionado) {
+        return (
+            <div className="min-h-screen font-sans text-gray-900 bg-[#F7F7F7]">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <button
+                            onClick={() => setVistaActual('listado')}
+                            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                        >
+                            <ChevronRight className="rotate-180" size={20} />
+                            Volver
+                        </button>
+                        <div className="text-right">
+                            <h2 className="text-xl font-bold text-gray-900">{eventoSeleccionado.nombre}</h2>
+                            <p className="text-sm text-gray-500">Puestos de Experiencia</p>
+                        </div>
+                    </div>
+                    <ExperienceStationManager
+                        eventId={eventoSeleccionado.id}
+                        eventSlug={eventoSeleccionado.slug}
+                        eventName={eventoSeleccionado.nombre}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    if (vistaActual === 'stand_metrics' && eventoSeleccionado) {
+        return (
+            <div className="min-h-screen font-sans text-gray-900 bg-[#F7F7F7]">
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <button
+                            onClick={() => setVistaActual('listado')}
+                            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                        >
+                            <ChevronRight className="rotate-180" size={20} />
+                            Volver
+                        </button>
+                    </div>
+                    <StandMetrics
+                        eventId={eventoSeleccionado.id}
+                        eventName={eventoSeleccionado.nombre}
+                    />
+                </div>
             </div>
         );
     }
@@ -564,13 +639,39 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setEventoSeleccionado(evento);
+                                                                setVistaActual('experience_stations');
+                                                                setActiveDropdownId(null);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-violet-600 hover:bg-violet-50 transition-colors"
+                                                        >
+                                                            <Users size={16} />
+                                                            <span>Puestos de Experiencia</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEventoSeleccionado(evento);
+                                                                setVistaActual('stand_metrics');
+                                                                setActiveDropdownId(null);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                                        >
+                                                            <TrendingUp size={16} />
+                                                            <span>Métricas del Stand</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEventoSeleccionado(evento);
                                                                 setVistaActual('pc_monitor');
                                                                 setActiveDropdownId(null);
                                                             }}
                                                             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 transition-colors"
                                                         >
                                                             <Monitor size={16} />
-                                                            <span>Monitor de Stand</span>
+                                                            <span>Monitor de Stand (PCs)</span>
                                                         </button>
 
                                                         {evento.voluntarios === 0 && (
@@ -877,6 +978,30 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                         <option value="Archivado">Archivado</option>
                                     </select>
                                 </div>
+
+                                {/* Computadoras del stand */}
+                                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                                    <label className="block text-sm font-semibold text-indigo-800 mb-1 flex items-center gap-2">
+                                        <Monitor size={16} className="text-indigo-600" />
+                                        Computadoras del Stand
+                                    </label>
+                                    <p className="text-xs text-indigo-600 mb-2">
+                                        Cuántas PCs tiene el stand para este evento. El Monitor de Stand mostrará exactamente esta cantidad.
+                                    </p>
+                                    <input
+                                        type="number"
+                                        name="cantidadPCs"
+                                        min="1"
+                                        max="100"
+                                        value={formData.cantidadPCs}
+                                        onChange={handleInputChange}
+                                        placeholder="Ej: 20"
+                                        className="w-full px-4 py-2 border border-indigo-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                                    />
+                                    {formData.cantidadPCs === '' && (
+                                        <p className="text-xs text-indigo-500 mt-1">Dejá en blanco si no usás el monitor de stand.</p>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100">
@@ -930,15 +1055,15 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
             {/* Mobile Nav */}
             {eventoSeleccionado && (
                 <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2 sm:hidden z-40 flex justify-around">
-                    <button onClick={() => setActiveTab('details')} className={`p - 2 flex flex - col items - center ${activeTab === 'details' ? 'text-[#8CB83E]' : 'text-gray-400'} `}>
+                    <button onClick={() => setActiveTab('details')} className={`p-2 flex flex-col items-center ${activeTab === 'details' ? 'text-[#8CB83E]' : 'text-gray-400'}`}>
                         <Calendar size={20} />
                         <span className="text-[10px] mt-1">Detalles</span>
                     </button>
-                    <button onClick={() => setActiveTab('roles')} className={`p - 2 flex flex - col items - center ${activeTab === 'roles' ? 'text-[#8CB83E]' : 'text-gray-400'} `}>
+                    <button onClick={() => setActiveTab('roles')} className={`p-2 flex flex-col items-center ${activeTab === 'roles' ? 'text-[#8CB83E]' : 'text-gray-400'}`}>
                         <Users size={20} />
                         <span className="text-[10px] mt-1">Roles</span>
                     </button>
-                    <button onClick={() => setActiveTab('shifts')} className={`p - 2 flex flex - col items - center ${activeTab === 'shifts' ? 'text-[#8CB83E]' : 'text-gray-400'} `}>
+                    <button onClick={() => setActiveTab('shifts')} className={`p-2 flex flex-col items-center ${activeTab === 'shifts' ? 'text-[#8CB83E]' : 'text-gray-400'}`}>
                         <TrendingUp size={20} />
                         <span className="text-[10px] mt-1">Turnos</span>
                     </button>
@@ -950,3 +1075,5 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
 };
 
 export default SuperAdminDashboard;
+
+

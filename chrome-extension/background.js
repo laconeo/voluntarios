@@ -94,13 +94,14 @@ async function loadConfig() {
     }
 }
 
-async function configure(newPcId, newEventoId) {
+async function configure(newPcId, newEventoId, newEventoNombre) {
     pcId = parseInt(newPcId);
     eventoId = newEventoId || null;
-    await chrome.storage.local.set({ pcId, eventoId, configured: true });
+    const eventoNombre = newEventoNombre || null;
+    await chrome.storage.local.set({ pcId, eventoId, eventoNombre, configured: true });
     scheduleAlarm();           // asegurar alarm activo al configurar
     await checkStatus();       // check inmediato
-    console.log(`[PC] Configurado PC=${pcId} | Evento=${eventoId}`);
+    console.log(`[PC] Configurado PC=${pcId} | Evento=${eventoId} (${eventoNombre})`);
 }
 
 async function resetConfig() {
@@ -342,9 +343,10 @@ async function handleMessage(message, sender, sendResponse) {
         switch (message.type) {
 
             case 'GET_STATE': {
-                const stored = await chrome.storage.local.get(['pcId', 'eventoId', 'configured', 'currentState']);
+                const stored = await chrome.storage.local.get(['pcId', 'eventoId', 'eventoNombre', 'configured', 'currentState']);
                 sendResponse({
                     pcId: stored.pcId, eventoId: stored.eventoId || null,
+                    eventoNombre: stored.eventoNombre || null,
                     configured: !!stored.configured,
                     currentState: stored.currentState || null,
                     isOverlayActive,
@@ -359,7 +361,7 @@ async function handleMessage(message, sender, sendResponse) {
             }
 
             case 'CONFIGURE': {
-                await configure(message.pcId, message.eventoId);
+                await configure(message.pcId, message.eventoId, message.eventoNombre);
                 sendResponse({ success: true });
                 break;
             }

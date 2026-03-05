@@ -2,11 +2,13 @@ import { supabase } from '../lib/supabaseClient';
 import type { PCStatus, BitacoraUso, User } from '../types';
 
 export const pcControlService = {
-  // Get all PCs status
-  getAllPcsStatus: async (): Promise<PCStatus[]> => {
-    const { data, error } = await supabase
-      .from('pcs_status')
-      .select('*, voluntario:users(*)');
+  // Get all PCs status, optionally filtered by event
+  getAllPcsStatus: async (eventoId?: string): Promise<PCStatus[]> => {
+    let query = supabase.from('pcs_status').select('*, voluntario:users(*)');
+    if (eventoId) {
+      query = query.eq('evento_id', eventoId);
+    }
+    const { data, error } = await query;
 
     if (error) throw error;
 

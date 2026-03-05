@@ -41,6 +41,7 @@ const mapEvent = (row: any): Event => ({
     voluntarios: 0, // Calculated separately
     turnos: 0, // Calculated separately
     ocupacion: 0, // Calculated separately
+    cantidadPCs: row.cantidad_pcs ?? undefined,
     createdAt: row.created_at,
 });
 
@@ -453,7 +454,7 @@ export const supabaseApi = {
     },
 
     createEvent: async (eventData: Omit<Event, 'id' | 'voluntarios' | 'turnos' | 'ocupacion' | 'createdAt'>): Promise<Event> => {
-        const dbEvent = {
+        const dbEvent: any = {
             id: `event_${Date.now()}`,
             slug: eventData.slug || eventData.nombre.toLowerCase().replace(/ /g, '-'),
             nombre: eventData.nombre,
@@ -465,6 +466,7 @@ export const supabaseApi = {
             descripcion: eventData.descripcion,
             estado: eventData.estado || 'Activo'
         };
+        if (eventData.cantidadPCs !== undefined) dbEvent.cantidad_pcs = eventData.cantidadPCs;
         const { data, error } = await supabase.from('events').insert(dbEvent).select().single();
         if (error) throw error;
         return mapEvent(data);
@@ -481,11 +483,30 @@ export const supabaseApi = {
         if (updates.fechaFin) dbUpdates.fecha_fin = updates.fechaFin;
         if (updates.descripcion) dbUpdates.descripcion = updates.descripcion;
         if (updates.estado) dbUpdates.estado = updates.estado;
+        if (updates.cantidadPCs !== undefined) dbUpdates.cantidad_pcs = updates.cantidadPCs;
 
         const { data, error } = await supabase.from('events').update(dbUpdates).eq('id', eventId).select().single();
-        if (error) throw error;
+
+        // Si el error es por la columna cantidad_pcs (migración SQL pendiente),
+        // reintentamos sin ese campo para que el resto del evento se guarde igual.
+        if (error) {
+            const isColumnMissing = error.message?.includes('cantidad_pcs') ||
+                error.code === '42703'; // undefined_column en PostgreSQL
+            if (isColumnMissing && dbUpdates.cantidad_pcs !== undefined) {
+                console.warn('[updateEvent] La columna cantidad_pcs no existe aún. Guardando sin ella.');
+                delete dbUpdates.cantidad_pcs;
+                const { data: data2, error: error2 } = await supabase.from('events').update(dbUpdates).eq('id', eventId).select().single();
+                if (error2) throw error2;
+                // Retornamos el evento mapeado pero con cantidadPCs preservada del input
+                const mapped = mapEvent(data2);
+                mapped.cantidadPCs = updates.cantidadPCs;
+                return mapped;
+            }
+            throw error;
+        }
         return mapEvent(data);
     },
+
 
 
 

@@ -11,6 +11,7 @@ import ResetPassword from './components/ResetPassword';
 import PCOverlay from './components/PCOverlay';
 import PCSetupInstructions from './components/PCSetupInstructions';
 import PCMonitor from './components/PCMonitor';
+import ExperienceStationPage from './components/ExperienceStationPage';
 import { supabase } from './lib/supabaseClient';
 import Header from './components/Header';
 import UserProfile from './components/UserProfile';
@@ -313,6 +314,11 @@ const AppContent: React.FC = () => {
             <Route path="/pc-setup" element={<PCSetupInstructions />} />
 
             <Route path="/:eventSlug/stand-monitor" element={<PCMonitor />} />
+
+            {/* Registro de experiencias para voluntarios (acceso sin auth desde celular) */}
+            <Route path="/:eventSlug/registro" element={<ExperienceStationPage />} />
+            <Route path="/:eventSlug/registro/:stationId" element={<ExperienceStationPage />} />
+
 
             {/* Dynamic Event Route */}
             <Route path="/:eventSlug" element={

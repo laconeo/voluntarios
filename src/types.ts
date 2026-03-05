@@ -32,6 +32,7 @@ export interface Event {
   voluntarios: number; // contador
   turnos: number; // contador
   ocupacion: number; // porcentaje
+  cantidadPCs?: number; // Cantidad de computadoras del stand para este evento
   createdAt: string;
 }
 

@@ -173,6 +173,8 @@ async function configurePc() {
     const evSelect = document.getElementById('evento-select');
     const pcId = parseInt(input?.value);
     const eventoId = evSelect?.value || null;
+    // Leer el texto del option seleccionado como nombre legible
+    const eventoNombre = evSelect?.options[evSelect.selectedIndex]?.text || null;
 
     if (!pcId || pcId < 1 || pcId > 99) {
         showNotice('config-notice', 'Ingresá un número de PC válido (1-99)', 'error');
@@ -187,8 +189,8 @@ async function configurePc() {
     if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
     try {
-        console.log('[Popup] CONFIGURE pcId:', pcId, '| eventoId:', eventoId);
-        const res = await chrome.runtime.sendMessage({ type: 'CONFIGURE', pcId, eventoId });
+        console.log('[Popup] CONFIGURE pcId:', pcId, '| eventoId:', eventoId, '| nombre:', eventoNombre);
+        const res = await chrome.runtime.sendMessage({ type: 'CONFIGURE', pcId, eventoId, eventoNombre });
         console.log('[Popup] Respuesta:', res);
 
         if (res?.success) {
@@ -204,6 +206,7 @@ async function configurePc() {
         if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
     }
 }
+
 
 async function resetConfig() {
     if (!confirm('¿Cambiar la configuración de esta PC?')) return;
