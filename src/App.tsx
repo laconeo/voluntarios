@@ -11,11 +11,34 @@ import ResetPassword from './components/ResetPassword';
 import PCOverlay from './components/PCOverlay';
 import PCSetupInstructions from './components/PCSetupInstructions';
 import PCMonitor from './components/PCMonitor';
+import StandMetrics from './components/StandMetrics';
 import ExperienceStationPage from './components/ExperienceStationPage';
 import { supabase } from './lib/supabaseClient';
 import Header from './components/Header';
 import UserProfile from './components/UserProfile';
 import { Toaster, toast } from 'react-hot-toast';
+
+// Wrapper para StandMetrics – carga el evento por slug y pasa props
+const StandMetricsWrapper: React.FC = () => {
+  const { eventSlug } = useParams<{ eventSlug: string }>();
+  const [event, setEvent] = useState<Event | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchEvent = async () => {
+      if (eventSlug) {
+        const found = await mockApi.getEventBySlug(eventSlug);
+        setEvent(found);
+      }
+      setLoading(false);
+    };
+    fetchEvent();
+  }, [eventSlug]);
+
+  if (loading) return <div className="p-8 text-center">Cargando métricas...</div>;
+  if (!event) return <div className="p-8 text-center text-red-600">Evento no encontrado</div>;
+  return <StandMetrics eventId={event.id} eventName={event.nombre} />;
+};
 
 // Wrapper component to handle event slug logic
 const EventPortalWrapper: React.FC<{
@@ -176,6 +199,8 @@ const AppContent: React.FC = () => {
   const navigate = useNavigate();
   const locationObj = useLocation();
   const isStandMonitor = locationObj.pathname.includes('/stand-monitor');
+  const isStandMetrics = locationObj.pathname.includes('/stand-metrics');
+  const isFullscreen = isStandMonitor || isStandMetrics;
 
   useEffect(() => {
     // Listen for Password Recovery event
@@ -274,7 +299,7 @@ const AppContent: React.FC = () => {
           fontFamily: '"Noto Sans", sans-serif'
         }
       }} />
-      {!isStandMonitor && (
+      {!isFullscreen && (
         <div className="print:hidden">
           <Header
             user={currentUser}
@@ -287,7 +312,7 @@ const AppContent: React.FC = () => {
           />
         </div>
       )}
-      <main className={isStandMonitor ? 'w-full' : 'sm:p-6 lg:p-8 max-w-7xl mx-auto'}>
+      <main className={isFullscreen ? 'w-full' : 'sm:p-6 lg:p-8 max-w-7xl mx-auto'}>
         {currentView === 'profile' && currentUser ? (
           <UserProfile user={currentUser} onUpdate={handleUpdateProfile} onCancel={() => setCurrentView('portal')} />
         ) : (
@@ -314,6 +339,8 @@ const AppContent: React.FC = () => {
             <Route path="/pc-setup" element={<PCSetupInstructions />} />
 
             <Route path="/:eventSlug/stand-monitor" element={<PCMonitor />} />
+
+            <Route path="/:eventSlug/stand-metrics" element={<StandMetricsWrapper />} />
 
             {/* Registro de experiencias para voluntarios (acceso sin auth desde celular) */}
             <Route path="/:eventSlug/registro" element={<ExperienceStationPage />} />

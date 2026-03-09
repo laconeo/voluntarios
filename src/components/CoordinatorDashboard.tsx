@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { User, Event, Shift, Booking, Role } from '../types';
-import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown, Utensils, Monitor } from 'lucide-react';
+import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown, Utensils, Monitor, BarChart2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
@@ -346,76 +346,88 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                     </div>
                 </div>
 
-                <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
-                    <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-4">
-                        <div className="w-full sm:w-64">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Seleccionar Evento</label>
-                            <select
-                                value={selectedEventId}
-                                onChange={(e) => setSelectedEventId(e.target.value)}
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-white cursor-pointer"
-                            >
-                                {events.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-                            </select>
-                        </div>
+                {/* ── Barra de controles: búsqueda arriba, selects + botones abajo ── */}
+                <div className="mb-6 flex flex-col gap-3 print:hidden">
 
-                        <div className="w-full sm:w-64">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Horario</label>
-                            <select
-                                value={selectedTimeSlot}
-                                onChange={(e) => setSelectedTimeSlot(e.target.value)}
-                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-white cursor-pointer"
-                            >
-                                <option value="all">Todos los horarios</option>
-                                {uniqueTimeSlots.map(slotKey => {
-                                    const [date, time] = slotKey.split('|');
-                                    const dateStr = parseDateHelper(date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-                                    return (
-                                        <option key={slotKey} value={slotKey}>
-                                            {dateStr} - {time}
-                                        </option>
-                                    );
-                                })}
-                            </select>
+                    {/* Fila 1: búsqueda ancho completo */}
+                    <div className="relative w-full">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Search size={18} className="text-gray-400" />
                         </div>
+                        <input
+                            type="text"
+                            placeholder="Buscar voluntario por nombre o DNI..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-10 w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                        />
                     </div>
 
-                    <div className="flex gap-2 w-full sm:w-auto justify-end">
-                        <div className="relative flex-grow sm:flex-grow-0 sm:w-64">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Search size={18} className="text-gray-400" />
+                    {/* Fila 2: selects izquierda • botones derecha */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
+                        {/* Selects */}
+                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                            <div className="w-full sm:w-52">
+                                <label className="block text-xs font-medium text-gray-600 mb-1 uppercase tracking-wide">Evento</label>
+                                <select
+                                    value={selectedEventId}
+                                    onChange={(e) => setSelectedEventId(e.target.value)}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-white cursor-pointer text-sm"
+                                >
+                                    {events.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                                </select>
                             </div>
-                            <input
-                                type="text"
-                                placeholder="Buscar voluntario..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10 border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 w-full"
-                            />
+                            <div className="w-full sm:w-52">
+                                <label className="block text-xs font-medium text-gray-600 mb-1 uppercase tracking-wide">Horario</label>
+                                <select
+                                    value={selectedTimeSlot}
+                                    onChange={(e) => setSelectedTimeSlot(e.target.value)}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-white cursor-pointer text-sm"
+                                >
+                                    <option value="all">Todos los horarios</option>
+                                    {uniqueTimeSlots.map(slotKey => {
+                                        const [date, time] = slotKey.split('|');
+                                        const dateStr = parseDateHelper(date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+                                        return (
+                                            <option key={slotKey} value={slotKey}>
+                                                {dateStr} - {time}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
                         </div>
 
-                        {/* Desktop Action Buttons */}
-                        <div className="hidden lg:flex lg:items-center lg:gap-2">
+                        {/* Desktop: botones alineados a la derecha */}
+                        <div className="hidden lg:flex lg:items-center lg:gap-2 flex-shrink-0">
                             <button
                                 onClick={() => {
                                     const evt = events.find(e => e.id === selectedEventId);
                                     if (evt) window.open(`/#/${evt.slug}/stand-monitor`, '_blank');
                                 }}
-                                className="flex items-center px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors font-medium shadow-sm"
+                                className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors font-medium shadow-sm text-sm"
                             >
-                                <Monitor size={16} className="mr-2" />
-                                Monitor de Stand
+                                <Monitor size={15} />
+                                Monitor
                             </button>
-
+                            <button
+                                onClick={() => {
+                                    const evt = events.find(e => e.id === selectedEventId);
+                                    if (evt) window.open(`/#/${evt.slug}/stand-metrics`, '_blank');
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors font-medium shadow-sm text-sm"
+                            >
+                                <BarChart2 size={15} />
+                                Métricas
+                            </button>
                             <div className="relative">
                                 <button
                                     onClick={() => setShowActionsMenu(!showActionsMenu)}
-                                    className="flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium shadow-sm"
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium shadow-sm text-sm"
                                 >
                                     Acciones
-                                    <ChevronDown size={16} className="ml-2" />
+                                    <ChevronDown size={15} />
                                 </button>
-
                                 {showActionsMenu && (
                                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
                                         <button
@@ -716,7 +728,20 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                             <div className="bg-blue-100 p-2 rounded-full mr-3">
                                 <Monitor size={20} className="text-blue-600" />
                             </div>
-                            <span className="font-medium">Ver Monitor de Stand</span>
+                            <span className="font-medium">Monitor de Stand</span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                const evt = events.find(e => e.id === selectedEventId);
+                                if (evt) window.open(`/#/${evt.slug}/stand-metrics`, '_blank');
+                                setShowMobileMenu(false);
+                            }}
+                            className="flex items-center w-full px-6 py-4 text-gray-700 hover:bg-gray-100 border-b border-gray-200"
+                        >
+                            <div className="bg-emerald-100 p-2 rounded-full mr-3">
+                                <BarChart2 size={20} className="text-emerald-700" />
+                            </div>
+                            <span className="font-medium">Métricas del Stand</span>
                         </button>
                         <button
                             onClick={() => { handleDownloadPDF(); setShowMobileMenu(false); }}
@@ -765,21 +790,6 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                     </button>
                 </div>
 
-                {/* DEBUG SECTION - REMOVE IN PRODUCTION */}
-                <div className="mt-12 p-4 bg-gray-900 text-green-400 rounded-lg text-xs font-mono overflow-auto max-h-96">
-                    <h4 className="font-bold text-white mb-2">🔧 DEBUG PANEL</h4>
-                    <p>User ID (Me): {user.id}</p>
-                    <p>Total Shifts Visible: {shifts.length}</p>
-                    <p>Total Bookings Loaded: {bookings.length}</p>
-                    <details className="mb-2">
-                        <summary className="cursor-pointer text-white underline">Ver Mis Turnos ({shifts.length})</summary>
-                        <pre>{JSON.stringify(shifts.map(s => ({ id: s.id, date: s.date, time: s.timeSlot, coords: s.coordinatorIds })), null, 2)}</pre>
-                    </details>
-                    <details>
-                        <summary className="cursor-pointer text-white underline">Ver Reservas ({bookings.length})</summary>
-                        <pre>{JSON.stringify(bookings.map(b => ({ id: b.id, shiftId: b.shiftId, userId: b.userId, name: b.user?.fullName, status: b.status })), null, 2)}</pre>
-                    </details>
-                </div>
             </div>
         </div >
     );

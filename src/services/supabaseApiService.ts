@@ -211,20 +211,101 @@ export const supabaseApi = {
     },
 
     register: async (newUser: User, eventId?: string): Promise<User> => {
-        // Check if user exists by DNI to avoid dups in Profile
-        const { data: existingUser } = await supabase
+        // EMAIL es el identificador principal.
+        const { data: resolvedUser } = await supabase
             .from('users')
             .select('*')
-            .eq('dni', newUser.dni)
+            .eq('email', newUser.email)
             .maybeSingle();
 
-        // If profile exists, check if they have auth?
-        // For simplicity: If profile exists, we update it. But assume they already have Auth.
-        // If they "forgot" everything, recoverPassword is better.
-        // But user asked to "register again" for new events.
+        if (resolvedUser) {
+            // Si DNI tiene prefijo IMP_ -> usuario importado sin cuenta Auth. Vincular.
+            const isImportedProfile = resolvedUser.dni && resolvedUser.dni.startsWith('IMP_');
 
-        if (existingUser) {
-            // User exists. Update profile data.
+            if (isImportedProfile) {
+                const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+                const { data: authData, error: authError } = await supabase.auth.signUp({
+                    email: newUser.email,
+                    password: generatedPassword,
+                });
+
+                if (authError) {
+                    if (authError.message.includes('User already registered')) {
+                        const { data: updated, error: updErr } = await supabase
+                            .from('users')
+                            .update({
+                                dni: newUser.dni,
+                                full_name: newUser.fullName,
+                                phone: newUser.phone,
+                                tshirt_size: newUser.tshirtSize,
+                                is_member: newUser.isMember,
+                                attended_previous: newUser.attendedPrevious,
+                                is_over_18: newUser.isOver18,
+                                how_they_heard: newUser.howTheyHeard,
+                                stake_id: newUser.stakeId || null,
+                                status: 'active',
+                            })
+                            .eq('id', resolvedUser.id)
+                            .select()
+                            .single();
+                        if (updErr) throw updErr;
+                        return mapUser(updated);
+                    }
+                    throw authError;
+                }
+
+                if (!authData.user) throw new Error('Error creando cuenta de autenticación');
+                const oldId = resolvedUser.id;
+                const newAuthId = authData.user.id;
+
+                const { data: updatedProfile, error: updErr } = await supabase
+                    .from('users')
+                    .update({
+                        id: newAuthId,
+                        dni: newUser.dni,
+                        full_name: newUser.fullName,
+                        email: newUser.email,
+                        phone: newUser.phone,
+                        tshirt_size: newUser.tshirtSize,
+                        is_member: newUser.isMember,
+                        attended_previous: newUser.attendedPrevious,
+                        is_over_18: newUser.isOver18,
+                        how_they_heard: newUser.howTheyHeard || resolvedUser.how_they_heard,
+                        stake_id: newUser.stakeId || null,
+                        status: 'active',
+                        role: resolvedUser.role || newUser.role || 'volunteer',
+                    })
+                    .eq('id', oldId)
+                    .select()
+                    .single();
+
+                if (updErr) throw new Error('Error vinculando perfil importado: ' + updErr.message);
+
+                await Promise.allSettled([
+                    supabase.from('bookings').update({ user_id: newAuthId }).eq('user_id', oldId),
+                    supabase.from('event_admins').update({ user_id: newAuthId }).eq('user_id', oldId),
+                    supabase.from('waitlist_entries').update({ user_id: newAuthId }).eq('user_id', oldId),
+                ]);
+
+                const registered = mapUser(updatedProfile);
+                emailService.sendWelcomeEmail(registered, generatedPassword).catch(console.error);
+
+                if (eventId) {
+                    try {
+                        await supabase.from('bookings').insert({
+                            id: 'bk_gen_' + Date.now(),
+                            user_id: registered.id,
+                            event_id: eventId,
+                            shift_id: null,
+                            status: 'confirmed',
+                            requested_at: new Date().toISOString()
+                        });
+                    } catch (err) { console.warn('No se pudo auto-inscribir en evento.', err); }
+                }
+                return registered;
+            }
+
+            // CASO NORMAL: email encontrado, sin IMP_ -> ya tiene cuenta Auth.
             const { data: updated, error } = await supabase
                 .from('users')
                 .update({
@@ -236,23 +317,18 @@ export const supabaseApi = {
                     is_over_18: newUser.isOver18,
                     how_they_heard: newUser.howTheyHeard,
                     stake_id: newUser.stakeId || null,
-                    status: 'active', // Reactivate if it was deleted/suspended
-                    // DO NOT update ID or Email effectively here for Auth linkage
+                    status: 'active',
                 })
-                .eq('id', existingUser.id)
+                .eq('id', resolvedUser.id)
                 .select()
                 .single();
 
             if (error) throw error;
-
-            // Maybe resend credentials? We can't see the old password.
-            // We could Admin-Reset it, but client SDK can't set password without old one usually.
-            // Let's assume re-registration just updates profile.
             return mapUser(updated);
         }
 
-        // New User: Generate Password -> SignUp -> Create Profile
-        const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8); // simple random string
+        // CASO NUEVO: email no existe. Crear Auth + perfil.
+        const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
 
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: newUser.email,
@@ -261,7 +337,7 @@ export const supabaseApi = {
 
         if (authError) {
             if (authError.message.includes("User already registered")) {
-                throw new Error("El correo ya está registrado en el sistema de Autenticación (Auth), pero no tiene perfil de voluntario. Esto ocurre si el usuario fue eliminado de la base de datos manualmente pero no de la lista de usuarios autorizados. Por favor, elimine el usuario desde el panel de 'Authentication' en Supabase para poder registrarlo nuevamente.");
+                throw new Error("El correo ya está registrado en Auth pero sin perfil. Eliminá el usuario desde el panel de 'Authentication' en Supabase.");
             }
             throw authError;
         }
@@ -399,6 +475,82 @@ export const supabaseApi = {
     getAllUsers: async (): Promise<User[]> => {
         const users = await fetchAllPaginated<any>(() => supabase.from('users').select('*'));
         return users.map(mapUser);
+    },
+
+    // ==================== IMPORT (sin cuenta Auth) ====================
+    // EMAIL es el identificador. DNI se guarda con prefijo IMP_ como marcador:
+    // cuando el usuario quiera registrarse, register() encuentra su email,
+    // detecta el IMP_ en DNI y le crea la cuenta Auth vinculando el perfil.
+    importUserProfile: async (newUser: Partial<User>): Promise<User> => {
+        if (!newUser.fullName || !newUser.email) {
+            throw new Error('Nombre y Email son requeridos para importar');
+        }
+
+        // Buscar por EMAIL (identificador principal)
+        const { data: existingByEmail, error: emailCheckErr } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', newUser.email)
+            .maybeSingle();
+
+        if (emailCheckErr) {
+            console.error('[importUserProfile] Error buscando por email:', emailCheckErr);
+            throw new Error('Error verificando email ' + newUser.email + ': ' + emailCheckErr.message);
+        }
+
+        if (existingByEmail) {
+            // Ya existe: actualizar datos del perfil sin tocar id ni DNI
+            const { data: updated, error } = await supabase
+                .from('users')
+                .update({
+                    full_name: newUser.fullName,
+                    phone: newUser.phone || existingByEmail.phone,
+                    role: newUser.role || existingByEmail.role,
+                    status: newUser.status || existingByEmail.status || 'active',
+                    is_member: newUser.isMember ?? existingByEmail.is_member,
+                    attended_previous: newUser.attendedPrevious ?? existingByEmail.attended_previous,
+                })
+                .eq('id', existingByEmail.id)
+                .select()
+                .single();
+            if (error) throw new Error('Error actualizando ' + newUser.email + ': ' + error.message);
+            return mapUser(updated);
+        }
+
+        // Email nuevo: UUID real + DNI con prefijo IMP_ (marcador: sin cuenta Auth)
+        const newId = crypto.randomUUID();
+        const importedDni = newUser.dni ? ('IMP_' + newUser.dni) : ('IMP_sin_dni_' + Date.now());
+
+        const dbUser = {
+            id: newId,
+            dni: importedDni,
+            full_name: newUser.fullName,
+            email: newUser.email,
+            phone: newUser.phone || '',
+            tshirt_size: newUser.tshirtSize || 'M',
+            is_member: newUser.isMember ?? false,
+            attended_previous: newUser.attendedPrevious ?? false,
+            is_over_18: newUser.isOver18 ?? true,
+            how_they_heard: newUser.howTheyHeard || '',
+            role: newUser.role || 'volunteer',
+            stake_id: newUser.stakeId || null,
+            status: newUser.status || 'active',
+        };
+
+        console.log('[importUserProfile] Insertando:', { id: newId, email: newUser.email, dni: importedDni });
+
+        const { data, error } = await supabase.from('users').insert(dbUser).select().single();
+
+        if (error) {
+            console.error('[importUserProfile] Error:', error);
+            throw new Error('[' + error.code + '] ' + error.message + (error.hint ? ' — ' + error.hint : ''));
+        }
+        if (!data) {
+            throw new Error(newUser.email + ' no se insertó (posible bloqueo RLS). Verificar permisos de INSERT en la tabla users.');
+        }
+
+        console.log('[importUserProfile] OK:', data.id, newUser.email);
+        return mapUser(data);
     },
 
     getUserById: async (userId: string): Promise<User | null> => {

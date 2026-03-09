@@ -315,31 +315,37 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
 
             <div className="md:col-span-2">
               <label className={labelClasses}>Correo Electrónico</label>
-              <input type="email" name="email" placeholder="correo@ejemplo.com" value={formData.email} onChange={handleInputChange} required
+              <input type="email" name="email" placeholder="correo@gmail.com" value={formData.email} onChange={handleInputChange} required
                 className={inputClasses} />
 
-              {/* Email Warnings/Suggestions */}
-              {formData.email && (
+              {/* Alertas de email: se muestran cuando el usuario escribe un email válido */}
+              {formData.email && formData.email.includes('@') && (
                 <div className="mt-2 space-y-2">
-                  {['outlook', 'live', 'yahoo', 'hotmail'].some(provider => formData.email.toLowerCase().includes(provider)) && (
-                    <div className="flex items-start gap-2 text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-100">
-                      <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+
+                  {/* Aviso si NO es Gmail */}
+                  {!formData.email.toLowerCase().endsWith('@gmail.com') && (
+                    <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 p-2.5 rounded-md border border-amber-200">
+                      <AlertTriangle size={14} className="mt-0.5 flex-shrink-0 text-amber-500" />
                       <span>
-                        Si usas <strong>{formData.email.split('@')[1] || 'este proveedor'}</strong>, es probable que nuestros correos lleguen a tu carpeta de <strong>Spam/Correo No Deseado</strong>. ¡Por favor revísala!
+                        <strong>Recomendamos usar una cuenta Gmail</strong> para garantizar que recibas los correos del sistema.
+                        Los correos a <em>{formData.email.split('@')[1]}</em> pueden terminar en Spam o no llegar.
                       </span>
                     </div>
                   )}
 
-                  {/* Always show contact tip */}
-                  <div className="flex items-start gap-2 text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-100">
-                    <Info size={14} className="mt-0.5 flex-shrink-0" />
+                  {/* Tip fijo: agregar a contactos */}
+                  <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-50 p-2.5 rounded-md border border-blue-200">
+                    <Info size={14} className="mt-0.5 flex-shrink-0 text-blue-500" />
                     <span>
-                      <strong>Importante:</strong> Agrega nuestro email {eventContactEmail || contactEmail ? `(${eventContactEmail || contactEmail})` : 'del evento'} a tus contactos para asegurar que recibas todas las notificaciones importantes.
+                      <strong>Mejorá la recepción:</strong> Agrega{' '}
+                      <strong className="font-mono">voluntarioseneventos@gmail.com</strong>{' '}
+                      a tus contactos para evitar que nuestros correos lleguen a Spam.
                     </span>
                   </div>
                 </div>
               )}
             </div>
+
             <div>
               <label className={labelClasses}>Teléfono Móvil</label>
               <input type="tel" name="phone" placeholder="Ej: 11 5555 6666" value={formData.phone} onChange={handleInputChange} required
