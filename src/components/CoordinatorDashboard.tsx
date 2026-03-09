@@ -403,7 +403,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                             <button
                                 onClick={() => {
                                     const evt = events.find(e => e.id === selectedEventId);
-                                    if (evt) window.open(`/#/${evt.slug}/stand-monitor`, '_blank');
+                                    if (evt) window.open(`${window.location.href.split('#')[0]}#/${evt.slug}/stand-monitor`, '_blank');
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors font-medium shadow-sm text-sm"
                             >
@@ -413,7 +413,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                             <button
                                 onClick={() => {
                                     const evt = events.find(e => e.id === selectedEventId);
-                                    if (evt) window.open(`/#/${evt.slug}/stand-metrics`, '_blank');
+                                    if (evt) window.open(`${window.location.href.split('#')[0]}#/${evt.slug}/stand-metrics`, '_blank');
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors font-medium shadow-sm text-sm"
                             >
@@ -720,7 +720,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                         <button
                             onClick={() => {
                                 const evt = events.find(e => e.id === selectedEventId);
-                                if (evt) window.open(`/#/${evt.slug}/stand-monitor`, '_blank');
+                                if (evt) window.open(`${window.location.href.split('#')[0]}#/${evt.slug}/stand-monitor`, '_blank');
                                 setShowMobileMenu(false);
                             }}
                             className="flex items-center w-full px-6 py-4 text-gray-700 hover:bg-gray-100 border-b border-gray-200"
@@ -733,7 +733,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                         <button
                             onClick={() => {
                                 const evt = events.find(e => e.id === selectedEventId);
-                                if (evt) window.open(`/#/${evt.slug}/stand-metrics`, '_blank');
+                                if (evt) window.open(`${window.location.href.split('#')[0]}#/${evt.slug}/stand-metrics`, '_blank');
                                 setShowMobileMenu(false);
                             }}
                             className="flex items-center w-full px-6 py-4 text-gray-700 hover:bg-gray-100 border-b border-gray-200"
