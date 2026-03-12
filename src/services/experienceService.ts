@@ -116,30 +116,52 @@ export const experienceService = {
         stationId: string,
         since?: Date
     ): Promise<ExperienceLog[]> => {
-        let q = supabase
-            .from('experience_logs')
-            .select('*')
-            .eq('station_id', stationId)
-            .order('created_at', { ascending: false });
-        if (since) q = q.gte('created_at', since.toISOString());
-        const { data, error } = await q;
-        if (error) throw error;
-        return (data || []).map(mapLog);
+        // Paginación para superar el límite de 1000 filas de Supabase PostgREST
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let from = 0;
+        while (true) {
+            let q = supabase
+                .from('experience_logs')
+                .select('*')
+                .eq('station_id', stationId)
+                .order('created_at', { ascending: true })
+                .range(from, from + PAGE_SIZE - 1);
+            if (since) q = q.gte('created_at', since.toISOString());
+            const { data, error } = await q;
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            allData = [...allData, ...data];
+            if (data.length < PAGE_SIZE) break;
+            from += PAGE_SIZE;
+        }
+        return allData.map(mapLog);
     },
 
     getLogsForEvent: async (
         eventoId: string,
         since?: Date
     ): Promise<ExperienceLog[]> => {
-        let q = supabase
-            .from('experience_logs')
-            .select('*, station:experience_stations(nombre)')
-            .eq('evento_id', eventoId)
-            .order('created_at', { ascending: false });
-        if (since) q = q.gte('created_at', since.toISOString());
-        const { data, error } = await q;
-        if (error) throw error;
-        return (data || []).map(mapLog);
+        // Paginación para superar el límite de 1000 filas de Supabase PostgREST
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let from = 0;
+        while (true) {
+            let q = supabase
+                .from('experience_logs')
+                .select('*, station:experience_stations(nombre)')
+                .eq('evento_id', eventoId)
+                .order('created_at', { ascending: true })
+                .range(from, from + PAGE_SIZE - 1);
+            if (since) q = q.gte('created_at', since.toISOString());
+            const { data, error } = await q;
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            allData = [...allData, ...data];
+            if (data.length < PAGE_SIZE) break;
+            from += PAGE_SIZE;
+        }
+        return allData.map(mapLog);
     },
 
     // Agrupado por puesto: resumen de métricas

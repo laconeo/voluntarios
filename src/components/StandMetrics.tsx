@@ -94,6 +94,17 @@ const dayLabel = (dateStr: string): string => {
     return d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
 };
 
+// Extrae 'YYYY-MM-DD' en la zona horaria LOCAL del navegador (no UTC)
+// Esto es crítico para Argentina (UTC-3): una sesión a las 23:00 local no
+// debe aparecer como el día siguiente al convertir a UTC.
+const toLocalDateStr = (dateInput: string | Date): string => {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    // Usamos el offset local para compensar la diferencia con UTC
+    const offsetMs = d.getTimezoneOffset() * 60_000;
+    const localDate = new Date(d.getTime() - offsetMs);
+    return localDate.toISOString().split('T')[0];
+};
+
 const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
     const [period, setPeriod] = useState<Period>('today');
     const [data, setData] = useState<MetricsState | null>(null);
@@ -164,19 +175,35 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
     const load = useCallback(async () => {
         const since = sinceForPeriod(period);
 
+        console.log('[StandMetrics] load() → period:', period, '| since:', since?.toISOString() ?? 'SIN FILTRO (todo el evento)');
+        console.log('[StandMetrics] eventId:', eventId);
+
         // ── Experiencias ─────────────────────────────────────────────────
         const expLogs = await experienceService.getLogsForEvent(eventId, since);
         const stationStats = await experienceService.getStatsForEvent(eventId, since);
 
-        // ── PCs (bitacora_uso) ───────────────────────────────────────────
-        let pcQuery = supabase
-            .from('bitacora_uso')
-            .select('pc_id, duracion_total, acciones_reportadas, created_at')
-            .eq('evento_id', eventId)
-            .order('created_at', { ascending: true });
-        if (since) pcQuery = pcQuery.gte('created_at', since.toISOString());
-        const { data: pcRaw } = await pcQuery;
-        const pcLogs: any[] = pcRaw || [];
+        console.log('[StandMetrics] expLogs recibidos:', expLogs.length, '| fechas únicas:', [...new Set(expLogs.map(l => toLocalDateStr(l.createdAt)))].sort());
+
+        // ── PCs (bitacora_uso) — paginado para superar el límite de 1000 filas ─
+        const PC_PAGE_SIZE = 1000;
+        let pcLogs: any[] = [];
+        let pcFrom = 0;
+        while (true) {
+            let pcQ = supabase
+                .from('bitacora_uso')
+                .select('pc_id, duracion_total, acciones_reportadas, created_at')
+                .eq('evento_id', eventId)
+                .order('created_at', { ascending: true })
+                .range(pcFrom, pcFrom + PC_PAGE_SIZE - 1);
+            if (since) pcQ = pcQ.gte('created_at', since.toISOString());
+            const { data: pcPage, error: pcError } = await pcQ;
+            if (pcError) { console.error('[StandMetrics] PC query error:', pcError); break; }
+            if (!pcPage || pcPage.length === 0) break;
+            pcLogs = [...pcLogs, ...pcPage];
+            if (pcPage.length < PC_PAGE_SIZE) break;
+            pcFrom += PC_PAGE_SIZE;
+        }
+        console.log('[StandMetrics] pcLogs recibidos (paginado):', pcLogs.length);
 
         // ── Unificar por día ─────────────────────────────────────────────
         const dayMap = new Map<string, DayRow>();
@@ -194,7 +221,7 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
         };
 
         for (const pc of pcLogs) {
-            const d = new Date(pc.created_at).toISOString().split('T')[0];
+            const d = toLocalDateStr(pc.created_at);
             const row = getOrCreate(d);
             row.pcSessions++;
             row.pcPersonas += Number(pc.acciones_reportadas?.people_helped) || 0;
@@ -202,7 +229,7 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
         }
 
         for (const ex of expLogs) {
-            const d = new Date(ex.createdAt).toISOString().split('T')[0];
+            const d = toLocalDateStr(ex.createdAt);
             const row = getOrCreate(d);
             row.expSessions++;
             row.expPersonas += ex.cantidadPersonas;
