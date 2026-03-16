@@ -193,7 +193,20 @@ export const supabaseApi = {
         return mapUser(userProfile);
     },
 
-    recoverPassword: async (email: string): Promise<void> => {
+    recoverPassword: async (identifier: string): Promise<void> => {
+        // Find email by identifier
+        const { data: userProfile, error: profileError } = await supabase
+            .from('users')
+            .select('email')
+            .or(`dni.eq.${identifier},email.eq.${identifier}`)
+            .maybeSingle();
+
+        if (!userProfile) {
+            throw new Error('No se encontró un usuario con ese correo o DNI.');
+        }
+
+        const email = userProfile.email;
+
         // Explicit strategy: Hardcode production URL to ensure correct subdirectory
         const prodUrl = 'https://laconeo.github.io/voluntarios';
         const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';

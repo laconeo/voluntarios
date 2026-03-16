@@ -202,10 +202,25 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
     setLoading(true);
     try {
       await onRecoverPassword(recoveryEmail);
-      toast.success("Si el correo existe, recibirás un enlace para restablecer tu contraseña.");
+      toast.success("Si el usuario existe, recibirás un enlace para restablecer tu contraseña. Por favor, revisa tu correo.");
       setShowRecovery(false);
       setRecoveryEmail('');
       setShowPassword(false); // Go back to identifier input
+    } catch (error: any) {
+      toast.error(error.message || "Error al solicitar recuperación.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDirectRecovery = async () => {
+    if (!identifier || !onRecoverPassword) return;
+
+    setLoading(true);
+    try {
+      const normalizedId = isEmail(identifier) ? identifier : normalizeDocument(identifier);
+      await onRecoverPassword(normalizedId);
+      toast.success("Te enviamos un enlace para restablecer tu contraseña. Por favor, revisa tu correo.");
     } catch (error: any) {
       toast.error(error.message || "Error al solicitar recuperación.");
     } finally {
@@ -522,22 +537,24 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
                   disabled={loading}
                 />
               </div>
-              <div className="flex justify-end items-center gap-1 mt-2">
+              <div className="flex justify-center items-center gap-2 mt-4 mb-2">
                 <button
                   type="button"
-                  onClick={() => setShowRecovery(true)}
-                  className="text-xs text-fs-blue hover:underline font-medium"
+                  onClick={handleDirectRecovery}
+                  className="btn-secondary w-full sm:w-auto text-xs sm:text-sm py-2 px-8 shadow-sm hover:shadow-md"
                 >
-                  ¿Olvidaste tu contraseña o no la sabes?
+                  RECUPERAR CONTRASEÑA
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordHelpModal(true)}
-                  className="text-fs-blue hover:text-fs-blue-hover transition-colors rounded-full"
-                  title="Ayuda sobre tu contraseña"
-                >
-                  <HelpCircle size={15} />
-                </button>
+                <div className="absolute right-0 mr-2 flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordHelpModal(true)}
+                    className="text-gray-400 hover:text-fs-blue transition-colors rounded-full"
+                    title="Ayuda sobre tu contraseña"
+                  >
+                    <HelpCircle size={20} />
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -587,13 +604,19 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
           <p>
             Si no la recuerdas o no encuentras ese correo, simplemente haz clic en el botón de <strong>"Recuperar mi contraseña ahora"</strong> aquí abajo para que generes una nueva y te la enviemos al instante a tu correo electrónico.
           </p>
+          <div className="flex items-start gap-2 text-xs sm:text-sm text-blue-700 bg-blue-50 p-3 rounded-md border border-blue-200">
+            <Info size={18} className="mt-0.5 flex-shrink-0 text-blue-500" />
+            <span>
+              <strong>Tip importante:</strong> Te recomendamos agregar <strong>voluntarioseneventos@gmail.com</strong> a tus contactos para asegurar que el correo de recuperación llegue directo a tu bandeja de entrada y no termine en <strong>Spam</strong>.
+            </span>
+          </div>
           <div className="pt-4 flex flex-col sm:flex-row justify-center gap-3 items-center">
             <button
               onClick={() => {
                 setShowPasswordHelpModal(false);
-                setShowRecovery(true);
+                handleDirectRecovery();
               }}
-              className="btn-primary py-2 px-6 w-full sm:w-auto text-center"
+              className="btn-secondary py-2 px-6 w-full sm:w-auto text-center"
             >
               Recuperar mi contraseña ahora
             </button>

@@ -122,6 +122,22 @@ select:focus {
   background-color: #7cb342;
 }
 
+.btn-secondary {
+  background-color: #575757;
+  color: white;
+  border-radius: 20px;
+  padding: 10px 24px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.875rem;
+  letter-spacing: 0.5px;
+  transition: background-color 0.2s;
+}
+
+.btn-secondary:hover {
+  background-color: #282829;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
 }
