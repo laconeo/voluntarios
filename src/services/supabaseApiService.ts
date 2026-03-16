@@ -932,26 +932,14 @@ export const supabaseApi = {
         // Update user role to coordinator
         await supabase.from('users').update({ role: 'coordinator' }).eq('id', userId);
 
-        // Get ALL shifts with same date and time slot
-        const { data: relatedShifts } = await supabase
-            .from('shifts')
-            .select('id, coordinator_ids')
-            .eq('event_id', shift.event_id)
-            .eq('date', shift.date)
-            .eq('time_slot', shift.time_slot);
-
-        if (relatedShifts && relatedShifts.length > 0) {
-            // Update each shift to include this coordinator
-            for (const relatedShift of relatedShifts) {
-                const currentIds = relatedShift.coordinator_ids || [];
-                if (!currentIds.includes(userId)) {
-                    const newIds = [...currentIds, userId];
-                    await supabase
-                        .from('shifts')
-                        .update({ coordinator_ids: newIds })
-                        .eq('id', relatedShift.id);
-                }
-            }
+        // Only update the specific shift selected (not all shifts with same date+timeslot)
+        const currentIds = shift.coordinator_ids || [];
+        if (!currentIds.includes(userId)) {
+            const newIds = [...currentIds, userId];
+            await supabase
+                .from('shifts')
+                .update({ coordinator_ids: newIds })
+                .eq('id', shiftId);
         }
 
         return mapShift({ ...shift, coordinator_ids: [...(shift.coordinator_ids || []), userId] });
@@ -961,36 +949,24 @@ export const supabaseApi = {
         const { data: shift } = await supabase.from('shifts').select('*').eq('id', shiftId).single();
         if (!shift) throw new Error('Turno no encontrado');
 
-        // Get ALL shifts with same date and time slot
-        const { data: relatedShifts } = await supabase
-            .from('shifts')
-            .select('id, coordinator_ids')
-            .eq('event_id', shift.event_id)
-            .eq('date', shift.date)
-            .eq('time_slot', shift.time_slot);
+        // Only remove coordinator from the specific shift selected
+        const currentIds = shift.coordinator_ids || [];
+        const newIds = currentIds.filter((id: string) => id !== userId);
 
-        if (relatedShifts && relatedShifts.length > 0) {
-            // Remove coordinator from each shift
-            for (const relatedShift of relatedShifts) {
-                const currentIds = relatedShift.coordinator_ids || [];
-                const newIds = currentIds.filter((id: string) => id !== userId);
-
-                if (currentIds.length !== newIds.length) {
-                    await supabase
-                        .from('shifts')
-                        .update({ coordinator_ids: newIds })
-                        .eq('id', relatedShift.id);
-                }
-            }
+        if (currentIds.length !== newIds.length) {
+            await supabase
+                .from('shifts')
+                .update({ coordinator_ids: newIds })
+                .eq('id', shiftId);
         }
 
-        // Check if coordinator elsewhere.
+        // Check if coordinator in any remaining shift (globally)
         const { count: coordCount } = await supabase.from('shifts').select('*', { count: 'exact', head: true }).contains('coordinator_ids', [userId]);
         if (coordCount === 0) {
             await supabase.from('users').update({ role: 'volunteer' }).eq('id', userId);
         }
 
-        // FAIL-SAFE: Check if user has ANY booking for this event. 
+        // FAIL-SAFE: Check if user has ANY booking for this event.
         // If not, create a General Registration so they don't disappear.
         const { count: bookingCount } = await supabase
             .from('bookings')
@@ -999,7 +975,7 @@ export const supabaseApi = {
             .eq('event_id', shift.event_id)
             .neq('status', 'cancelled');
 
-        // Also check if they are coordinator in other shifts of THIS event specifically (coordCount is global? No, shifts table mix events? Yes.)
+        // Check if they are coordinator in other shifts of THIS event specifically
         const { count: eventCoordCount } = await supabase
             .from('shifts')
             .select('*', { count: 'exact', head: true })
@@ -1007,7 +983,7 @@ export const supabaseApi = {
             .contains('coordinator_ids', [userId]);
 
         if (bookingCount === 0 && eventCoordCount === 0) {
-            // Create a general enrollment
+            // Create a general enrollment so they remain visible in the event
             const generalBookingId = `booking_${Date.now()}_general`;
             await supabase.from('bookings').insert({
                 id: generalBookingId,
@@ -1019,7 +995,7 @@ export const supabaseApi = {
             });
         }
 
-        return mapShift({ ...shift, coordinator_ids: (shift.coordinator_ids || []).filter((id: string) => id !== userId) });
+        return mapShift({ ...shift, coordinator_ids: newIds });
     },
 
 
@@ -1502,6 +1478,127 @@ export const supabaseApi = {
             role: row.shifts.roles.name || 'N/A'
         })).sort((a: any, b: any) => a.role.localeCompare(b.role));
     },
+
+    getVolunteersByDate: async (eventId: string, date: string): Promise<any[]> => {
+        // Obtenemos los turnos de ese día
+        const { data: shifts } = await supabase.from('shifts')
+            .select('*, roles(name)')
+            .eq('event_id', eventId)
+            .eq('date', date);
+            
+        if (!shifts || shifts.length === 0) return [];
+
+        const shiftIds = shifts.map(s => s.id);
+
+        // Obtenemos los bookings para esos turnos
+        const { data: bookings } = await supabase.from('bookings')
+            .select('users(id, full_name, email, phone, dni), shift_id')
+            .eq('event_id', eventId)
+            .eq('status', 'confirmed')
+            .in('shift_id', shiftIds);
+
+        // Recopilamos todos los user_ids de coordinadores para buscar sus datos
+        const coordIds = new Set<string>();
+        shifts.forEach((s: any) => {
+            if (s.coordinator_ids) {
+                s.coordinator_ids.forEach((id: string) => coordIds.add(id));
+            }
+        });
+
+        let coordUsers: any[] = [];
+        if (coordIds.size > 0) {
+            const { data: users } = await supabase.from('users').select('id, full_name, email, phone, dni').in('id', Array.from(coordIds));
+            coordUsers = users || [];
+        }
+
+        const results: any[] = [];
+        const addedSet = new Set<string>();
+
+        // Agregamos desde bookings
+        if (bookings) {
+            bookings.forEach((b: any) => {
+                const shift = shifts.find(s => s.id === b.shift_id);
+                if (!shift || !b.users) return;
+
+                results.push({
+                    userId: b.users.id,
+                    fullName: b.users.full_name || 'N/A',
+                    dni: b.users.dni || 'N/A',
+                    phone: b.users.phone || 'N/A',
+                    timeSlot: shift.time_slot,
+                    role: shift.roles?.name || 'N/A',
+                    isCoordinator: shift.coordinator_ids?.includes(b.users.id) || false
+                });
+                addedSet.add(`${b.users.id}-${shift.id}`);
+            });
+        }
+
+        // Agregamos coordinadores complementando
+        shifts.forEach((shift: any) => {
+            if (shift.coordinator_ids) {
+                shift.coordinator_ids.forEach((cId: string) => {
+                    const key = `${cId}-${shift.id}`;
+                    if (!addedSet.has(key)) {
+                        const user = coordUsers.find(u => u.id === cId);
+                        if (user) {
+                            results.push({
+                                userId: user.id,
+                                fullName: user.full_name || 'N/A',
+                                dni: user.dni || 'N/A',
+                                phone: user.phone || 'N/A',
+                                timeSlot: shift.time_slot,
+                                role: shift.roles?.name || 'N/A',
+                                isCoordinator: true
+                            });
+                            addedSet.add(key);
+                        }
+                    }
+                });
+            }
+        });
+
+        // Ordenamos por horario y luego por nombre
+        return results.sort((a, b) => {
+            if (a.timeSlot !== b.timeSlot) return a.timeSlot.localeCompare(b.timeSlot);
+            return a.fullName.localeCompare(b.fullName);
+        });
+    },
+
+    removeVolunteerFromDay: async (eventId: string, date: string, userId: string, isCoordinator: boolean, timeSlot: string): Promise<void> => {
+        // Encontraremos los turnos de ese día y horario
+        const { data: shifts } = await supabase.from('shifts')
+            .select('id, coordinator_ids')
+            .eq('event_id', eventId)
+            .eq('date', date)
+            .eq('time_slot', timeSlot);
+
+        if (!shifts || shifts.length === 0) return;
+
+        const shiftIds = shifts.map(s => s.id);
+
+        if (isCoordinator) {
+            // Eliminar de los coordinadores
+            for (const shift of shifts) {
+                if (shift.coordinator_ids && shift.coordinator_ids.includes(userId)) {
+                    await supabaseApi.removeCoordinatorFromShift(shift.id, userId);
+                }
+            }
+        } else {
+            // Cancelar el booking (reserva)
+            const { data: bookings } = await supabase.from('bookings')
+                .select('id')
+                .eq('user_id', userId)
+                .in('shift_id', shiftIds)
+                .eq('status', 'confirmed');
+
+            if (bookings && bookings.length > 0) {
+                for (const booking of bookings) {
+                    await supabaseApi.adminCancelBooking(booking.id);
+                }
+            }
+        }
+    },
+
 
     getDashboardMetrics: async (eventId: string): Promise<DashboardMetrics> => {
         // Calculate heavily.

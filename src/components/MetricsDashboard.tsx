@@ -26,6 +26,11 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId, onNavigate
         total: { sessions: number, extensions: number, companions: number }
     } | null>(null);
 
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const [dateVolunteers, setDateVolunteers] = useState<any[]>([]);
+    const [isLoadingVolunteers, setIsLoadingVolunteers] = useState(false);
+    const [roleFilter, setRoleFilter] = useState<string>('all');
+
     useEffect(() => {
         fetchMetrics();
     }, [eventId]);
@@ -168,6 +173,37 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId, onNavigate
             if (updatedRequests.length === 0) setShowCoordinatorRequestsModal(false);
         } catch (error) {
             toast.error('Error al aprobar solicitud');
+        }
+    };
+
+    const handleBarClick = async (date: string) => {
+        setSelectedDate(date);
+        setIsLoadingVolunteers(true);
+        try {
+            const vols = await mockApi.getVolunteersByDate(eventId, date);
+            setDateVolunteers(vols);
+        } catch (error) {
+            toast.error('Error al cargar voluntarios del día');
+        } finally {
+            setIsLoadingVolunteers(false);
+        }
+    };
+
+    const handleRemoveVolunteer = async (userId: string, isCoordinator: boolean, timeSlot: string) => {
+        if (!selectedDate) return;
+        if (!window.confirm('¿Estás seguro de quitar a esta persona de este turno? Esta acción no se puede deshacer.')) return;
+
+        try {
+            await mockApi.removeVolunteerFromDay(eventId, selectedDate, userId, isCoordinator, timeSlot);
+            toast.success('Persona removida del turno exitosamente');
+            
+            // Recargar datos
+            const vols = await mockApi.getVolunteersByDate(eventId, selectedDate);
+            setDateVolunteers(vols);
+            fetchMetrics(); // Actualizar barras
+        } catch (error) {
+            console.error("Error quitando voluntario:", error);
+            toast.error('Error al quitar voluntario');
         }
     };
 
@@ -482,7 +518,10 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId, onNavigate
                         return (
                             <div key={day.date} className="flex items-center gap-4">
                                 <span className="text-sm font-medium text-gray-700 w-24 capitalize">{dayName}</span>
-                                <div className="flex-1 bg-gray-200 rounded-full h-6 relative">
+                                <div 
+                                    className="flex-1 bg-gray-200 rounded-full h-6 relative cursor-pointer hover:opacity-80 transition-opacity"
+                                    onClick={() => handleBarClick(day.date)}
+                                >
                                     <div
                                         className={`h-6 rounded-full transition-all duration-500 flex items-center justify-end pr-2 ${day.occupation >= 80 ? 'bg-primary-500' :
                                             day.occupation >= 50 ? 'bg-yellow-500' :
@@ -535,6 +574,117 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId, onNavigate
                     </div>
                 </div>
             )}
+
+            {/* Modal de Voluntarios por Día */}
+            <Modal
+                isOpen={!!selectedDate}
+                onClose={() => { setSelectedDate(null); setDateVolunteers([]); setRoleFilter('all'); }}
+                title={`Voluntarios del ${selectedDate ? new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) : ''}`}
+            >
+                <div className="p-4">
+                    {isLoadingVolunteers ? (
+                        <div className="flex justify-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                        </div>
+                    ) : dateVolunteers.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8">No hay voluntarios registrados para este día.</p>
+                    ) : (
+                        <div className="space-y-6">
+                            {/* Resumen y Filtros */}
+                            <div className="bg-gray-50 p-4 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-gray-200">
+                                <div className="flex-1">
+                                    <h5 className="text-sm font-semibold text-gray-700 mb-2">Resumen de Roles:</h5>
+                                    <div className="flex flex-wrap gap-2">
+                                        <span className="text-xs px-2 py-1 bg-white border border-gray-300 rounded-md text-gray-800 font-medium">
+                                            Total: <span className="font-bold">{dateVolunteers.length}</span>
+                                        </span>
+                                        {Array.from(new Set(dateVolunteers.map(v => v.role))).sort().map(role => (
+                                            <span key={role} className="text-xs px-2 py-1 bg-white border border-gray-300 rounded-md text-gray-600">
+                                                {role}: <span className="font-bold">{dateVolunteers.filter(v => v.role === role).length}</span>
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="w-full sm:w-auto min-w-[200px]">
+                                    <select
+                                        className="w-full text-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white"
+                                        value={roleFilter}
+                                        onChange={(e) => setRoleFilter(e.target.value)}
+                                    >
+                                        <option value="all">Todos los roles</option>
+                                        {Array.from(new Set(dateVolunteers.map(v => v.role))).sort().map(role => (
+                                            <option key={role} value={role}>{role}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto space-y-6">
+                                {Array.from(new Set(dateVolunteers.map(v => v.timeSlot))).sort().map(timeSlot => {
+                                    const volsInSlot = dateVolunteers.filter(v => v.timeSlot === timeSlot && (roleFilter === 'all' || v.role === roleFilter));
+                                    
+                                    if (volsInSlot.length === 0) return null;
+
+                                    return (
+                                        <div key={timeSlot} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                                            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                                                <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                                                    <Clock size={16} className="text-primary-500" />
+                                                    Horario: {timeSlot}
+                                                </h4>
+                                                <span className="text-xs font-medium text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
+                                                    {volsInSlot.length} persona{volsInSlot.length !== 1 ? 's' : ''}
+                                                </span>
+                                            </div>
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            <thead className="bg-white">
+                                                <tr>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">Voluntario</th>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">Rol</th>
+                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">Tipo</th>
+                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-100">
+                                                {volsInSlot.map((v, i) => (
+                                                    <tr key={i} className="hover:bg-gray-50 transition-colors">
+                                                        <td className="px-3 py-3">
+                                                            <div className="text-sm font-medium text-gray-900">{v.fullName}</div>
+                                                            <div className="text-xs text-gray-500 md:whitespace-nowrap">{v.phone}</div>
+                                                        </td>
+                                                        <td className="px-3 py-3 text-sm text-gray-600">{v.role}</td>
+                                                        <td className="px-3 py-3 whitespace-nowrap text-sm">
+                                                            {v.isCoordinator ? (
+                                                                <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium border border-purple-200 shadow-sm">Coordinador</span>
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium border border-green-200 shadow-sm">Voluntario</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-3 py-3 whitespace-nowrap text-right text-sm">
+                                                            <button
+                                                                onClick={() => handleRemoveVolunteer(v.userId, v.isCoordinator, v.timeSlot)}
+                                                                className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition-colors border border-transparent hover:border-red-200"
+                                                                title="Quitar de este turno"
+                                                            >
+                                                                <XCircle size={16} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                );
+                            })}
+                            
+                            {dateVolunteers.filter(v => roleFilter === 'all' || v.role === roleFilter).length === 0 && (
+                                <p className="text-gray-500 text-center py-8 border-t border-gray-200 mt-6">No hay voluntarios que coincidan con el filtro en este día.</p>
+                            )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </Modal>
         </div>
     );
 };
