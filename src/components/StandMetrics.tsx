@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { experienceService, type StationStats } from '../services/experienceService';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { supabase } from '../lib/supabaseClient';
-import { Monitor, Users, Zap, Clock, TrendingUp, RefreshCw, AlertTriangle, Activity } from 'lucide-react';
+import { Monitor, Users, Zap, Clock, TrendingUp, RefreshCw, AlertTriangle, Activity, Download } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StandMetrics — Dashboard unificado de rendimiento del stand
@@ -287,6 +289,124 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
         load();
     };
 
+    const handleDownloadPDF = () => {
+        if (!data) return;
+        const doc = new jsPDF();
+        
+        // Header
+        doc.setFillColor(243, 244, 246);
+        doc.rect(0, 0, 210, 38, 'F');
+        doc.setFontSize(20);
+        doc.setTextColor(17, 24, 39);
+        doc.text("Métricas del Stand - FamilySearch", 14, 20);
+        
+        doc.setFontSize(12);
+        doc.text(`Evento: ${eventName}`, 14, 28);
+        doc.setFontSize(10);
+        const periodStr = period === 'today' ? 'Hoy' : period === 'week' ? 'Últimos 7 días' : 'Todo el evento';
+        doc.text(`Período: ${periodStr}  |  Actualizado: ${data.loadedAt.toLocaleTimeString('es-AR')}`, 14, 33);
+        
+        let yPos = 48;
+        
+        // Resumen
+        doc.setFontSize(14);
+        doc.setTextColor(17, 24, 39);
+        doc.text("Resumen General", 14, yPos);
+        yPos += 8;
+        
+        const totalRows = [
+            ["Personas atendidas:", `${(data.totals.pcPersonas ?? 0) + (data.totals.expPersonas ?? 0)}`],
+            ["Experiencias registradas:", `${(data.totals.pcSessions ?? 0) + (data.totals.expSessions ?? 0)}`],
+            ["Sesiones PC:", `${data.totals.pcSessions}`],
+            ["Extensiones de tiempo PC:", `${data.totals.pcExtensiones}`],
+            ["Minutos extra generados por extensiones:", `${(data.totals.pcExtensiones ?? 0) * 5}`]
+        ];
+        
+        autoTable(doc, {
+            startY: yPos,
+            body: totalRows,
+            theme: 'plain',
+            styles: { fontSize: 10, cellPadding: 2 },
+            columnStyles: { 0: { fontStyle: 'bold', minCellWidth: 70 } }
+        });
+        
+        // @ts-ignore
+        yPos = doc.lastAutoTable.finalY + 15;
+        
+        // Tabla diaria
+        doc.setFontSize(14);
+        doc.text("Evolución Diaria", 14, yPos);
+        yPos += 8;
+        
+        const dayHeaders = [["Fecha", "Ses. PC", "Pers. PC", "Ext.", "Exp. Puestos", "Pers. Puestos", "Total"]];
+        const dayRows = data.days.map(r => [
+            r.label,
+            r.pcSessions.toString(),
+            r.pcPersonas.toString(),
+            r.pcExtensiones.toString(),
+            r.expSessions.toString(),
+            r.expPersonas.toString(),
+            (r.pcPersonas + r.expPersonas).toString()
+        ]);
+        
+        // Fila Total
+        dayRows.push([
+            "TOTAL",
+            data.totals.pcSessions.toString(),
+            data.totals.pcPersonas.toString(),
+            data.totals.pcExtensiones.toString(),
+            data.totals.expSessions.toString(),
+            data.totals.expPersonas.toString(),
+            (data.totals.pcPersonas + data.totals.expPersonas).toString()
+        ]);
+        
+        autoTable(doc, {
+            startY: yPos,
+            head: dayHeaders,
+            body: dayRows,
+            theme: 'grid',
+            headStyles: { fillColor: [0, 169, 79], textColor: 255 }, // FS_GREEN
+            styles: { fontSize: 9, cellPadding: 3 },
+            alternateRowStyles: { fillColor: [249, 250, 251] },
+            willDrawCell: function(hookData) {
+                if (hookData.row.index === dayRows.length - 1) {
+                    doc.setFont(doc.getFont().fontName, 'bold');
+                }
+            }
+        });
+        
+        // @ts-ignore
+        yPos = doc.lastAutoTable.finalY + 15;
+        
+        // Desglose Puestos
+        if (data.stationStats.length > 0) {
+            if (yPos > 250) { doc.addPage(); yPos = 20; }
+            doc.setFontSize(14);
+            doc.text("Desglose por Puesto de Experiencia", 14, yPos);
+            yPos += 8;
+            
+            const stHeaders = [["Puesto", "Experiencias", "Personas", "Promedio"]];
+            const stRows = data.stationStats.map(st => [
+                st.stationNombre,
+                st.totalExperiencias.toString(),
+                st.totalPersonas.toString(),
+                st.totalExperiencias > 0 ? (st.totalPersonas / st.totalExperiencias).toFixed(1) : "—"
+            ]);
+            
+            autoTable(doc, {
+                startY: yPos,
+                head: stHeaders,
+                body: stRows,
+                theme: 'grid',
+                headStyles: { fillColor: [0, 89, 148], textColor: 255 }, // FS_BLUE
+                styles: { fontSize: 9, cellPadding: 3 },
+                alternateRowStyles: { fillColor: [249, 250, 251] }
+            });
+        }
+        
+        doc.save(`Métricas_Stand_${eventName.replace(/\s+/g, '_')}_${period}.pdf`);
+    };
+
     const totalPersonas = (data?.totals.pcPersonas ?? 0) + (data?.totals.expPersonas ?? 0);
     const totalSessions = (data?.totals.pcSessions ?? 0) + (data?.totals.expSessions ?? 0);
     const maxPersonasDia = data ? Math.max(...data.days.map(d => d.pcPersonas + d.expPersonas), 1) : 1;
@@ -360,6 +480,15 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
                             </button>
                         ))}
                     </div>
+                    <button
+                        onClick={handleDownloadPDF}
+                        disabled={loading || !data}
+                        style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${FS_BORDER}`, background: 'white', cursor: 'pointer', color: '#666', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}
+                        title="Exportar Reporte a PDF"
+                    >
+                        <Download size={15} />
+                        Exportar PDF
+                    </button>
                     <button
                         onClick={handleRefresh}
                         disabled={refreshing}

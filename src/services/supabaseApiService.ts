@@ -1140,27 +1140,20 @@ export const supabaseApi = {
         // Auto-assign coordinators
         if (role && role.name.toLowerCase().includes('coordinador')) {
             try {
-                // Get all shifts with same date and time slot
-                const { data: relatedShifts } = await supabase
-                    .from('shifts')
-                    .select('id, coordinator_ids')
-                    .eq('event_id', shift.event_id)
-                    .eq('date', shift.date)
-                    .eq('time_slot', shift.time_slot);
-
-                if (relatedShifts && relatedShifts.length > 0) {
-                    // Update each shift to include this coordinator
-                    for (const relatedShift of relatedShifts) {
-                        const currentIds = relatedShift.coordinator_ids || [];
-                        if (!currentIds.includes(userId)) {
-                            const newIds = [...currentIds, userId];
-                            await supabase
-                                .from('shifts')
-                                .update({ coordinator_ids: newIds })
-                                .eq('id', relatedShift.id);
-                        }
-                    }
+                // Mismo razonamiento que en approveCoordinatorRequest:
+                // Solo agregar el coordinador al turno que acaba de reservar, 
+                // para no duplicar asistencias en todos los roles del mismo horario.
+                const currentIds = shift.coordinator_ids || [];
+                if (!currentIds.includes(userId)) {
+                    const newIds = [...currentIds, userId];
+                    await supabase
+                        .from('shifts')
+                        .update({ coordinator_ids: newIds })
+                        .eq('id', shiftId);
                 }
+
+                // Opcional: asegurarnos de que el perfil del usuario tenga el rol de sistema de coordinador
+                await supabase.from('users').update({ role: 'coordinator' }).eq('id', userId);
             } catch (error) {
                 console.error('Error auto-assigning coordinator:', error);
             }
@@ -1886,28 +1879,15 @@ export const supabaseApi = {
         if (booking.user_id) {
             await supabase.from('users').update({ role: 'coordinator' }).eq('id', booking.user_id);
 
-            // 3. Add user to coordinator_ids for ALL shifts with same date and time slot
+            // 3. Add user to coordinator_ids for the specific shift
             if (booking.shift_id && booking.shifts) {
-                // Get all shifts with same date and time slot
-                const { data: relatedShifts } = await supabase
-                    .from('shifts')
-                    .select('id, coordinator_ids')
-                    .eq('event_id', booking.event_id)
-                    .eq('date', booking.shifts.date)
-                    .eq('time_slot', booking.shifts.time_slot);
-
-                if (relatedShifts && relatedShifts.length > 0) {
-                    // Update each shift to include this coordinator
-                    for (const relatedShift of relatedShifts) {
-                        const currentIds = relatedShift.coordinator_ids || [];
-                        if (!currentIds.includes(booking.user_id)) {
-                            const newIds = [...currentIds, booking.user_id];
-                            await supabase
-                                .from('shifts')
-                                .update({ coordinator_ids: newIds })
-                                .eq('id', relatedShift.id);
-                        }
-                    }
+                const currentIds = booking.shifts.coordinator_ids || [];
+                if (!currentIds.includes(booking.user_id)) {
+                    const newIds = [...currentIds, booking.user_id];
+                    await supabase
+                        .from('shifts')
+                        .update({ coordinator_ids: newIds })
+                        .eq('id', booking.shift_id);
                 }
             }
         }
