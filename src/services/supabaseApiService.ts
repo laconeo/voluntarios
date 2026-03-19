@@ -1904,6 +1904,39 @@ export const supabaseApi = {
     },
 
     // ==================== MATERIALS ====================
+    getEventTshirtSizes: async (eventId: string): Promise<Record<string, number>> => {
+        const bookings = await fetchAllPaginated<any>(() => supabase.from('bookings').select('user_id').eq('event_id', eventId).eq('status', 'confirmed'));
+        const shifts = await fetchAllPaginated<any>(() => supabase.from('shifts').select('coordinator_ids').eq('event_id', eventId));
+        
+        const allOccupantIds = new Set<string>();
+        if (bookings) bookings.forEach(b => allOccupantIds.add(b.user_id));
+        if (shifts) {
+            shifts.forEach(s => {
+                const coordIds = s.coordinator_ids || [];
+                coordIds.forEach((cId: string) => allOccupantIds.add(cId));
+            });
+        }
+        
+        if (allOccupantIds.size === 0) return {};
+        const uniqueUserIds = Array.from(allOccupantIds);
+        
+        let allUsers: any[] = [];
+        const chunkSize = 500;
+        for (let i = 0; i < uniqueUserIds.length; i += chunkSize) {
+            const chunk = uniqueUserIds.slice(i, i + chunkSize);
+            const { data: users } = await supabase.from('users').select('tshirt_size').in('id', chunk);
+            if (users) allUsers = [...allUsers, ...users];
+        }
+        
+        const sizes: Record<string, number> = {};
+        allUsers.forEach(u => {
+            const size = u.tshirt_size && String(u.tshirt_size).trim() !== '' ? String(u.tshirt_size) : 'M';
+            sizes[size] = (sizes[size] || 0) + 1;
+        });
+        
+        return sizes;
+    },
+
     getMaterialsByEvent: async (eventId: string): Promise<Material[]> => {
         const { data, error } = await supabase.from('materials').select('*').eq('event_id', eventId);
         if (error) throw error;

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { User, Shift, Role, Booking } from '../types';
 import { mockApi } from '../services/mockApiService';
-import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus, Info, Mail, Phone, Shield, Share2, Copy, Download, X, Youtube } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus, Info, Mail, Phone, Shield, Share2, Copy, Download, X, Youtube, Sparkles, ArrowRight } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import RoleDetailModal from './RoleDetailModal';
@@ -26,8 +26,11 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   const [event, setEvent] = useState<any>(null); // To store event details
   const [showEventModal, setShowEventModal] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [pendingDates, setPendingDates] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'shifts' | 'bookings'>('shifts');
   const [isBooking, setIsBooking] = useState(false);
+  const welcomeShownRef = useRef(false);
 
   // Auto-scroll to selected date in mobile view
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -163,6 +166,25 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
       toast.error('No se pudieron cargar tus inscripciones.');
     }
   }, [user.id]);
+
+  // Compute dates with available shifts where user is NOT booked
+  useEffect(() => {
+    if (!event || shiftDates.length === 0) return;
+    // Wait until bookings are loaded
+    const bookedDates = new Set(
+      userBookings
+        .filter(b => b.status !== 'cancelled' && b.shift?.date)
+        .map(b => b.shift!.date)
+    );
+    const pending = shiftDates.filter(d => !bookedDates.has(d)).sort();
+    setPendingDates(pending);
+
+    // Show modal only once per session on first load
+    if (!welcomeShownRef.current && pending.length > 0) {
+      welcomeShownRef.current = true;
+      setShowWelcomeModal(true);
+    }
+  }, [shiftDates, userBookings, event]);
 
   useEffect(() => {
     mockApi.getAllRoles().then(setRoles);
@@ -487,9 +509,98 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
     toast.success('PDF descargado correctamente');
   };
 
+  const handleWelcomeDateSelect = (dateStr: string) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    setSelectedDate(date);
+    setCurrentDate(date);
+    setActiveTab('shifts');
+    setShowWelcomeModal(false);
+  };
+
+  const formatDateLabel = (dateStr: string) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  };
+
   return (
     <div className="pb-24 lg:pb-12">
       {selectedRole && <RoleDetailModal role={selectedRole} onClose={() => setSelectedRole(null)} />}
+
+      {/* Welcome Modal - Available Days */}
+      {showWelcomeModal && (
+        <div
+          className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+        >
+          <div
+            className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden"
+            style={{ maxHeight: '90vh' }}
+          >
+            {/* Header gradient */}
+            <div className="relative bg-gradient-to-br from-primary-600 to-primary-400 px-6 pt-8 pb-10 text-white">
+              <button
+                onClick={() => setShowWelcomeModal(false)}
+                className="absolute top-4 right-4 p-1.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+              >
+                <X size={18} />
+              </button>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                  <Sparkles size={22} className="text-white" />
+                </div>
+                <span className="text-sm font-semibold uppercase tracking-widest opacity-80">Voluntariado</span>
+              </div>
+              <h2 className="text-2xl font-bold leading-tight mb-1">
+                ¡Hola, {user.fullName.split(' ')[0]}! 👋
+              </h2>
+              <p className="text-white/80 text-sm">
+                Hay <span className="font-bold text-white">{pendingDates.length} {pendingDates.length === 1 ? 'día' : 'días'}</span> con turnos disponibles donde todavía no estás inscripto.
+              </p>
+            </div>
+
+            {/* Pill decoration */}
+            <div className="flex justify-center -mt-3">
+              <div className="w-12 h-1.5 bg-gray-200 rounded-full" />
+            </div>
+
+            {/* Days list */}
+            <div className="px-6 pt-4 pb-2">
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Seleccioná un día para ver los turnos</p>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
+                {pendingDates.map((dateStr, idx) => (
+                  <button
+                    key={dateStr}
+                    onClick={() => handleWelcomeDateSelect(dateStr)}
+                    className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-gray-100 bg-gray-50 hover:bg-primary-50 hover:border-primary-200 transition-all group text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold shrink-0">
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-800 capitalize text-sm">{formatDateLabel(dateStr)}</p>
+                      </div>
+                    </div>
+                    <ArrowRight size={16} className="text-gray-300 group-hover:text-primary-500 transition-colors shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100">
+              <button
+                onClick={() => setShowWelcomeModal(false)}
+                className="w-full py-3 rounded-xl text-gray-500 text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Ver más tarde
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Modal isOpen={showSummaryModal} onClose={() => setShowSummaryModal(false)} title="Resumen de Asignaciones">
         <div className="space-y-6">
