@@ -33,6 +33,7 @@ export interface Event {
   turnos: number; // contador
   ocupacion: number; // porcentaje
   cantidadPCs?: number; // Cantidad de computadoras del stand para este evento
+  showAvailableShiftsModal?: boolean; // Si se muestra la modal de últimos turnos disponibles al ingresar
   createdAt: string;
 }
 

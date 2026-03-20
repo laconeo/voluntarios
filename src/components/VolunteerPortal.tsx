@@ -28,6 +28,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [pendingDates, setPendingDates] = useState<string[]>([]);
+  const [pendingDatesInfo, setPendingDatesInfo] = useState<Record<string, { count: number; roles: string[] }>>({});
   const [activeTab, setActiveTab] = useState<'shifts' | 'bookings'>('shifts');
   const [isBooking, setIsBooking] = useState(false);
   const welcomeShownRef = useRef(false);
@@ -170,7 +171,6 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   // Compute dates with available shifts where user is NOT booked
   useEffect(() => {
     if (!event || shiftDates.length === 0) return;
-    // Wait until bookings are loaded
     const bookedDates = new Set(
       userBookings
         .filter(b => b.status !== 'cancelled' && b.shift?.date)
@@ -179,12 +179,37 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
     const pending = shiftDates.filter(d => !bookedDates.has(d)).sort();
     setPendingDates(pending);
 
-    // Show modal only once per session on first load
-    if (!welcomeShownRef.current && pending.length > 0) {
+    // Show modal only once per session on first load, and only if the event has it enabled
+    if (!welcomeShownRef.current && pending.length > 0 && event?.showAvailableShiftsModal) {
       welcomeShownRef.current = true;
       setShowWelcomeModal(true);
+
+      // Load shift info (count + roles) for each pending date (async inner fn)
+      const targetEventId = eventId || 'event_1';
+      (async () => {
+        const infoMap: Record<string, { count: number; roles: string[] }> = {};
+        await Promise.all(
+          pending.map(async (dateStr) => {
+            try {
+              const dayShifts = await mockApi.getShiftsForDate(targetEventId, dateStr);
+              const available = dayShifts.filter(s => s.availableVacancies > 0);
+              const allRoles = await mockApi.getAllRoles();
+              const visibleRoles = allRoles.filter(r => r.isVisible !== false);
+              const roleNames = [...new Set(
+                available
+                  .map(s => visibleRoles.find(r => r.id === s.roleId)?.name)
+                  .filter(Boolean) as string[]
+              )];
+              infoMap[dateStr] = { count: available.length, roles: roleNames };
+            } catch {
+              infoMap[dateStr] = { count: 0, roles: [] };
+            }
+          })
+        );
+        setPendingDatesInfo(infoMap);
+      })();
     }
-  }, [shiftDates, userBookings, event]);
+  }, [shiftDates, userBookings, event, eventId]);
 
   useEffect(() => {
     mockApi.getAllRoles().then(setRoles);
@@ -539,24 +564,27 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
             style={{ maxHeight: '90vh' }}
           >
             {/* Header gradient */}
-            <div className="relative bg-gradient-to-br from-primary-600 to-primary-400 px-6 pt-8 pb-10 text-white">
+            <div className="relative bg-gradient-to-br from-primary-600 to-primary-400 px-6 pt-8 pb-12 text-white">
               <button
                 onClick={() => setShowWelcomeModal(false)}
                 className="absolute top-4 right-4 p-1.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
               >
                 <X size={18} />
               </button>
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                   <Sparkles size={22} className="text-white" />
                 </div>
                 <span className="text-sm font-semibold uppercase tracking-widest opacity-80">Voluntariado</span>
               </div>
-              <h2 className="text-2xl font-bold leading-tight mb-1">
+              <h2 className="text-3xl font-extrabold leading-tight mb-1">
                 ¡Hola, {user.fullName.split(' ')[0]}! 👋
               </h2>
+              <h3 className="text-xl font-bold text-white/90 mb-2">
+                Últimos turnos disponibles
+              </h3>
               <p className="text-white/80 text-sm">
-                Hay <span className="font-bold text-white">{pendingDates.length} {pendingDates.length === 1 ? 'día' : 'días'}</span> con turnos disponibles donde todavía no estás inscripto.
+                Hay <span className="font-bold text-white">{pendingDates.length} {pendingDates.length === 1 ? 'día' : 'días'}</span> con turnos donde todavía no estás inscripto.
               </p>
             </div>
 
@@ -567,25 +595,46 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
 
             {/* Days list */}
             <div className="px-6 pt-4 pb-2">
-              <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Seleccioná un día para ver los turnos</p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Seleccioná un día para ver los turnos</p>
+                <span className="text-xs font-semibold text-primary-600 bg-primary-50 border border-primary-200 px-2.5 py-1 rounded-full whitespace-nowrap">
+                  Hay <span className="font-extrabold">{pendingDates.length}</span> {pendingDates.length === 1 ? 'día' : 'días'} aún <span className="font-extrabold uppercase tracking-wide">disponibles</span>
+                </span>
+              </div>
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
-                {pendingDates.map((dateStr, idx) => (
-                  <button
-                    key={dateStr}
-                    onClick={() => handleWelcomeDateSelect(dateStr)}
-                    className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-gray-100 bg-gray-50 hover:bg-primary-50 hover:border-primary-200 transition-all group text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold shrink-0">
-                        {idx + 1}
+                {pendingDates.map((dateStr, idx) => {
+                  const info = pendingDatesInfo[dateStr];
+                  return (
+                    <button
+                      key={dateStr}
+                      onClick={() => handleWelcomeDateSelect(dateStr)}
+                      className="w-full flex items-start justify-between px-4 py-3.5 rounded-xl border border-gray-100 bg-gray-50 hover:bg-primary-50 hover:border-primary-200 transition-all group text-left"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold shrink-0 flex-col leading-none">
+                          <span className="text-base font-extrabold">{info?.count ?? '...'}</span>
+                          <span className="text-[9px] font-semibold uppercase opacity-70">turnos</span>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-800 capitalize text-sm">{formatDateLabel(dateStr)}</p>
+                          {info && info.roles.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {info.roles.map(role => (
+                                <span key={role} className="text-[10px] font-semibold bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                                  {role}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {!info && (
+                            <span className="text-[10px] text-gray-400 italic">Cargando roles...</span>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-gray-800 capitalize text-sm">{formatDateLabel(dateStr)}</p>
-                      </div>
-                    </div>
-                    <ArrowRight size={16} className="text-gray-300 group-hover:text-primary-500 transition-colors shrink-0" />
-                  </button>
-                ))}
+                      <ArrowRight size={16} className="text-gray-300 group-hover:text-primary-500 transition-colors shrink-0 mt-1" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

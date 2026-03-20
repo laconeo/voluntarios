@@ -52,6 +52,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         descripcion: '',
         estado: 'Inactivo' as 'Activo' | 'Inactivo' | 'Archivado',
         cantidadPCs: '' as string | number,
+        showAvailableShiftsModal: false as boolean,
     });
 
     const nombreEventoInputRef = React.useRef<HTMLInputElement>(null);
@@ -91,8 +92,12 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        const { name, value, type } = e.target;
+        if (type === 'checkbox') {
+            setFormData(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
     };
 
     const generateSlug = () => {
@@ -115,7 +120,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
     };
 
     const iniciarCrearEvento = () => {
-        setFormData({ nombre: '', slug: '', ubicacion: '', pais: '', contactEmail: '', fechaInicio: '', fechaFin: '', descripcion: '', estado: 'Inactivo', cantidadPCs: '' });
+        setFormData({ nombre: '', slug: '', ubicacion: '', pais: '', contactEmail: '', fechaInicio: '', fechaFin: '', descripcion: '', estado: 'Inactivo', cantidadPCs: '', showAvailableShiftsModal: false });
         setVistaActual('crear');
     };
 
@@ -132,6 +137,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
             descripcion: evento.descripcion,
             estado: evento.estado,
             cantidadPCs: evento.cantidadPCs !== undefined ? evento.cantidadPCs : '',
+            showAvailableShiftsModal: evento.showAvailableShiftsModal ?? false,
         });
         setVistaActual('editar');
     };
@@ -1001,6 +1007,30 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                     {formData.cantidadPCs === '' && (
                                         <p className="text-xs text-indigo-500 mt-1">Dejá en blanco si no usás el monitor de stand.</p>
                                     )}
+                                </div>
+
+                                {/* Modal de últimos turnos disponibles */}
+                                <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="flex items-center h-5 mt-0.5">
+                                            <input
+                                                type="checkbox"
+                                                id="showAvailableShiftsModal"
+                                                name="showAvailableShiftsModal"
+                                                checked={formData.showAvailableShiftsModal}
+                                                onChange={handleInputChange}
+                                                className="w-4 h-4 rounded border-primary-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="showAvailableShiftsModal" className="text-sm font-semibold text-primary-800 cursor-pointer flex items-center gap-2">
+                                                Abrir modal de últimos turnos disponibles
+                                            </label>
+                                            <p className="text-xs text-primary-600 mt-1">
+                                                Al activar esta opción, cuando un voluntario ingrese al portal verá una ventana emergente mostrando los días con turnos aún disponibles donde no está inscripto.
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
