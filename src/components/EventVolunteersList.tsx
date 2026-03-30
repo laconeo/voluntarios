@@ -1665,8 +1665,25 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     ) : (
                         <div className="space-y-3">
                             {noShiftVolunteers.map((vol: any) => {
-                                const eventUrl = eventDetails?.slug ? `${window.location.origin}/#/${eventDetails.slug}` : window.location.href;
-                                const messageText = `Hola ${vol.fullName}, ¡gracias por inscribirte como voluntario en *${eventDetails?.nombre || 'nuestro evento'}*! 🙌\n\nNotamos que aún no elegiste un turno específico. Te invitamos a ingresar a la plataforma y seleccionar los horarios que mejor se adapten a tu disponibilidad:\n\n🔗 ${eventUrl}\n\nTu participación es muy importante. ¡Te esperamos!`;
+                                const availableShifts = shifts
+                                    .filter(s => (s.availableVacancies ?? 0) > 0)
+                                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                                const shiftsText = availableShifts.length === 0
+                                    ? 'No hay turnos disponibles en este momento.\n'
+                                    : availableShifts.slice(0, 10).map(s => {
+                                        const roleName = roles.find(r => r.id === s.roleId)?.name || 'Voluntario';
+                                        const dateStr = new Date(s.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+                                        return `- ${dateStr} ${s.timeSlot} - ${roleName} (${s.availableVacancies} lugar${(s.availableVacancies ?? 0) !== 1 ? 'es' : ''})`;
+                                    }).join('\n')
+                                    + (availableShifts.length > 10 ? `\n... y ${availableShifts.length - 10} turnos más.` : '');
+
+                                const messageText = `Hola ${vol.fullName}!\n`
+                                    + `Gracias por inscribirte como voluntario en *${eventDetails?.nombre || 'nuestro evento'}*.\n\n`
+                                    + `Notamos que aun no elegiste un turno especifico. Te invitamos a revisar las oportunidades disponibles e inscribirte en la que mejor se adapte a tu disponibilidad:\n\n`
+                                    + `*Turnos disponibles:*\n${shiftsText}\n\n`
+                                    + `Inscribite desde: https://familysearch.me/feriadellibro\n\n`
+                                    + `Tu participacion es muy importante. Te esperamos!`;
 
                                 const cleanPhone = (phone: string) => {
                                     let p = phone.replace(/\D/g, '');
