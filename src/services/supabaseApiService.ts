@@ -1576,6 +1576,125 @@ export const supabaseApi = {
         });
     },
 
+    getVolunteersByStake: async (eventId: string, stakeName: string): Promise<any[]> => {
+        // Helper: normalize a raw stake name to the same grouped name used by getDashboardMetrics
+        const normalize = (rawName: string): string => {
+            const parts = rawName.split(/[/\\-]/);
+            let baseName = parts[0].trim();
+            baseName = baseName.replace(/^estaca\s+/i, '');
+            const barrioIndex = baseName.toLowerCase().indexOf('barrio');
+            if (barrioIndex > 0) baseName = baseName.substring(0, barrioIndex);
+            baseName = baseName.trim();
+            return baseName.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase());
+        };
+
+        const isDesconocida = stakeName === 'Desconocida';
+
+        // 1. Get stakes for this event and find matching IDs
+        const { data: stakes } = await supabase.from('stakes').select('id, name').eq('event_id', eventId);
+        const matchingStakeIds = (stakes || [])
+            .filter((s: any) => normalize(s.name) === stakeName)
+            .map((s: any) => s.id);
+
+        // Helper to check if user belongs to the stake group
+        const userMatchesStake = (user: any): boolean => {
+            if (!user) return false;
+            if (isDesconocida) return !user.stake_id;
+            return user.stake_id && matchingStakeIds.includes(user.stake_id);
+        };
+
+        // 2. Get ALL shifts for this event with role info + coordinator_ids
+        const allShifts = await fetchAllPaginated<any>(() =>
+            supabase.from('shifts')
+                .select('id, date, time_slot, role_id, roles(name), coordinator_ids')
+                .eq('event_id', eventId)
+        );
+
+        const shiftMap = new Map<string, any>();
+        allShifts.forEach((s: any) => shiftMap.set(s.id, s));
+
+        // 3. Get all confirmed bookings that have a shift_id (skip null shift_id = general enrollment)
+        const bookings = await fetchAllPaginated<any>(() =>
+            supabase.from('bookings')
+                .select('user_id, shift_id, users(id, full_name, email, phone, stake_id)')
+                .eq('event_id', eventId)
+                .eq('status', 'confirmed')
+                .not('shift_id', 'is', null)
+        );
+
+        // 4. Filter bookings belonging to this stake group and build results
+        const results: any[] = [];
+        const addedSet = new Set<string>(); // key: userId-shiftId
+
+        bookings.forEach((b: any) => {
+            if (!b.users || !b.shift_id) return;
+            if (!userMatchesStake(b.users)) return;
+
+            const shift = shiftMap.get(b.shift_id);
+            if (!shift) return;
+
+            const key = `${b.users.id}-${b.shift_id}`;
+            if (addedSet.has(key)) return;
+
+            const isCoord = shift.coordinator_ids?.includes(b.users.id) || false;
+
+            results.push({
+                userId: b.users.id,
+                fullName: b.users.full_name || 'N/A',
+                phone: b.users.phone || 'N/A',
+                email: b.users.email || '',
+                timeSlot: shift.time_slot,
+                date: shift.date,
+                role: shift.roles?.name || 'N/A',
+                isCoordinator: isCoord,
+            });
+            addedSet.add(key);
+        });
+
+        // 5. Add coordinator-only assignments (in coordinator_ids but no booking)
+        const allCoordIds = new Set<string>();
+        allShifts.forEach((s: any) => {
+            if (s.coordinator_ids) s.coordinator_ids.forEach((id: string) => allCoordIds.add(id));
+        });
+
+        if (allCoordIds.size > 0) {
+            const { data: coordUsers } = await supabase.from('users')
+                .select('id, full_name, email, phone, stake_id')
+                .in('id', Array.from(allCoordIds));
+
+            const matchingCoords = (coordUsers || []).filter(userMatchesStake);
+
+            allShifts.forEach((shift: any) => {
+                if (!shift.coordinator_ids) return;
+                shift.coordinator_ids.forEach((cId: string) => {
+                    const key = `${cId}-${shift.id}`;
+                    if (addedSet.has(key)) return;
+                    const user = matchingCoords.find((u: any) => u.id === cId);
+                    if (user) {
+                        results.push({
+                            userId: user.id,
+                            fullName: user.full_name || 'N/A',
+                            phone: user.phone || 'N/A',
+                            email: user.email || '',
+                            timeSlot: shift.time_slot,
+                            date: shift.date,
+                            role: shift.roles?.name || 'N/A',
+                            isCoordinator: true,
+                        });
+                        addedSet.add(key);
+                    }
+                });
+            });
+        }
+
+        // Sort by date, then timeSlot, then name
+        return results.sort((a: any, b: any) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            if (a.timeSlot !== b.timeSlot) return a.timeSlot.localeCompare(b.timeSlot);
+            return a.fullName.localeCompare(b.fullName);
+        });
+    },
+
     removeVolunteerFromDay: async (eventId: string, date: string, userId: string, isCoordinator: boolean, timeSlot: string): Promise<void> => {
         // Encontraremos los turnos de ese día y horario
         const { data: shifts } = await supabase.from('shifts')

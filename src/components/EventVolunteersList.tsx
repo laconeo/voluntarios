@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Filter, Download, Mail, Phone, Edit2, X, Save, Eye, CheckCircle, XCircle, Calendar, Trash2, Share2, Copy, AlertCircle, Shield, UserCheck } from 'lucide-react';
+import { Users, Search, Filter, Download, Mail, Phone, Edit2, X, Save, Eye, CheckCircle, XCircle, Calendar, Trash2, Share2, Copy, AlertCircle, Shield, UserCheck, ChevronUp, ChevronDown, ChevronsUpDown, Info, MessageSquare, UserX } from 'lucide-react';
 import Modal from './Modal';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -25,6 +25,28 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     const [showEditModal, setShowEditModal] = useState(false);
     const [stakes, setStakes] = useState<Stake[]>([]);
 
+    // Sorting state
+    type SortField = 'name' | 'role' | 'shifts' | 'status';
+    type SortDir = 'asc' | 'desc';
+    const [sortField, setSortField] = useState<SortField>('name');
+    const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDir('asc');
+        }
+    };
+
+    const SortIcon = ({ field }: { field: SortField }) => {
+        if (sortField !== field) return <ChevronsUpDown size={13} className="ml-1 text-gray-400 inline" />;
+        return sortDir === 'asc'
+            ? <ChevronUp size={13} className="ml-1 text-primary-600 inline" />
+            : <ChevronDown size={13} className="ml-1 text-primary-600 inline" />;
+    };
+
     // New state for viewing user shifts
     const [viewingUser, setViewingUser] = useState<User | null>(null);
 
@@ -40,6 +62,8 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     const [pendingCoordinatorRequests, setPendingCoordinatorRequests] = useState<Booking[]>([]);
     const [showCancellationsModal, setShowCancellationsModal] = useState(false);
     const [showCoordinatorRequestsModal, setShowCoordinatorRequestsModal] = useState(false);
+    const [showNoShiftModal, setShowNoShiftModal] = useState(false);
+    const [noShiftVolunteers, setNoShiftVolunteers] = useState<any[]>([]);
 
     useEffect(() => {
         fetchVolunteers();
@@ -135,7 +159,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                 for (const shift of coordinatedShifts) {
                     await mockApi.removeCoordinatorFromShift(shift.id, editingUser.id);
                 }
-                toast.success('Se eliminaron los turnos de coordinación automáticamente.');
+                toast.success('Se eliminaron los turnos de coordinaciÃ³n automÃ¡ticamente.');
             }
 
             await mockApi.updateUser(userToUpdate);
@@ -228,7 +252,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     const shiftId = parts[1];
                     const userId = parts[2];
 
-                    if (window.confirm('¿Estás seguro de que quieres quitar el rol de coordinador para este turno?')) {
+                    if (window.confirm('Â¿EstÃ¡s seguro de que quieres quitar el rol de coordinador para este turno?')) {
                         await mockApi.removeCoordinatorFromShift(shiftId, userId);
                         toast.success('Rol de coordinador removido');
 
@@ -278,7 +302,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     'DNI': v.dni,
                     'Nombre Completo': v.fullName,
                     'Email': v.email,
-                    'Teléfono': v.phone,
+                    'TelÃ©fono': v.phone,
                     'Rol': getRoleLabel(v.role),
                     'Turnos Asignados': userBookings.length,
                     'Estado': v.status || 'active',
@@ -342,7 +366,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             setPendingCoordinatorRequests(requests);
             setShowCoordinatorRequestsModal(true);
         } catch (error) {
-            toast.error('Error al cargar solicitudes de coordinación');
+            toast.error('Error al cargar solicitudes de coordinaciÃ³n');
         }
     };
 
@@ -373,6 +397,58 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         return stakes.find(s => s.id === stakeId)?.name || 'Sin Estaca/Barrio';
     };
 
+    // Count volunteers WITHOUT real shifts
+    // A "sin turno" volunteer is one whose ALL bookings point to placeholder shifts
+    // (shifts with date='-', timeSlot='-', or shiftId pointing to a non-existent shift)
+    const [noShiftCount, setNoShiftCount] = useState(0);
+
+    // Build a Set of "real" shift IDs (non-placeholder shifts)
+    const realShiftIds = new Set(
+        shifts.filter(s => s.timeSlot !== '-' && s.date !== '-').map(s => s.id)
+    );
+
+    // Compute noShiftCount from already-loaded state
+    useEffect(() => {
+        // For each volunteer, check if they have at least one booking to a real shift
+        const usersWithNoRealShift: string[] = [];
+
+        volunteers.forEach(vol => {
+            const userBookings = bookings.filter(b => b.userId === vol.id);
+            // A user has a "real" shift if any of their bookings points to a real shift ID
+            // or if they are a coordinator on any real shift
+            const hasRealBooking = userBookings.some(b => b.shiftId && realShiftIds.has(b.shiftId));
+
+            const isCoordinator = shifts.some(s =>
+                s.coordinatorIds?.includes(vol.id) && s.timeSlot !== '-' && s.date !== '-'
+            );
+
+            if (!hasRealBooking && !isCoordinator && userBookings.length > 0) {
+                usersWithNoRealShift.push(vol.id);
+            }
+        });
+
+        setNoShiftCount(usersWithNoRealShift.length);
+    }, [volunteers, bookings, shifts]);
+
+    const handleViewNoShiftVolunteers = () => {
+        const vols = volunteers.filter(vol => {
+            const userBookings = bookings.filter(b => b.userId === vol.id);
+            const hasRealBooking = userBookings.some(b => b.shiftId && realShiftIds.has(b.shiftId));
+            const isCoordinator = shifts.some(s =>
+                s.coordinatorIds?.includes(vol.id) && s.timeSlot !== '-' && s.date !== '-'
+            );
+            return !hasRealBooking && !isCoordinator && userBookings.length > 0;
+        }).map(u => ({
+            ...u,
+            stakeName: getStakeName(u.stakeId),
+        })).sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+        setNoShiftVolunteers(vols);
+        setShowNoShiftModal(true);
+    };
+
+
+
     // Summary Generation Logic
     const [summaryUser, setSummaryUser] = useState<User | null>(null);
     const [summaryBookings, setSummaryBookings] = useState<Booking[]>([]);
@@ -395,8 +471,8 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         let text = `*RECORDATORIO DE ASIGNACIONES*\n`;
         text += `*${eventDetails?.nombre || 'Evento'}*\n`;
         if (eventDetails) {
-            text += `📅 ${new Date(eventDetails.fechaInicio + 'T00:00:00').toLocaleDateString()} - ${new Date(eventDetails.fechaFin + 'T00:00:00').toLocaleDateString()}\n`;
-            text += `📍 ${eventDetails.ubicacion}\n`;
+            text += `ðŸ“… ${new Date(eventDetails.fechaInicio + 'T00:00:00').toLocaleDateString()} - ${new Date(eventDetails.fechaFin + 'T00:00:00').toLocaleDateString()}\n`;
+            text += `ðŸ“ ${eventDetails.ubicacion}\n`;
         }
         text += `\nHola ${summaryUser.fullName}, te comparto el resumen de tus turnos asignados:\n\n`;
 
@@ -408,15 +484,15 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             activeBookings.forEach(booking => {
                 const date = booking.shift?.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', weekday: 'short' }) : 'N/A';
                 const roleName = booking.shift?.role?.name || 'Rol';
-                text += `✅ ${date} ${booking.shift?.timeSlot} | ${roleName}\n`;
+                text += `âœ… ${date} ${booking.shift?.timeSlot} | ${roleName}\n`;
             });
         }
 
         // Footer con link y aviso
-        text += `\n⚠️ *Importante:* Si tienes alguna novedad o no puedes asistir a algún turno, por favor avísanos lo antes posible.\n\n`;
+        text += `\nâš ï¸ *Importante:* Si tienes alguna novedad o no puedes asistir a algÃºn turno, por favor avÃ­sanos lo antes posible.\n\n`;
 
         const eventUrl = eventDetails?.slug ? `${window.location.origin}/#/${eventDetails.slug}` : window.location.href;
-        text += `🔗 Más info y autogestión en:\n${eventUrl}`;
+        text += `ðŸ”— MÃ¡s info y autogestiÃ³n en:\n${eventUrl}`;
 
         return text;
     };
@@ -448,7 +524,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         doc.setTextColor(75, 85, 99);
         if (eventDetails) {
             const dateStr = `${new Date(eventDetails.fechaInicio + 'T00:00:00').toLocaleDateString('es-AR')} - ${new Date(eventDetails.fechaFin + 'T00:00:00').toLocaleDateString('es-AR')}`;
-            doc.text(`Fechas: ${dateStr}   |   Ubicación: ${eventDetails.ubicacion}`, 14, 38);
+            doc.text(`Fechas: ${dateStr}   |   UbicaciÃ³n: ${eventDetails.ubicacion}`, 14, 38);
         }
 
         let yPos = 60;
@@ -492,10 +568,10 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
         doc.setFontSize(10);
         doc.setTextColor(161, 98, 7); // yellow-800
-        doc.text("IMPORTANTE: Si tienes alguna novedad o no puedes asistir a algún turno, por favor avísanos lo antes posible.", 18, finalY + 8, { maxWidth: 174 });
+        doc.text("IMPORTANTE: Si tienes alguna novedad o no puedes asistir a algÃºn turno, por favor avÃ­sanos lo antes posible.", 18, finalY + 8, { maxWidth: 174 });
 
         doc.setTextColor(31, 41, 55); // gray-800
-        doc.text("Más info y autogestión en:", 18, finalY + 16);
+        doc.text("MÃ¡s info y autogestiÃ³n en:", 18, finalY + 16);
         doc.setTextColor(37, 99, 235); // blue-600
         const eventUrl = eventDetails?.slug ? `${window.location.origin}/#/${eventDetails.slug}` : window.location.href;
         doc.textWithLink(eventUrl, 65, finalY + 16, { url: eventUrl });
@@ -508,22 +584,22 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         if (!summaryUser) return;
         const text = generateSummaryText();
 
-        // Limpiar el número dejando solo dígitos
+        // Limpiar el nÃºmero dejando solo dÃ­gitos
         let phone = summaryUser.phone.replace(/\D/g, '');
 
-        // Lógica específica para Argentina (mejora la probabilidad de que funcione el enlace directo)
-        // Si tiene 10 dígitos (ej: 11 1234 5678), asumimos que es número local y agregamos 549
+        // LÃ³gica especÃ­fica para Argentina (mejora la probabilidad de que funcione el enlace directo)
+        // Si tiene 10 dÃ­gitos (ej: 11 1234 5678), asumimos que es nÃºmero local y agregamos 549
         if (phone.length === 10) {
             phone = '549' + phone;
         }
-        // Si tiene 11 dígitos y empieza con 0 (ej: 011 1234 5678), quitamos el 0 y agregamos 549
+        // Si tiene 11 dÃ­gitos y empieza con 0 (ej: 011 1234 5678), quitamos el 0 y agregamos 549
         else if (phone.length === 11 && phone.startsWith('0')) {
             phone = '549' + phone.substring(1);
         }
 
-        // Si ya tiene 12 o 13 dígitos (ej: 54911...), lo dejamos así.
+        // Si ya tiene 12 o 13 dÃ­gitos (ej: 54911...), lo dejamos asÃ­.
 
-        // Construir URL. Si el teléfono es válido (>6 dígitos al menos), intentamos el enlace directo.
+        // Construir URL. Si el telÃ©fono es vÃ¡lido (>6 dÃ­gitos al menos), intentamos el enlace directo.
         let url = phone.length > 6
             ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
             : `https://wa.me/?text=${encodeURIComponent(text)}`;
@@ -541,13 +617,29 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         return badges[role as keyof typeof badges] || badges.volunteer;
     };
 
-    const filteredVolunteers = volunteers.filter(volunteer => {
-        const matchSearch = volunteer.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            volunteer.dni.includes(searchTerm) ||
-            volunteer.email.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchRole = filterRole === 'todos' || volunteer.role === filterRole;
-        return matchSearch && matchRole;
-    });
+    const filteredVolunteers = volunteers
+        .filter(volunteer => {
+            const matchSearch = volunteer.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                volunteer.dni.includes(searchTerm) ||
+                volunteer.email.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchRole = filterRole === 'todos' || volunteer.role === filterRole;
+            return matchSearch && matchRole;
+        })
+        .sort((a, b) => {
+            let cmp = 0;
+            if (sortField === 'name') {
+                cmp = a.fullName.localeCompare(b.fullName);
+            } else if (sortField === 'role') {
+                cmp = a.role.localeCompare(b.role);
+            } else if (sortField === 'shifts') {
+                const aCount = bookings.filter(bk => bk.userId === a.id).length;
+                const bCount = bookings.filter(bk => bk.userId === b.id).length;
+                cmp = aCount - bCount;
+            } else if (sortField === 'status') {
+                cmp = (a.status || 'active').localeCompare(b.status || 'active');
+            }
+            return sortDir === 'asc' ? cmp : -cmp;
+        });
 
     // Find users NOT in the event but in the system matching search
     const notEnrolledUsers = searchTerm.length > 2 ? allSystemUsers.filter(u => {
@@ -560,7 +652,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     }) : [];
 
     const handleEnrollUser = async (userToEnroll: User) => {
-        if (!confirm(`¿Deseas inscribir a ${userToEnroll.fullName} en este evento?`)) return;
+        if (!confirm(`Â¿Deseas inscribir a ${userToEnroll.fullName} en este evento?`)) return;
         try {
             await mockApi.enrollUserInEvent(userToEnroll.id, eventId);
             toast.success('Usuario inscripto exitosamente');
@@ -611,6 +703,18 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     >
                         <Shield size={18} />
                         {pendingCoordinatorRequests.length} Solicitudes Coord.
+                    </button>
+
+                    <button
+                        onClick={handleViewNoShiftVolunteers}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm font-bold shadow-sm ${
+                            noShiftCount > 0
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                                : 'bg-gray-50 text-gray-400 border border-gray-200 cursor-default opacity-60'}`}
+                        disabled={noShiftCount === 0}
+                    >
+                        <UserX size={18} />
+                        {noShiftCount} Sin Turno
                     </button>
                     <button
                         onClick={exportToExcel}
@@ -669,8 +773,11 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                 <table className="w-full table-fixed"> {/* table-fixed helps contain width */}
                     <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
-                                Voluntario
+                            <th
+                                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4 cursor-pointer hover:bg-gray-100 select-none"
+                                onClick={() => handleSort('name')}
+                            >
+                                Voluntario <SortIcon field="name" />
                             </th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
                                 Contacto
@@ -678,14 +785,24 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                             <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
                                 Participo
                             </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
-                                Rol
+                            <th
+                                className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%] cursor-pointer hover:bg-gray-100 select-none"
+                                onClick={() => handleSort('role')}
+                            >
+                                Rol <SortIcon field="role" />
                             </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
-                                Turnos
+                            <th
+                                className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%] cursor-pointer hover:bg-gray-100 select-none"
+                                onClick={() => handleSort('shifts')}
+                                title="Ordenar por cantidad de turnos asignados"
+                            >
+                                Turnos <SortIcon field="shifts" />
                             </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
-                                Estado
+                            <th
+                                className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%] cursor-pointer hover:bg-gray-100 select-none"
+                                onClick={() => handleSort('status')}
+                            >
+                                Estado <SortIcon field="status" />
                             </th>
                             <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
                                 Acciones
@@ -838,7 +955,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                     <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Experiencia</div>
                                     {volunteer.attendedPrevious ? (
                                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
-                                            Participó en Anterior
+                                            ParticipÃ³ en Anterior
                                         </span>
                                     ) : (
                                         <span className="text-xs text-gray-500">Primera vez</span>
@@ -914,7 +1031,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Teléfono
+                                        TelÃ©fono
                                     </label>
                                     <input
                                         type="tel"
@@ -975,7 +1092,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                             {/* Coordinator Shift Assignment Section */}
                             {editingUser.role === 'coordinator' && (
                                 <div className="mt-6 border-t border-gray-100 pt-4">
-                                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Asignar Turnos (Coordinación)</h4>
+                                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Asignar Turnos (CoordinaciÃ³n)</h4>
 
                                     <div className="mb-4">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Agregar Turno</label>
@@ -1013,7 +1130,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                 <tr>
                                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
                                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Horario</th>
-                                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Acción</th>
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">AcciÃ³n</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-200">
@@ -1037,7 +1154,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                 {shifts.filter(s => s.coordinatorIds?.includes(editingUser.id)).length === 0 && (
                                                     <tr>
                                                         <td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-500">
-                                                            No tiene turnos de coordinación asignados.
+                                                            No tiene turnos de coordinaciÃ³n asignados.
                                                         </td>
                                                     </tr>
                                                 )}
@@ -1051,7 +1168,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
                             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
                                 <p className="text-sm text-yellow-700">
-                                    <strong>Nota:</strong> Los cambios en el rol afectarán los permisos del usuario en todo el sistema.
+                                    <strong>Nota:</strong> Los cambios en el rol afectarÃ¡n los permisos del usuario en todo el sistema.
                                 </p>
                             </div>
                         </div>
@@ -1091,7 +1208,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                     <div key={u.id} className="flex items-center justify-between bg-white p-3 rounded shadow-sm">
                                         <div>
                                             <p className="font-medium text-gray-900">{u.fullName}</p>
-                                            <p className="text-xs text-gray-500">{u.email} • DNI: {u.dni}</p>
+                                            <p className="text-xs text-gray-500">{u.email} â€¢ DNI: {u.dni}</p>
                                         </div>
                                         <button
                                             onClick={() => handleEnrollUser(u)}
@@ -1122,7 +1239,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
                         <div className="mb-6">
                             <p className="text-sm text-gray-600 mb-2">
-                                Genera un resumen de los turnos asignados a <strong>{summaryUser.fullName}</strong> para enviárselo como recordatorio.
+                                Genera un resumen de los turnos asignados a <strong>{summaryUser.fullName}</strong> para enviÃ¡rselo como recordatorio.
                             </p>
                             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
                                 {generateSummaryText()}
@@ -1181,12 +1298,107 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                             <div className="flex justify-center py-12">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
                             </div>
-                        ) : viewingUserBookings.length === 0 ? (
-                            <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
-                                <p className="text-gray-500">Este voluntario no tiene turnos asignados en este evento.</p>
-                            </div>
-                        ) : (
-                            <>
+                        ) : (() => {
+                            // Detect if the only booking is a general enrollment (shiftId === null)
+                            const realBookings = viewingUserBookings.filter(b => b.shiftId !== null);
+                            const hasOnlyGeneralEnrollment = viewingUserBookings.length > 0 && realBookings.length === 0;
+
+                            // Available shifts for invitation message
+                            const availableShiftsForInvite = shifts
+                                .filter(s => (s.availableVacancies ?? 0) > 0)
+                                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                            const generateInviteText = () => {
+                                let text = `Hola ${viewingUser.fullName}! ðŸ‘‹\n`;
+                                text += `Te recordamos que estÃ¡s inscripto/a en el evento *${eventDetails?.nombre || 'Voluntarios FamilySearch'}*`;
+                                if (eventDetails) {
+                                    text += ` (${new Date(eventDetails.fechaInicio + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} - ${new Date(eventDetails.fechaFin + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}, ${eventDetails.ubicacion})`;
+                                }
+                                text += ` pero aÃºn no tienes turnos asignados.\n\n`;
+                                text += `ðŸ“‹ *Turnos disponibles:*\n`;
+                                if (availableShiftsForInvite.length === 0) {
+                                    text += 'No hay turnos disponibles en este momento.\n';
+                                } else {
+                                    availableShiftsForInvite.slice(0, 10).forEach(s => {
+                                        const roleNames = roles.find(r => r.id === s.roleId)?.name || 'Voluntario';
+                                        const dateStr = new Date(s.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+                                        text += `âœ… ${dateStr} ${s.timeSlot} - ${roleNames} (${s.availableVacancies} lugar${(s.availableVacancies ?? 0) !== 1 ? 'es' : ''})\n`;
+                                    });
+                                    if (availableShiftsForInvite.length > 10) text += `... y ${availableShiftsForInvite.length - 10} turnos mÃ¡s.\n`;
+                                }
+                                const eventUrl = eventDetails?.slug ? `${window.location.origin}/#/${eventDetails.slug}` : window.location.href;
+                                text += `\nðŸ”— Inscribite desde: ${eventUrl}`;
+                                return text;
+                            };
+
+                            const handleShareInviteWhatsApp = () => {
+                                const text = generateInviteText();
+                                let phone = viewingUser.phone.replace(/\D/g, '');
+                                if (phone.length === 10) phone = '549' + phone;
+                                else if (phone.length === 11 && phone.startsWith('0')) phone = '549' + phone.substring(1);
+                                const url = phone.length > 6
+                                    ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+                                    : `https://wa.me/?text=${encodeURIComponent(text)}`;
+                                window.open(url, '_blank');
+                            };
+
+                            const handleCopyInvite = () => {
+                                navigator.clipboard.writeText(generateInviteText());
+                                toast.success('Mensaje de invitaciÃ³n copiado al portapapeles');
+                            };
+
+                            return (
+                                <div className="space-y-4">
+                                    {/* Info alert for general enrollment only */}
+                                    {hasOnlyGeneralEnrollment && (
+                                        <div className="flex gap-3 p-4 rounded-lg border" style={{ background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', borderColor: '#fbbf24' }}>
+                                            <Info size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                                            <div className="text-sm">
+                                                <p className="font-semibold text-amber-800">Este voluntario aÃºn no tiene turnos reales asignados</p>
+                                                <p className="text-amber-700 mt-0.5">El registro "-" indica que estÃ¡ inscripto en el evento pero no seleccionÃ³ ningÃºn turno todavÃ­a. Necesita al menos un turno para participar.</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Invite button when no real shifts */}
+                                    {(hasOnlyGeneralEnrollment || realBookings.length === 0) && (<>
+                                        <div className="rounded-lg border p-4" style={{ background: 'linear-gradient(135deg, #f0f7e6, #e6f2d2)', borderColor: '#a8d060' }}>
+                                            <div className="flex items-start gap-3 mb-3">
+                                                <MessageSquare size={18} style={{ color: '#5B8C01' }} className="shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="font-semibold text-sm" style={{ color: '#3d6800' }}>Invitar a completar turnos</p>
+                                                    <p className="text-xs mt-0.5" style={{ color: '#5B8C01' }}>EnvÃ­a un mensaje con los turnos disponibles para que el voluntario pueda inscribirse.</p>
+                                                </div>
+                                            </div>
+                                            <div className="bg-white bg-opacity-60 rounded-md p-3 text-xs font-mono whitespace-pre-wrap max-h-32 overflow-y-auto text-gray-600 mb-3 border border-green-100">
+                                                {generateInviteText()}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={handleShareInviteWhatsApp}
+                                                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-medium transition-colors"
+                                                    style={{ backgroundColor: '#25D366' }}
+                                                >
+                                                    <Share2 size={15} />
+                                                    Enviar por WhatsApp
+                                                </button>
+                                                <button
+                                                    onClick={handleCopyInvite}
+                                                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+                                                >
+                                                    <Copy size={15} />
+                                                    Copiar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </>)}
+
+                                    {/* Bookings table (when has real shifts) */}
+                                    {viewingUserBookings.length === 0 ? (
+                                        <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
+                                            <p className="text-gray-500">Este voluntario no tiene turnos asignados en este evento.</p>
+                                        </div>
+                                    ) : (<>
                                 {/* Desktop View */}
                                 <div className="hidden sm:block overflow-hidden bg-white border border-gray-200 rounded-lg">
                                     <table className="min-w-full divide-y divide-gray-200">
@@ -1211,7 +1423,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getRoleBadge(booking.shift?.role?.name || '')}`}>
-                                                            {booking.shift?.role?.name || (booking.shiftId === null ? 'Inscripción General' : '-')}
+                                                            {booking.shift?.role?.name || (booking.shiftId === null ? 'InscripciÃ³n General' : '-')}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1226,7 +1438,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         {booking.attendance === 'attended' ? (
                                                             <span className="flex items-center gap-1 text-green-600 font-medium">
-                                                                <CheckCircle size={16} /> Asistió
+                                                                <CheckCircle size={16} /> AsistiÃ³
                                                             </span>
                                                         ) : booking.attendance === 'absent' ? (
                                                             <span className="flex items-center gap-1 text-red-600 font-medium">
@@ -1240,7 +1452,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                         {booking.status !== 'cancelled' ? (
                                                             <button
                                                                 onClick={() => {
-                                                                    if (window.confirm('¿Estás seguro de que quieres eliminar este turno? Se enviará un aviso al voluntario.')) {
+                                                                    if (window.confirm('Â¿EstÃ¡s seguro de que quieres eliminar este turno? Se enviarÃ¡ un aviso al voluntario.')) {
                                                                         handleDeleteBooking(booking.id);
                                                                     }
                                                                 }}
@@ -1290,7 +1502,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                     <div className="text-xs text-gray-500 mb-1">Asistencia</div>
                                                     {booking.attendance === 'attended' ? (
                                                         <span className="flex items-center gap-1 text-green-600 text-sm font-medium">
-                                                            <CheckCircle size={14} /> Asistió
+                                                            <CheckCircle size={14} /> AsistiÃ³
                                                         </span>
                                                     ) : booking.attendance === 'absent' ? (
                                                         <span className="flex items-center gap-1 text-red-600 text-sm font-medium">
@@ -1304,8 +1516,10 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                         </div>
                                     ))}
                                 </div>
-                            </>
-                        )}
+                                    </>)}
+                                </div>
+                            );
+                        })()}
 
                         <div className="mt-6 flex justify-end">
                             <button
@@ -1342,7 +1556,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                             <div className="text-sm text-gray-600 space-y-1 mt-1">
                                                 <p><strong>Email:</strong> {cancellation.user?.email}</p>
                                                 <p>
-                                                    <strong>Teléfono:</strong>{' '}
+                                                    <strong>TelÃ©fono:</strong>{' '}
                                                     <a
                                                         href={`https://wa.me/${waPhone}`}
                                                         target="_blank"
@@ -1382,7 +1596,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                 </div>
             </Modal>
 
-            {/* Modal de Solicitudes de Coordinación */}
+            {/* Modal de Solicitudes de CoordinaciÃ³n */}
             <Modal
                 isOpen={showCoordinatorRequestsModal}
                 onClose={() => setShowCoordinatorRequestsModal(false)}
@@ -1394,7 +1608,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     ) : (
                         <div className="space-y-4">
                             <p className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded border border-blue-100">
-                                Al aprobar, el usuario quedará inscrito en el turno y se le asignará el rol de <strong>Coordinador</strong> en el sistema global.
+                                Al aprobar, el usuario quedarÃ¡ inscrito en el turno y se le asignarÃ¡ el rol de <strong>Coordinador</strong> en el sistema global.
                             </p>
                             {pendingCoordinatorRequests.map((req) => (
                                 <div key={req.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -1420,9 +1634,123 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     )}
                 </div>
             </Modal>
+
+            {/* Modal de Voluntarios Sin Turno */}
+            <Modal
+                isOpen={showNoShiftModal}
+                onClose={() => setShowNoShiftModal(false)}
+                title={`Voluntarios Sin Turno Asignado (${noShiftVolunteers.length})`}
+            >
+                <div className="p-4 space-y-4">
+                    {/* Alert explanation */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                            <Info size={20} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                            <div className="text-sm text-amber-800">
+                                <p className="font-semibold mb-1">¿Por qué aparecen estos voluntarios?</p>
+                                <p className="mb-2">
+                                    Estos voluntarios se inscribieron al evento pero <strong>aún no eligieron un turno específico</strong>.
+                                    Su inscripción tiene un turno ficticio (guión "-") que los asocia al evento sin asignarles un horario real.
+                                </p>
+                                <p>
+                                    <strong>Acción recomendada:</strong> Usá los botones de contacto para invitarlos a elegir
+                                    uno de los turnos disponibles. Se les enviará un mensaje prearmado con las oportunidades del evento.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {noShiftVolunteers.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8">No hay voluntarios sin turno asignado. ¡Todos tienen turnos!</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {noShiftVolunteers.map((vol: any) => {
+                                const eventUrl = eventDetails?.slug ? `${window.location.origin}/#/${eventDetails.slug}` : window.location.href;
+                                const messageText = `Hola ${vol.fullName}, ¡gracias por inscribirte como voluntario en *${eventDetails?.nombre || 'nuestro evento'}*! 🙌\n\nNotamos que aún no elegiste un turno específico. Te invitamos a ingresar a la plataforma y seleccionar los horarios que mejor se adapten a tu disponibilidad:\n\n🔗 ${eventUrl}\n\nTu participación es muy importante. ¡Te esperamos!`;
+
+                                const cleanPhone = (phone: string) => {
+                                    let p = phone.replace(/\D/g, '');
+                                    if (p.length === 10) p = '549' + p;
+                                    else if (p.length === 11 && p.startsWith('0')) p = '549' + p.substring(1);
+                                    return p;
+                                };
+
+                                return (
+                                    <div key={vol.id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+                                            <div className="flex-1">
+                                                <h4 className="font-bold text-gray-900">{vol.fullName}</h4>
+                                                <div className="text-sm text-gray-600 space-y-1 mt-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <Mail size={14} className="text-gray-400" />
+                                                        <span>{vol.email || 'Sin email'}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Phone size={14} className="text-gray-400" />
+                                                        <span>{vol.phone || 'Sin teléfono'}</span>
+                                                    </div>
+                                                    {vol.stakeName && (
+                                                        <div className="flex items-center gap-2">
+                                                            <Users size={14} className="text-gray-400" />
+                                                            <span className="text-xs">{vol.stakeName}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                                                {/* WhatsApp */}
+                                                <button
+                                                    onClick={() => {
+                                                        const phone = cleanPhone(vol.phone || '');
+                                                        const url = phone.length > 6
+                                                            ? `https://wa.me/${phone}?text=${encodeURIComponent(messageText)}`
+                                                            : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+                                                        window.open(url, '_blank');
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
+                                                    title="Enviar por WhatsApp"
+                                                >
+                                                    <MessageSquare size={16} />
+                                                    WhatsApp
+                                                </button>
+                                                {/* Email */}
+                                                <button
+                                                    onClick={() => {
+                                                        const subject = encodeURIComponent(`Turnos disponibles - ${eventDetails?.nombre || 'Evento'}`);
+                                                        const body = encodeURIComponent(messageText.replace(/\*/g, '').replace(/\n/g, '\r\n'));
+                                                        window.open(`mailto:${vol.email}?subject=${subject}&body=${body}`, '_blank');
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                                                    title="Enviar por Email"
+                                                >
+                                                    <Mail size={16} />
+                                                    Email
+                                                </button>
+                                                {/* Copy text */}
+                                                <button
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(messageText.replace(/\*/g, ''));
+                                                        toast.success(`Texto copiado para ${vol.fullName}`);
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
+                                                    title="Copiar texto"
+                                                >
+                                                    <Copy size={16} />
+                                                    Copiar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </Modal>
         </div>
     );
 };
 
 export default EventVolunteersList;
+
 
