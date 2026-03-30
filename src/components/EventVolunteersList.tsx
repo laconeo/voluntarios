@@ -1665,8 +1665,15 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     ) : (
                         <div className="space-y-3">
                             {noShiftVolunteers.map((vol: any) => {
+                                // Calculate real vacancies using bookings data
                                 const availableShifts = shifts
-                                    .filter(s => (s.availableVacancies ?? 0) > 0)
+                                    .map(s => {
+                                        const confirmedBookings = bookings.filter(b => b.shiftId === s.id && b.status === 'confirmed').length;
+                                        const coordCount = s.coordinatorIds ? s.coordinatorIds.length : 0;
+                                        const realAvailable = Math.max(0, s.totalVacancies - confirmedBookings - coordCount);
+                                        return { ...s, realAvailable };
+                                    })
+                                    .filter(s => s.realAvailable > 0)
                                     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
                                 const shiftsText = availableShifts.length === 0
@@ -1674,9 +1681,9 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                     : availableShifts.slice(0, 10).map(s => {
                                         const roleName = roles.find(r => r.id === s.roleId)?.name || 'Voluntario';
                                         const dateStr = new Date(s.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
-                                        return `- ${dateStr} ${s.timeSlot} - ${roleName} (${s.availableVacancies} lugar${(s.availableVacancies ?? 0) !== 1 ? 'es' : ''})`;
+                                        return `- ${dateStr} ${s.timeSlot} - ${roleName} (${s.realAvailable} lugar${s.realAvailable !== 1 ? 'es' : ''})`;
                                     }).join('\n')
-                                    + (availableShifts.length > 10 ? `\n... y ${availableShifts.length - 10} turnos más.` : '');
+                                    + (availableShifts.length > 10 ? `\n... y ${availableShifts.length - 10} turnos mas.` : '');
 
                                 const messageText = `Hola ${vol.fullName}!\n`
                                     + `Gracias por inscribirte como voluntario en *${eventDetails?.nombre || 'nuestro evento'}*.\n\n`
