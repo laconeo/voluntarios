@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Search, Filter, Download, Mail, Phone, Edit2, X, Save, Eye, CheckCircle, XCircle, Calendar, Trash2, Share2, Copy, AlertCircle, Shield, UserCheck, ChevronUp, ChevronDown, ChevronsUpDown, Info, MessageSquare, UserX } from 'lucide-react';
 import Modal from './Modal';
+import VolunteerPortal from './VolunteerPortal';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabaseApi as mockApi } from '../services/supabaseApiService'; // Using Supabase API now
@@ -49,6 +50,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
     // New state for viewing user shifts
     const [viewingUser, setViewingUser] = useState<User | null>(null);
+    const [simulatingUser, setSimulatingUser] = useState<User | null>(null);
 
     const [viewingUserBookings, setViewingUserBookings] = useState<Booking[]>([]);
     const [isLoadingShifts, setIsLoadingShifts] = useState(false);
@@ -1305,29 +1307,38 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
                             // Available shifts for invitation message
                             const availableShiftsForInvite = shifts
-                                .filter(s => (s.availableVacancies ?? 0) > 0)
+                                .map(s => {
+                                    const confirmedBookings = bookings.filter(b => b.shiftId === s.id && b.status === 'confirmed').length;
+                                    const coordCount = s.coordinatorIds ? s.coordinatorIds.length : 0;
+                                    const realAvailable = Math.max(0, s.totalVacancies - confirmedBookings - coordCount);
+                                    return { ...s, realAvailable };
+                                })
+                                .filter(s => s.realAvailable > 0)
                                 .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
                             const generateInviteText = () => {
-                                let text = `Hola ${viewingUser.fullName}! ðŸ‘‹\n`;
-                                text += `Te recordamos que estÃ¡s inscripto/a en el evento *${eventDetails?.nombre || 'Voluntarios FamilySearch'}*`;
-                                if (eventDetails) {
-                                    text += ` (${new Date(eventDetails.fechaInicio + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} - ${new Date(eventDetails.fechaFin + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}, ${eventDetails.ubicacion})`;
+                                let text = `Hola ${viewingUser.fullName}!\n`;
+                                text += `Gracias por ser parte como voluntario en *${eventDetails?.nombre || 'nuestro evento'}*.\n\n`;
+                                
+                                if (hasOnlyGeneralEnrollment || realBookings.length === 0) {
+                                    text += `Notamos que aun no elegiste un turno especifico. Te invitamos a revisar las oportunidades disponibles e inscribirte en la que mejor se adapte a tu disponibilidad:\n\n`;
+                                } else {
+                                    text += `Te compartimos los turnos que aun tienen lugares disponibles por si deseas sumar mas horas de servicio:\n\n`;
                                 }
-                                text += ` pero aÃºn no tienes turnos asignados.\n\n`;
-                                text += `ðŸ“‹ *Turnos disponibles:*\n`;
+
+                                text += `*Turnos disponibles:*\n`;
                                 if (availableShiftsForInvite.length === 0) {
                                     text += 'No hay turnos disponibles en este momento.\n';
                                 } else {
                                     availableShiftsForInvite.slice(0, 10).forEach(s => {
-                                        const roleNames = roles.find(r => r.id === s.roleId)?.name || 'Voluntario';
+                                        const roleName = roles.find(r => r.id === s.roleId)?.name || 'Voluntario';
                                         const dateStr = new Date(s.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
-                                        text += `âœ… ${dateStr} ${s.timeSlot} - ${roleNames} (${s.availableVacancies} lugar${(s.availableVacancies ?? 0) !== 1 ? 'es' : ''})\n`;
+                                        text += `- ${dateStr} ${s.timeSlot} - ${roleName} (${s.realAvailable} lugar${(s.realAvailable) !== 1 ? 'es' : ''})\n`;
                                     });
-                                    if (availableShiftsForInvite.length > 10) text += `... y ${availableShiftsForInvite.length - 10} turnos mÃ¡s.\n`;
+                                    if (availableShiftsForInvite.length > 10) text += `\n... y ${availableShiftsForInvite.length - 10} turnos mas.\n`;
                                 }
-                                const eventUrl = eventDetails?.slug ? `${window.location.origin}/#/${eventDetails.slug}` : window.location.href;
-                                text += `\nðŸ”— Inscribite desde: ${eventUrl}`;
+                                text += `\nInscribite desde: https://familysearch.me/feriadellibro\n\n`;
+                                text += `Tu participacion es muy importante. Te esperamos!`;
                                 return text;
                             };
 
@@ -1342,9 +1353,16 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                 window.open(url, '_blank');
                             };
 
+                            const handleShareInviteEmail = () => {
+                                const text = generateInviteText();
+                                const subject = encodeURIComponent(`Turnos disponibles - ${eventDetails?.nombre || 'Evento'}`);
+                                const body = encodeURIComponent(text.replace(/\*/g, '').replace(/\n/g, '\r\n'));
+                                window.open(`mailto:${viewingUser.email}?subject=${subject}&body=${body}`, '_blank');
+                            };
+
                             const handleCopyInvite = () => {
-                                navigator.clipboard.writeText(generateInviteText());
-                                toast.success('Mensaje de invitaciÃ³n copiado al portapapeles');
+                                navigator.clipboard.writeText(generateInviteText().replace(/\*/g, ''));
+                                toast.success('Texto copiado al portapapeles');
                             };
 
                             return (
@@ -1360,38 +1378,55 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                         </div>
                                     )}
 
-                                    {/* Invite button when no real shifts */}
-                                    {(hasOnlyGeneralEnrollment || realBookings.length === 0) && (<>
-                                        <div className="rounded-lg border p-4" style={{ background: 'linear-gradient(135deg, #f0f7e6, #e6f2d2)', borderColor: '#a8d060' }}>
-                                            <div className="flex items-start gap-3 mb-3">
-                                                <MessageSquare size={18} style={{ color: '#5B8C01' }} className="shrink-0 mt-0.5" />
-                                                <div>
-                                                    <p className="font-semibold text-sm" style={{ color: '#3d6800' }}>Invitar a completar turnos</p>
-                                                    <p className="text-xs mt-0.5" style={{ color: '#5B8C01' }}>EnvÃ­a un mensaje con los turnos disponibles para que el voluntario pueda inscribirse.</p>
-                                                </div>
-                                            </div>
-                                            <div className="bg-white bg-opacity-60 rounded-md p-3 text-xs font-mono whitespace-pre-wrap max-h-32 overflow-y-auto text-gray-600 mb-3 border border-green-100">
-                                                {generateInviteText()}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={handleShareInviteWhatsApp}
-                                                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-medium transition-colors"
-                                                    style={{ backgroundColor: '#25D366' }}
-                                                >
-                                                    <Share2 size={15} />
-                                                    Enviar por WhatsApp
-                                                </button>
-                                                <button
-                                                    onClick={handleCopyInvite}
-                                                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
-                                                >
-                                                    <Copy size={15} />
-                                                    Copiar
-                                                </button>
+                                    {/* Invite/Share buttons available for everyone */}
+                                    <div className="rounded-lg border p-4" style={{ background: 'linear-gradient(135deg, #f0f7e6, #e6f2d2)', borderColor: '#a8d060' }}>
+                                        <div className="flex items-start gap-3 mb-3">
+                                            <MessageSquare size={18} style={{ color: '#5B8C01' }} className="shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="font-semibold text-sm" style={{ color: '#3d6800' }}>
+                                                    {hasOnlyGeneralEnrollment || realBookings.length === 0 ? 'Invitar a elegir un turno' : 'Compartir turnos disponibles'}
+                                                </p>
+                                                <p className="text-xs mt-0.5" style={{ color: '#5B8C01' }}>EnvÃ­a un mensaje con los turnos disponibles para que el voluntario se anote.</p>
                                             </div>
                                         </div>
-                                    </>)}
+                                        <div className="bg-white bg-opacity-60 rounded-md p-3 text-xs font-mono whitespace-pre-wrap max-h-32 overflow-y-auto text-gray-600 mb-3 border border-green-100">
+                                            {generateInviteText()}
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                onClick={handleShareInviteWhatsApp}
+                                                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
+                                                title="Enviar por WhatsApp"
+                                            >
+                                                <MessageSquare size={16} />
+                                                WhatsApp
+                                            </button>
+                                            <button
+                                                onClick={handleShareInviteEmail}
+                                                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                                                title="Enviar por Email"
+                                            >
+                                                <Mail size={16} />
+                                                Email
+                                            </button>
+                                            <button
+                                                onClick={handleCopyInvite}
+                                                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                                                title="Copiar texto"
+                                            >
+                                                <Copy size={16} />
+                                                Copiar
+                                            </button>
+                                            <button
+                                                onClick={() => setSimulatingUser(viewingUser)}
+                                                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors text-sm font-medium"
+                                                title="Simular portal y anotar turnos"
+                                            >
+                                                <Eye size={16} />
+                                                Ver Portal
+                                            </button>
+                                        </div>
+                                    </div>
 
                                     {/* Bookings table (when has real shifts) */}
                                     {viewingUserBookings.length === 0 ? (
@@ -1771,6 +1806,17 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     )}
                 </div>
             </Modal>
+
+            {/* Simulated Volunteer Portal */}
+            {simulatingUser && (
+                <Modal
+                    isOpen={!!simulatingUser}
+                    onClose={() => setSimulatingUser(null)}
+                    title={`Simulando Portal: ${simulatingUser.fullName}`}
+                >
+                    <VolunteerPortal user={simulatingUser} onLogout={() => setSimulatingUser(null)} eventId={eventId} />
+                </Modal>
+            )}
         </div>
     );
 };
