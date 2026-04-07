@@ -100,6 +100,8 @@ export interface DashboardMetrics {
   occupationPercentage: number;
   totalVolunteers: number;
   uniqueVolunteers: number;
+  uniqueVolunteersWithShifts?: number;
+  uniqueVolunteersWithoutShifts?: number;
   avgShiftsPerVolunteer: number;
   totalShifts: number;
   pendingCancellations: number;

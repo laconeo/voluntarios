@@ -1754,6 +1754,8 @@ export const supabaseApi = {
                 occupationPercentage: 0,
                 totalVolunteers: 0,
                 uniqueVolunteers: 0,
+                uniqueVolunteersWithShifts: 0,
+                uniqueVolunteersWithoutShifts: 0,
                 avgShiftsPerVolunteer: 0,
                 totalShifts: 0,
                 pendingCancellations: 0,
@@ -1793,7 +1795,18 @@ export const supabaseApi = {
         const availableVacancies = Math.max(0, totalVacancies - occupiedVacancies);
         const occupationPercentage = totalVacancies > 0 ? Math.round((occupiedVacancies / totalVacancies) * 100) : 0;
 
+        const occupantIdsWithShifts = new Set<string>();
+        shifts.forEach(shift => {
+            const shiftBookings = bookings.filter(b => b.shift_id === shift.id);
+            const shiftBookedIds = shiftBookings.map(b => b.user_id);
+            const shiftCoordIds = shift.coordinator_ids || [];
+            shiftBookedIds.forEach(id => occupantIdsWithShifts.add(id));
+            shiftCoordIds.forEach(id => occupantIdsWithShifts.add(id));
+        });
+
+        const uniqueVolunteersWithShifts = occupantIdsWithShifts.size;
         const uniqueVolunteers = allOccupantIds.size;
+        const uniqueVolunteersWithoutShifts = uniqueVolunteers - uniqueVolunteersWithShifts;
         const avgShiftsPerVolunteer = uniqueVolunteers > 0 ? (occupiedVacancies / uniqueVolunteers).toFixed(1) : 0;
 
         const pendingCancellations = allBookings ? allBookings.filter(b => b.status === 'cancellation_requested').length : 0;
@@ -1956,6 +1969,8 @@ export const supabaseApi = {
             occupationPercentage,
             totalVolunteers: uniqueVolunteers,
             uniqueVolunteers,
+            uniqueVolunteersWithShifts,
+            uniqueVolunteersWithoutShifts,
             avgShiftsPerVolunteer: Number(avgShiftsPerVolunteer),
             totalShifts: shifts.length,
             pendingCancellations,

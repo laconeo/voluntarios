@@ -361,10 +361,13 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId, onNavigate
                             <Users className="text-blue-600" size={24} />
                         </div>
                     </div>
-                    <p className="text-sm text-gray-600 mb-1">Voluntarios Únicos</p>
-                    <p className="text-3xl font-bold text-gray-900">{metrics.uniqueVolunteers}</p>
+                    <p className="text-sm text-gray-600 mb-1">Voluntarios con Turno</p>
+                    <p className="text-3xl font-bold text-gray-900">{metrics.uniqueVolunteersWithShifts}</p>
                     <p className="text-xs text-gray-500 mt-1">
-                        Promedio: {metrics.avgShiftsPerVolunteer} turnos por voluntario
+                        Total {metrics.uniqueVolunteers} - {metrics.uniqueVolunteersWithoutShifts} Sin Turno Asignado
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                        Promedio: {metrics.avgShiftsPerVolunteer} turnos por persona
                     </p>
                 </div>
 

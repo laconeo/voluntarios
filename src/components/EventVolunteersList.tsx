@@ -161,7 +161,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                 for (const shift of coordinatedShifts) {
                     await mockApi.removeCoordinatorFromShift(shift.id, editingUser.id);
                 }
-                toast.success('Se eliminaron los turnos de coordinaciÃ³n automÃ¡ticamente.');
+                toast.success('Se eliminaron los turnos de coordinación automáticamente.');
             }
 
             await mockApi.updateUser(userToUpdate);
@@ -254,7 +254,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     const shiftId = parts[1];
                     const userId = parts[2];
 
-                    if (window.confirm('Â¿EstÃ¡s seguro de que quieres quitar el rol de coordinador para este turno?')) {
+                    if (window.confirm('¿Estás seguro de que quieres quitar el rol de coordinador para este turno?')) {
                         await mockApi.removeCoordinatorFromShift(shiftId, userId);
                         toast.success('Rol de coordinador removido');
 
@@ -304,7 +304,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     'DNI': v.dni,
                     'Nombre Completo': v.fullName,
                     'Email': v.email,
-                    'TelÃ©fono': v.phone,
+                    'Teléfono': v.phone,
                     'Rol': getRoleLabel(v.role),
                     'Turnos Asignados': userBookings.length,
                     'Estado': v.status || 'active',
@@ -368,7 +368,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             setPendingCoordinatorRequests(requests);
             setShowCoordinatorRequestsModal(true);
         } catch (error) {
-            toast.error('Error al cargar solicitudes de coordinaciÃ³n');
+            toast.error('Error al cargar solicitudes de coordinación');
         }
     };
 
@@ -473,8 +473,8 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         let text = `*RECORDATORIO DE ASIGNACIONES*\n`;
         text += `*${eventDetails?.nombre || 'Evento'}*\n`;
         if (eventDetails) {
-            text += `ðŸ“… ${new Date(eventDetails.fechaInicio + 'T00:00:00').toLocaleDateString()} - ${new Date(eventDetails.fechaFin + 'T00:00:00').toLocaleDateString()}\n`;
-            text += `ðŸ“ ${eventDetails.ubicacion}\n`;
+            text += `📅 ${new Date(eventDetails.fechaInicio + 'T00:00:00').toLocaleDateString()} - ${new Date(eventDetails.fechaFin + 'T00:00:00').toLocaleDateString()}\n`;
+            text += `📍 ${eventDetails.ubicacion}\n`;
         }
         text += `\nHola ${summaryUser.fullName}, te comparto el resumen de tus turnos asignados:\n\n`;
 
@@ -486,15 +486,15 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             activeBookings.forEach(booking => {
                 const date = booking.shift?.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', weekday: 'short' }) : 'N/A';
                 const roleName = booking.shift?.role?.name || 'Rol';
-                text += `âœ… ${date} ${booking.shift?.timeSlot} | ${roleName}\n`;
+                text += `✅ ${date} ${booking.shift?.timeSlot} | ${roleName}\n`;
             });
         }
 
         // Footer con link y aviso
-        text += `\nâš ï¸ *Importante:* Si tienes alguna novedad o no puedes asistir a algÃºn turno, por favor avÃ­sanos lo antes posible.\n\n`;
+        text += `\n⚠️ *Importante:* Si tienes alguna novedad o no puedes asistir a algún turno, por favor avísanos lo antes posible.\n\n`;
 
-        const eventUrl = eventDetails?.slug ? `${window.location.origin}/#/${eventDetails.slug}` : window.location.href;
-        text += `ðŸ”— MÃ¡s info y autogestiÃ³n en:\n${eventUrl}`;
+        const eventUrl = 'https://familysearch.me/feriadellibro';
+        text += `🔗 Más info y autogestión en:\n${eventUrl}`;
 
         return text;
     };
@@ -526,7 +526,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         doc.setTextColor(75, 85, 99);
         if (eventDetails) {
             const dateStr = `${new Date(eventDetails.fechaInicio + 'T00:00:00').toLocaleDateString('es-AR')} - ${new Date(eventDetails.fechaFin + 'T00:00:00').toLocaleDateString('es-AR')}`;
-            doc.text(`Fechas: ${dateStr}   |   UbicaciÃ³n: ${eventDetails.ubicacion}`, 14, 38);
+            doc.text(`Fechas: ${dateStr}   |   Ubicación: ${eventDetails.ubicacion}`, 14, 38);
         }
 
         let yPos = 60;
@@ -570,12 +570,12 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
         doc.setFontSize(10);
         doc.setTextColor(161, 98, 7); // yellow-800
-        doc.text("IMPORTANTE: Si tienes alguna novedad o no puedes asistir a algÃºn turno, por favor avÃ­sanos lo antes posible.", 18, finalY + 8, { maxWidth: 174 });
+        doc.text("IMPORTANTE: Si tienes alguna novedad o no puedes asistir a algún turno, por favor avísanos lo antes posible.", 18, finalY + 8, { maxWidth: 174 });
 
         doc.setTextColor(31, 41, 55); // gray-800
-        doc.text("MÃ¡s info y autogestiÃ³n en:", 18, finalY + 16);
+        doc.text("Más info y autogestión en:", 18, finalY + 16);
         doc.setTextColor(37, 99, 235); // blue-600
-        const eventUrl = eventDetails?.slug ? `${window.location.origin}/#/${eventDetails.slug}` : window.location.href;
+        const eventUrl = 'https://familysearch.me/feriadellibro';
         doc.textWithLink(eventUrl, 65, finalY + 16, { url: eventUrl });
 
         doc.save(`resumen_${summaryUser.fullName.replace(/\s+/g, '_')}.pdf`);
@@ -586,22 +586,22 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
         if (!summaryUser) return;
         const text = generateSummaryText();
 
-        // Limpiar el nÃºmero dejando solo dÃ­gitos
+        // Limpiar el número dejando solo dígitos
         let phone = summaryUser.phone.replace(/\D/g, '');
 
-        // LÃ³gica especÃ­fica para Argentina (mejora la probabilidad de que funcione el enlace directo)
-        // Si tiene 10 dÃ­gitos (ej: 11 1234 5678), asumimos que es nÃºmero local y agregamos 549
+        // Lógica específica para Argentina (mejora la probabilidad de que funcione el enlace directo)
+        // Si tiene 10 dígitos (ej: 11 1234 5678), asumimos que es número local y agregamos 549
         if (phone.length === 10) {
             phone = '549' + phone;
         }
-        // Si tiene 11 dÃ­gitos y empieza con 0 (ej: 011 1234 5678), quitamos el 0 y agregamos 549
+        // Si tiene 11 dígitos y empieza con 0 (ej: 011 1234 5678), quitamos el 0 y agregamos 549
         else if (phone.length === 11 && phone.startsWith('0')) {
             phone = '549' + phone.substring(1);
         }
 
-        // Si ya tiene 12 o 13 dÃ­gitos (ej: 54911...), lo dejamos asÃ­.
+        // Si ya tiene 12 o 13 dígitos (ej: 54911...), lo dejamos así.
 
-        // Construir URL. Si el telÃ©fono es vÃ¡lido (>6 dÃ­gitos al menos), intentamos el enlace directo.
+        // Construir URL. Si el teléfono es válido (>6 dígitos al menos), intentamos el enlace directo.
         let url = phone.length > 6
             ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
             : `https://wa.me/?text=${encodeURIComponent(text)}`;
@@ -1033,7 +1033,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        TelÃ©fono
+                                        Teléfono
                                     </label>
                                     <input
                                         type="tel"
@@ -1537,7 +1537,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                     <div className="text-xs text-gray-500 mb-1">Asistencia</div>
                                                     {booking.attendance === 'attended' ? (
                                                         <span className="flex items-center gap-1 text-green-600 text-sm font-medium">
-                                                            <CheckCircle size={14} /> AsistiÃ³
+                                                            <CheckCircle size={14} /> Asistió
                                                         </span>
                                                     ) : booking.attendance === 'absent' ? (
                                                         <span className="flex items-center gap-1 text-red-600 text-sm font-medium">
@@ -1591,7 +1591,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                             <div className="text-sm text-gray-600 space-y-1 mt-1">
                                                 <p><strong>Email:</strong> {cancellation.user?.email}</p>
                                                 <p>
-                                                    <strong>TelÃ©fono:</strong>{' '}
+                                                    <strong>Teléfono:</strong>{' '}
                                                     <a
                                                         href={`https://wa.me/${waPhone}`}
                                                         target="_blank"
@@ -1631,7 +1631,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                 </div>
             </Modal>
 
-            {/* Modal de Solicitudes de CoordinaciÃ³n */}
+            {/* Modal de Solicitudes de Coordinación */}
             <Modal
                 isOpen={showCoordinatorRequestsModal}
                 onClose={() => setShowCoordinatorRequestsModal(false)}
@@ -1643,7 +1643,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     ) : (
                         <div className="space-y-4">
                             <p className="text-sm text-gray-600 mb-4 bg-blue-50 p-3 rounded border border-blue-100">
-                                Al aprobar, el usuario quedarÃ¡ inscrito en el turno y se le asignarÃ¡ el rol de <strong>Coordinador</strong> en el sistema global.
+                                Al aprobar, el usuario quedará inscrito en el turno y se le asignará el rol de <strong>Coordinador</strong> en el sistema global.
                             </p>
                             {pendingCoordinatorRequests.map((req) => (
                                 <div key={req.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -1722,10 +1722,10 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
                                 const messageText = `Hola ${vol.fullName}!\n`
                                     + `Gracias por inscribirte como voluntario en *${eventDetails?.nombre || 'nuestro evento'}*.\n\n`
-                                    + `Notamos que aun no elegiste un turno especifico. Te invitamos a revisar las oportunidades disponibles e inscribirte en la que mejor se adapte a tu disponibilidad:\n\n`
+                                    + `Notamos que aún no elegiste un turno específico. Te invitamos a revisar las oportunidades disponibles e inscribirte en la que mejor se adapte a tu disponibilidad:\n\n`
                                     + `*Turnos disponibles:*\n${shiftsText}\n\n`
                                     + `Inscribite desde: https://familysearch.me/feriadellibro\n\n`
-                                    + `Tu participacion es muy importante. Te esperamos!`;
+                                    + `Tu participación es muy importante. Te esperamos!`;
 
                                 const cleanPhone = (phone: string) => {
                                     let p = phone.replace(/\D/g, '');
