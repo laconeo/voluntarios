@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { User, Event, Shift, Booking, Role } from '../types';
-import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown, Utensils, Monitor, BarChart2 } from 'lucide-react';
+import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown, Utensils, Monitor, BarChart2, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
+import VolunteerPortal from './VolunteerPortal';
 
 interface CoordinatorDashboardProps {
     user: User;
@@ -12,6 +14,7 @@ interface CoordinatorDashboardProps {
 }
 
 const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLogout }) => {
+    const navigate = useNavigate();
     const [events, setEvents] = useState<Event[]>([]);
     const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('all');
     const [selectedEventId, setSelectedEventId] = useState<string>('');
@@ -22,6 +25,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
     const [searchTerm, setSearchTerm] = useState('');
     const [showActionsMenu, setShowActionsMenu] = useState(false);
     const [showMobileMenu, setShowMobileMenu] = useState(false);
+    const [hasNoAssignedShifts, setHasNoAssignedShifts] = useState(false);
+    const [showVolunteerPortal, setShowVolunteerPortal] = useState(false);
 
     useEffect(() => {
         const loadInitialData = async () => {
@@ -42,10 +47,18 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                     }
                 }
 
-                setEvents(coordinatorEvents);
                 if (coordinatorEvents.length > 0) {
+                    setEvents(coordinatorEvents);
                     setSelectedEventId(coordinatorEvents[0].id);
+                    setHasNoAssignedShifts(false);
+                } else {
+                    // No assigned shifts — fall back to all active events so the Portal button still works
+                    const activeEvents = allEvents.filter(e => e.estado === 'Activo');
+                    setEvents(activeEvents);
+                    if (activeEvents.length > 0) setSelectedEventId(activeEvents[0].id);
+                    setHasNoAssignedShifts(true);
                 }
+
                 const allRoles = await mockApi.getAllRoles();
                 setRoles(allRoles);
             } catch (error) {
@@ -346,6 +359,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                     </div>
                 </div>
 
+
                 {/* ── Barra de controles: búsqueda arriba, selects + botones abajo ── */}
                 <div className="mb-6 flex flex-col gap-3 print:hidden">
 
@@ -402,10 +416,21 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                         <div className="hidden lg:flex lg:items-center lg:gap-2 flex-shrink-0">
                             <button
                                 onClick={() => {
+                                    setShowVolunteerPortal(true);
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-md hover:opacity-90 transition-opacity font-medium shadow-sm text-sm text-white"
+                                style={{ backgroundColor: '#8CB83E' }}
+                            >
+                                <Calendar size={15} />
+                                Portal Voluntario
+                            </button>
+                            <button
+                                onClick={() => {
                                     const evt = events.find(e => e.id === selectedEventId);
                                     if (evt) window.open(`${window.location.href.split('#')[0]}#/${evt.slug}/stand-monitor`, '_blank');
                                 }}
-                                className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors font-medium shadow-sm text-sm"
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-md hover:opacity-90 transition-opacity font-medium shadow-sm text-sm text-white"
+                                style={{ backgroundColor: '#0077C5' }}
                             >
                                 <Monitor size={15} />
                                 Monitor
@@ -415,7 +440,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                     const evt = events.find(e => e.id === selectedEventId);
                                     if (evt) window.open(`${window.location.href.split('#')[0]}#/${evt.slug}/stand-metrics`, '_blank');
                                 }}
-                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors font-medium shadow-sm text-sm"
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-md hover:opacity-90 transition-opacity font-medium shadow-sm text-sm"
+                                style={{ backgroundColor: '#e6f2d0', color: '#557326', border: '1px solid #d0e5a6' }}
                             >
                                 <BarChart2 size={15} />
                                 Métricas
@@ -719,14 +745,26 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                     <div className="border-b border-gray-200 bg-gray-50 animate-in slide-in-from-bottom duration-200">
                         <button
                             onClick={() => {
+                                setShowVolunteerPortal(true);
+                                setShowMobileMenu(false);
+                            }}
+                            className="flex items-center w-full px-6 py-4 text-gray-700 hover:bg-gray-100 border-b border-gray-200"
+                        >
+                            <div className="p-2 rounded-full mr-3" style={{ backgroundColor: '#e6f2d0' }}>
+                                <Calendar size={20} style={{ color: '#8CB83E' }} />
+                            </div>
+                            <span className="font-medium">Portal de Voluntario</span>
+                        </button>
+                        <button
+                            onClick={() => {
                                 const evt = events.find(e => e.id === selectedEventId);
                                 if (evt) window.open(`${window.location.href.split('#')[0]}#/${evt.slug}/stand-monitor`, '_blank');
                                 setShowMobileMenu(false);
                             }}
                             className="flex items-center w-full px-6 py-4 text-gray-700 hover:bg-gray-100 border-b border-gray-200"
                         >
-                            <div className="bg-blue-100 p-2 rounded-full mr-3">
-                                <Monitor size={20} className="text-blue-600" />
+                            <div className="p-2 rounded-full mr-3" style={{ backgroundColor: '#dbeafe' }}>
+                                <Monitor size={20} style={{ color: '#0077C5' }} />
                             </div>
                             <span className="font-medium">Monitor de Stand</span>
                         </button>
@@ -738,8 +776,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                             }}
                             className="flex items-center w-full px-6 py-4 text-gray-700 hover:bg-gray-100 border-b border-gray-200"
                         >
-                            <div className="bg-emerald-100 p-2 rounded-full mr-3">
-                                <BarChart2 size={20} className="text-emerald-700" />
+                            <div className="p-2 rounded-full mr-3" style={{ backgroundColor: '#e6f2d0' }}>
+                                <BarChart2 size={20} style={{ color: '#557326' }} />
                             </div>
                             <span className="font-medium">Métricas del Stand</span>
                         </button>
@@ -791,7 +829,42 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 </div>
 
             </div>
-        </div >
+
+            {/* Volunteer Portal Fullscreen Modal */}
+            {showVolunteerPortal && (
+                <div className="fixed inset-0 z-[100] flex flex-col bg-white">
+                    {/* Modal Header */}
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shadow-sm bg-white flex-shrink-0">
+                        <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e6f2d0' }}>
+                                <Calendar size={15} style={{ color: '#8CB83E' }} />
+                            </div>
+                            <span className="font-semibold text-gray-800 text-sm">
+                                Portal de Voluntario
+                                {events.find(e => e.id === selectedEventId) && (
+                                    <span className="ml-2 text-gray-500 font-normal">— {events.find(e => e.id === selectedEventId)?.nombre}</span>
+                                )}
+                            </span>
+                        </div>
+                        <button
+                            onClick={() => setShowVolunteerPortal(false)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors border border-gray-200"
+                        >
+                            <X size={16} />
+                            Volver al panel
+                        </button>
+                    </div>
+                    {/* Portal Content */}
+                    <div className="flex-1 overflow-y-auto">
+                        <VolunteerPortal
+                            user={user}
+                            onLogout={onLogout}
+                            eventId={selectedEventId}
+                        />
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 
