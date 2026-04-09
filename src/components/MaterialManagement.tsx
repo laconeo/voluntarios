@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Package, Plus, Trash2, Edit2, Shirt, Tag, Coffee } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Package, Plus, Trash2, Edit2, Shirt, Tag, Coffee, ArrowDownAZ, ArrowUpZA } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabaseApi } from '../services/supabaseApiService';
 import type { Material } from '../types';
@@ -14,6 +14,7 @@ const MaterialManagement: React.FC<MaterialManagementProps> = ({ eventId }) => {
     const [showForm, setShowForm] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [tshirtSizes, setTshirtSizes] = useState<Record<string, number>>({});
+    const [sortAZ, setSortAZ] = useState<boolean>(true);
 
     const [currentMaterial, setCurrentMaterial] = useState<Partial<Material>>({
         name: '',
@@ -85,6 +86,14 @@ const MaterialManagement: React.FC<MaterialManagementProps> = ({ eventId }) => {
     };
 
     const totalVolunteers = Object.values(tshirtSizes).reduce((a, b) => a + b, 0);
+
+    const sortedMaterials = useMemo(() => {
+        return [...materials].sort((a, b) =>
+            sortAZ
+                ? a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
+                : b.name.localeCompare(a.name, 'es', { sensitivity: 'base' })
+        );
+    }, [materials, sortAZ]);
 
     const SIZE_ORDER: Record<string, number> = { 'S': 1, 'M': 2, 'L': 3, 'XL': 4, 'XXL': 5, '3XL': 6 };
     const allSizes = Array.from(new Set(['S', 'M', 'L', 'XL', 'XXL', ...Object.keys(tshirtSizes)]))
@@ -268,8 +277,16 @@ const MaterialManagement: React.FC<MaterialManagementProps> = ({ eventId }) => {
 
             {/* ─── Lista de Materiales ─── */}
             <div className="bg-white shadow overflow-hidden sm:rounded-md border border-gray-200">
-                <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
+                <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wider">Lista de Materiales Configurados</h4>
+                    <button
+                        onClick={() => setSortAZ(prev => !prev)}
+                        title={sortAZ ? 'Ordenar Z→A' : 'Ordenar A→Z'}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors bg-[#8CB83E] text-white hover:bg-[#7cb342]"
+                    >
+                        {sortAZ ? <ArrowDownAZ size={15} /> : <ArrowUpZA size={15} />}
+                        {sortAZ ? 'A → Z' : 'Z → A'}
+                    </button>
                 </div>
                 <ul className="divide-y divide-gray-200">
                     {materials.length === 0 && !isLoading ? (
@@ -278,7 +295,7 @@ const MaterialManagement: React.FC<MaterialManagementProps> = ({ eventId }) => {
                             <p>No hay materiales definidos. Hacé click en "Nuevo Material" para añadir uno.</p>
                         </li>
                     ) : (
-                        materials.map((material) => {
+                        sortedMaterials.map((material) => {
                             const style = getCategoryStyle(material.category);
                             return (
                                 <li key={material.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">

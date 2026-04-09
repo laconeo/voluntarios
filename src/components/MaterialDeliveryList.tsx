@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Printer, CheckCircle, Circle, Package, ArrowLeft } from 'lucide-react';
+import { Search, Printer, CheckCircle, Circle, Package, ArrowLeft, ArrowDownAZ, ArrowUpZA } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { User, Material } from '../types';
 import { toast } from 'react-hot-toast';
@@ -16,6 +16,7 @@ const MaterialDeliveryList: React.FC<MaterialDeliveryListProps> = ({ eventId, on
     const [materials, setMaterials] = useState<Material[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortAZ, setSortAZ] = useState<boolean>(true);
 
     // Filters
     const [selectedMaterialId, setSelectedMaterialId] = useState<string>('all');
@@ -110,12 +111,20 @@ const MaterialDeliveryList: React.FC<MaterialDeliveryListProps> = ({ eventId, on
     }, [volunteers]);
 
     const filteredVolunteers = useMemo(() => {
-        return volunteers.filter(v => {
+        let result = volunteers.filter(v => {
             const matchesSearch = v.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || v.dni.includes(searchTerm);
             const matchesSize = selectedSize === 'all' || v.tshirtSize === selectedSize;
             return matchesSearch && matchesSize;
         });
-    }, [volunteers, searchTerm, selectedSize]);
+
+        result.sort((a, b) => 
+            sortAZ
+                ? a.fullName.localeCompare(b.fullName, 'es', { sensitivity: 'base' })
+                : b.fullName.localeCompare(a.fullName, 'es', { sensitivity: 'base' })
+        );
+
+        return result;
+    }, [volunteers, searchTerm, selectedSize, sortAZ]);
 
     const visibleMaterials = useMemo(() => {
         return materials.filter(m => selectedMaterialId === 'all' || m.id === selectedMaterialId);
@@ -230,13 +239,23 @@ const MaterialDeliveryList: React.FC<MaterialDeliveryListProps> = ({ eventId, on
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <button
-                        onClick={handlePrint}
-                        className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                    >
-                        <Printer className="mr-2 h-4 w-4" />
-                        Imprimir
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setSortAZ(prev => !prev)}
+                            title={sortAZ ? 'Ordenar Z→A' : 'Ordenar A→Z'}
+                            className="inline-flex items-center justify-center px-4 py-2 shadow-sm text-sm font-medium rounded-md transition-colors bg-[#8CB83E] text-white border border-transparent hover:bg-[#7cb342]"
+                        >
+                            {sortAZ ? <ArrowDownAZ className="mr-2 h-4 w-4" /> : <ArrowUpZA className="mr-2 h-4 w-4" />}
+                            {sortAZ ? 'A → Z' : 'Z → A'}
+                        </button>
+                        <button
+                            onClick={handlePrint}
+                            className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                        >
+                            <Printer className="mr-2 h-4 w-4" />
+                            Imprimir
+                        </button>
+                    </div>
                 </div>
 
                 {/* Filters */}
