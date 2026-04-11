@@ -10,10 +10,12 @@ import VolunteerPortal from './VolunteerPortal';
 
 interface CoordinatorDashboardProps {
     user: User;
-    onLogout: () => void;
+    onLogout?: () => void;
+    globalEventId?: string;
+    onClose?: () => void;
 }
 
-const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLogout }) => {
+const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLogout, globalEventId, onClose }) => {
     const navigate = useNavigate();
     const [events, setEvents] = useState<Event[]>([]);
     const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('all');
@@ -38,12 +40,16 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                     .filter(b => b.status === 'confirmed' && b.shift?.role?.requiresApproval)
                     .map(b => b.eventId);
 
-                // Filter events where the user is a coordinator (via shift assignment or booking)
                 const coordinatorEvents: Event[] = [];
-                for (const event of allEvents) {
-                    const eventShifts = await mockApi.getShiftsByEvent(event.id);
-                    if (eventShifts.some(s => s.coordinatorIds.includes(user.id)) || coordinatorBookingEventIds.includes(event.id)) {
-                        coordinatorEvents.push(event);
+                if (globalEventId) {
+                    const event = allEvents.find(e => e.id === globalEventId);
+                    if (event) coordinatorEvents.push(event);
+                } else {
+                    for (const event of allEvents) {
+                        const eventShifts = await mockApi.getShiftsByEvent(event.id);
+                        if (eventShifts.some(s => s.coordinatorIds.includes(user.id)) || coordinatorBookingEventIds.includes(event.id)) {
+                            coordinatorEvents.push(event);
+                        }
                     }
                 }
 
@@ -87,26 +93,30 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 .filter(b => b.status === 'confirmed' && b.shift?.role?.requiresApproval)
                 .map(b => b.shiftId);
 
-            // Filtrar turnos asignados directamente (donde es coordinador)
-            const assignedShifts = eventShifts.filter(shift =>
-                shift.coordinatorIds.includes(user.id) || coordinatorBookingShiftIds.includes(shift.id)
-            );
+            let myShifts = eventShifts;
+            
+            if (!globalEventId) {
+                // Filtrar turnos asignados directamente (donde es coordinador)
+                const assignedShifts = eventShifts.filter(shift =>
+                    shift.coordinatorIds.includes(user.id) || coordinatorBookingShiftIds.includes(shift.id)
+                );
 
-            // Expandir visibilidad: incluir TODOS los turnos que ocurren en la misma fecha y hora que mis turnos asignados
-            // Esto permite ver a voluntarios de otros roles (ej: Limpieza) si yo soy Coordinador en ese horario
-            const visibleShifts = new Set<string>();
+                // Expandir visibilidad: incluir TODOS los turnos que ocurren en la misma fecha y hora que mis turnos asignados
+                // Esto permite ver a voluntarios de otros roles (ej: Limpieza) si yo soy Coordinador en ese horario
+                const visibleShifts = new Set<string>();
 
-            assignedShifts.forEach(coordShift => {
-                visibleShifts.add(coordShift.id);
-                // Buscar concurrentes
-                eventShifts.forEach(otherShift => {
-                    if (otherShift.date === coordShift.date && otherShift.timeSlot === coordShift.timeSlot) {
-                        visibleShifts.add(otherShift.id);
-                    }
+                assignedShifts.forEach(coordShift => {
+                    visibleShifts.add(coordShift.id);
+                    // Buscar concurrentes
+                    eventShifts.forEach(otherShift => {
+                        if (otherShift.date === coordShift.date && otherShift.timeSlot === coordShift.timeSlot) {
+                            visibleShifts.add(otherShift.id);
+                        }
+                    });
                 });
-            });
 
-            const myShifts = eventShifts.filter(s => visibleShifts.has(s.id));
+                myShifts = eventShifts.filter(s => visibleShifts.has(s.id));
+            }
 
             // Sort shifts by date and time
             myShifts.sort((a, b) => {
@@ -348,8 +358,20 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
 
     return (
         <div className="min-h-screen bg-transparent">
-            <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 lg:pb-8 pb-32">
-                <h1 className="text-3xl font-bold text-gray-900 mb-8 print:hidden">Panel de Coordinador</h1>
+            {globalEventId && onClose && (
+                <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 fixed top-0 w-full z-50 print:hidden hidden sm:block">
+                    <button
+                        onClick={onClose}
+                        className="text-primary-600 hover:text-primary-700 font-medium flex items-center gap-2"
+                    >
+                        ← Volver al listado de eventos
+                    </button>
+                </div>
+            )}
+            <main className={`max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-32 lg:pb-8 ${globalEventId ? 'pt-24 sm:py-8' : 'py-8'}`}>
+                <h1 className="text-3xl font-bold text-gray-900 mb-8 print:hidden">
+                    {globalEventId ? 'Vista Coordinador Global' : 'Panel de Coordinador'}
+                </h1>
                 {/* Print Header */}
                 <div className="hidden print:block mb-8">
                     <h1 className="text-2xl font-bold text-gray-900 mb-2">Listado de Voluntarios</h1>
@@ -386,7 +408,8 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                 <select
                                     value={selectedEventId}
                                     onChange={(e) => setSelectedEventId(e.target.value)}
-                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-white cursor-pointer text-sm"
+                                    disabled={!!globalEventId}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-white cursor-pointer text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 >
                                     {events.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
                                 </select>
@@ -738,8 +761,17 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             </main >
 
             {/* Fixed Bottom Footer - Mobile Only */}
-            {/* Fixed Bottom Footer - Mobile Only */}
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 print:hidden lg:hidden safe-area-bottom">
+                
+                {globalEventId && onClose && (
+                    <button
+                        onClick={onClose}
+                        className="w-full flex items-center justify-center p-3 text-white font-medium bg-gray-800 hover:bg-gray-900"
+                    >
+                        ← Volver al listado
+                    </button>
+                )}
+
                 {/* Mobile Menu Dropup */}
                 {showMobileMenu && (
                     <div className="border-b border-gray-200 bg-gray-50 animate-in slide-in-from-bottom duration-200">

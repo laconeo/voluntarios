@@ -15,6 +15,7 @@ import VolunteerBadges from './VolunteerBadges';
 import PCMonitor from './PCMonitor';
 import ExperienceStationManager from './ExperienceStationManager';
 import StandMetrics from './StandMetrics';
+import CoordinatorDashboard from './CoordinatorDashboard';
 
 interface SuperAdminDashboardProps {
     user: User;
@@ -24,7 +25,7 @@ interface SuperAdminDashboardProps {
 }
 
 const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewMetrics, initialAction }) => {
-    const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar' | 'delivery' | 'permiso-eclesiastico' | 'voluntarios' | 'credenciales' | 'pc_monitor' | 'experience_stations' | 'stand_metrics'>('listado');
+    const [vistaActual, setVistaActual] = useState<'listado' | 'crear' | 'editar' | 'delivery' | 'permiso-eclesiastico' | 'voluntarios' | 'credenciales' | 'pc_monitor' | 'experience_stations' | 'stand_metrics' | 'coordinator_view'>('listado');
     const [activeTab, setActiveTab] = useState<'details' | 'roles' | 'shifts' | 'materials' | 'stakes'>('details');
     const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
     const [eventoSeleccionado, setEventoSeleccionado] = useState<Event | null>(null);
@@ -344,6 +345,19 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         );
     }
 
+    if (vistaActual === 'coordinator_view' && eventoSeleccionado) {
+        return (
+            <CoordinatorDashboard 
+                user={user} 
+                globalEventId={eventoSeleccionado.id}
+                onClose={() => {
+                    setVistaActual('listado');
+                    setEventoSeleccionado(null);
+                }}
+            />
+        );
+    }
+
     if (vistaActual === 'voluntarios' && eventoSeleccionado) {
         return (
             <div className="min-h-screen font-sans text-gray-900 bg-[#F7F7F7]">
@@ -596,6 +610,19 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                                         >
                                                             <Users size={16} className="text-green-600" />
                                                             <span>Gestionar Voluntarios</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEventoSeleccionado(evento);
+                                                                setVistaActual('coordinator_view');
+                                                                setActiveDropdownId(null);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-amber-600 hover:bg-amber-50 transition-colors"
+                                                        >
+                                                            <Calendar size={16} />
+                                                            <span>Vista Coordinador</span>
                                                         </button>
 
                                                         <button
