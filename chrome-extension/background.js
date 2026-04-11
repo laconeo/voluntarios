@@ -306,29 +306,26 @@ async function submitReport(id, voluntarioId, nombreLibre, actions, peopleCount,
 }
 
 async function getActiveVolunteers() {
-    // 1. Voluntarios con booking confirmado en el evento
-    if (eventoId) {
-        try {
-            const data = await supabaseGet(
-                `bookings?select=user:users(id,full_name)&evento_id=eq.${eventoId}&status=eq.confirmed`
-            );
-            if (data?.length > 0) {
-                const seen = new Set();
-                return data
-                    .filter(b => b.user && !seen.has(b.user.id) && seen.add(b.user.id))
-                    .map(b => ({ id: b.user.id, fullName: b.user.full_name }))
-                    .sort((a, b) => a.fullName.localeCompare(b.fullName));
-            }
-        } catch (e) { console.warn('[PC] Fallback voluntarios:', e.message); }
-    }
-    // 2. Usuarios activos
+    if (!eventoId) throw new Error('Debes configurar a qué Evento pertenece esta PC primero.');
+    
     try {
-        const data = await supabaseGet('users?select=id,full_name&status=eq.active&order=full_name.asc');
-        if (data?.length > 0) return data.map(u => ({ id: u.id, fullName: u.full_name }));
-    } catch { /* ignorar */ }
-    // 3. Todos los usuarios
-    const data = await supabaseGet('users?select=id,full_name&order=full_name.asc');
-    return (data || []).map(u => ({ id: u.id, fullName: u.full_name }));
+        // Traer todos los bookings directamente del evento actual usando event_id (columna correcta en la DB)
+        // Pedimos explicitamente el user_id e inner join manual para evitar posibles nulls por alias proxy en DB.
+        const bookingsData = await supabaseGet(`bookings?select=user_id,users(id,full_name)&event_id=eq.${eventoId}&status=eq.confirmed`);
+        
+        if (!bookingsData || bookingsData.length === 0) {
+            throw new Error('No hay voluntarios confirmados aún para este evento. Usa el comodín temporalmente 👤.');
+        }
+        
+        const seen = new Set();
+        return bookingsData
+            .filter(b => b.users && !seen.has(b.user_id) && seen.add(b.user_id))
+            .map(b => ({ id: b.user_id, fullName: b.users.full_name || 'Sin nombre' }))
+            .sort((a, b) => a.fullName.localeCompare(b.fullName));
+            
+    } catch (e) {
+        throw e;
+    }
 }
 
 // ============================================================
@@ -427,7 +424,7 @@ async function handleMessage(message, sender, sendResponse) {
                 sendResponse({ success: false, error: 'Tipo de mensaje desconocido' });
         }
     } catch (err) {
-        console.error('[PC] Error en handleMessage:', message.type, err.message);
+        console.warn(`[PC] Mensaje denegado o evento fallido [${message.type}]:`, err.message);
         sendResponse({ success: false, error: err.message });
     }
 }

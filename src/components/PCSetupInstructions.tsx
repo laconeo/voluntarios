@@ -114,7 +114,7 @@ const PCSetupInstructions: React.FC = () => {
 
                     {/* Botón de descarga */}
                     <a
-                        href="/voluntarios/chrome-extension/pc-stand-modo-kiosk.zip"
+                        href={`${import.meta.env.BASE_URL}pc-stand-modo-kiosk.zip`}
                         download="pc-stand-modo-kiosk.zip"
                         className="inline-flex items-center gap-2 bg-[#8CB83E] hover:bg-[#7cb342] text-white font-semibold px-6 py-3 rounded-full transition-colors text-sm uppercase tracking-wide mb-4"
                     >

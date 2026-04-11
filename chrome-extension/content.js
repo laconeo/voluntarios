@@ -282,8 +282,18 @@
       if (esOtro && input) {
         input.style.borderColor = FS.border;
         input.style.boxShadow = '';
-        // No hacer focus automático si ya tiene un valor pre-cargado asincrónico para evitar quitar foco
-        if (!input.value) setTimeout(() => input.focus(), 50);
+        input.style.userSelect = 'text';
+        input.style.pointerEvents = 'auto';
+        
+        // Bloquear propagacion por si la app principal roba el teclado
+        input.addEventListener('keydown', e => e.stopPropagation());
+        input.addEventListener('keyup', e => e.stopPropagation());
+        input.addEventListener('keypress', e => e.stopPropagation());
+
+        // Focus garantizado sin que lo mate el render inicial
+        setTimeout(() => {
+            if (!input.value) input.focus();
+        }, 150);
       }
     });
 
