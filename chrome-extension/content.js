@@ -246,16 +246,30 @@
     if (!sel || !btn) return;
 
     try {
+      const lastUserId = localStorage.getItem('__fs_last_user_id') || '';
+      const lastUserName = localStorage.getItem('__fs_last_user_name') || '';
+
       const res = await chrome.runtime.sendMessage({ type: 'GET_VOLUNTEERS' });
       if (res?.success && res.volunteers?.length > 0) {
         sel.innerHTML = '<option value="">— Seleccioná tu nombre —</option>' +
-          res.volunteers.map(v => `<option value="${escHtml(v.id)}">${escHtml(v.fullName)}</option>`).join('') +
-          '<option value="__otro__">——————————</option>' +
-          '<option value="__otro__">👤 Otro (comodín)</option>';
+          res.volunteers.map(v => {
+            const isSelected = v.id === lastUserId ? 'selected' : '';
+            return `<option value="${escHtml(v.id)}" ${isSelected}>${escHtml(v.fullName)}</option>`;
+          }).join('') +
+          '<option value="__otro__" disabled>——————————</option>' +
+          `<option value="__otro__" ${lastUserName ? 'selected' : ''}>👤 Otro (comodín)</option>`;
       } else {
         sel.innerHTML = `<option value="">⚠ ${escHtml(res?.error || 'Sin voluntarios activos')}</option>` +
-          '<option value="__otro__">👤 Otro (comodín)</option>';
+          `<option value="__otro__" ${lastUserName ? 'selected' : ''}>👤 Otro (comodín)</option>`;
       }
+
+      // Disparar evento change inicialmente por si el comodín está seleccionado
+      setTimeout(() => {
+        sel.dispatchEvent(new Event('change'));
+        if (lastUserName && input) {
+           input.value = lastUserName;
+        }
+      }, 10);
     } catch (e) {
       sel.innerHTML = `<option value="">⚠ Error: ${escHtml(e.message)}</option>` +
         '<option value="__otro__">👤 Otro (comodín)</option>';
@@ -268,7 +282,8 @@
       if (esOtro && input) {
         input.style.borderColor = FS.border;
         input.style.boxShadow = '';
-        setTimeout(() => input.focus(), 50);
+        // No hacer focus automático si ya tiene un valor pre-cargado asincrónico para evitar quitar foco
+        if (!input.value) setTimeout(() => input.focus(), 50);
       }
     });
 
@@ -276,6 +291,12 @@
       const isOtro = sel.value === '__otro__';
       const userId = isOtro ? null : sel.value;
       const nombre = isOtro ? input?.value?.trim() : null;
+
+      // Guardar localmente
+      try {
+        localStorage.setItem('__fs_last_user_id', userId || '');
+        localStorage.setItem('__fs_last_user_name', nombre || '');
+      } catch(e) {}
 
       if (!isOtro && !userId) {
         notice('__fs-lmsg__', 'Seleccioná tu nombre antes de continuar.', 'warn');
@@ -466,7 +487,7 @@
         textDecoration: 'none',
         color: FS.blue,
         fontSize: '14px', fontWeight: '400',
-        borderBottom: i < QUICK_LINKS.length - 1 ? `1px solid ${FS.border}` : 'none',
+        borderBottom: `1px solid ${FS.border}`,
         background: FS.bg,
         transition: 'background .12s',
       });
@@ -475,6 +496,33 @@
       a.addEventListener('mouseout', () => { a.style.background = FS.bg; });
       panel.appendChild(a);
     });
+
+    // Botón de cerrar sesión
+    const logoutBtn = document.createElement('div');
+    Object.assign(logoutBtn.style, {
+      display: 'flex', alignItems: 'center', gap: '10px',
+      padding: '11px 14px',
+      color: FS.red,
+      fontSize: '13px', fontWeight: 'bold',
+      background: FS.bg,
+      cursor: 'pointer',
+      transition: 'background .12s',
+    });
+    logoutBtn.innerHTML = `<span style="font-size:16px;width:20px;text-align:center;">⛔</span><span>CERRAR SESIÓN</span>`;
+    logoutBtn.addEventListener('mouseover', () => { logoutBtn.style.background = '#fdecea'; });
+    logoutBtn.addEventListener('mouseout', () => { logoutBtn.style.background = FS.bg; });
+    logoutBtn.addEventListener('click', async () => {
+      if (confirm('¿Estás seguro de cerrar tu sesión ahora?')) {
+        logoutBtn.style.pointerEvents = 'none';
+        logoutBtn.style.opacity = '0.5';
+        try {
+          await chrome.runtime.sendMessage({ type: 'LOGOUT_SESSION' });
+        } catch(e) {
+          console.error(e);
+        }
+      }
+    });
+    panel.appendChild(logoutBtn);
 
     // ---- Badge del timer ----
     const badge = el('div', {

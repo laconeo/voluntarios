@@ -141,6 +141,7 @@ export interface PCStatus {
   id: number;
   estado: PCEstado;
   voluntario_id?: string;
+  voluntario_nombre_libre?: string;
   inicio_sesion?: string;
   tiempo_limite?: string;
   created_at?: string;

@@ -42,6 +42,14 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
         }
     }, []);
 
+    // Auto-refresh cada 6 segundos
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchPcs(eventData?.id);
+        }, 6000);
+        return () => clearInterval(interval);
+    }, [fetchPcs, eventData?.id]);
+
     useEffect(() => {
         const init = async () => {
             if (eventSlug) {
@@ -172,15 +180,24 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     };
 
-    const getStatusColor = (status: string, limit?: string) => {
+    const isExtendedSession = (inicio?: string, limit?: string) => {
+        if (!inicio || !limit) return false;
+        const start = new Date(inicio).getTime();
+        const end = new Date(limit).getTime();
+        // Si hay una diferencia mayor a 21 minutos, se considera extendida
+        return (end - start) > 1260000;
+    };
+
+    const getStatusColor = (status: string, limit?: string, inicio?: string) => {
         if (status === 'disponible') return 'bg-green-100 border-green-300 text-green-800';
         if (status === 'ocupada') {
             if (limit) {
                 const now = new Date();
                 const end = new Date(limit);
                 const diffMinutes = (end.getTime() - now.getTime()) / 60000;
-                if (diffMinutes < 2 && diffMinutes > 0) return 'bg-yellow-100 border-yellow-300 text-yellow-800';
                 if (diffMinutes <= 0) return 'bg-red-100 border-red-300 text-red-800 animate-pulse';
+                if (diffMinutes < 2) return 'bg-yellow-100 border-yellow-300 text-yellow-800';
+                if (isExtendedSession(inicio, limit)) return 'bg-orange-100 border-orange-400 text-orange-900';
             }
             return 'bg-blue-100 border-blue-300 text-blue-800';
         }
@@ -194,6 +211,8 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
 
         useEffect(() => {
             if (pc.estado === 'ocupada' && pc.tiempo_limite) {
+                // Update immediately so UI matches the extra time at once
+                setTimeLeft(calculateTimeRemaining(pc.tiempo_limite));
                 const interval = setInterval(() => {
                     setTimeLeft(calculateTimeRemaining(pc.tiempo_limite!));
                 }, 1000);
@@ -204,14 +223,17 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
         }, [pc.estado, pc.tiempo_limite]);
 
         return (
-            <div className={`border rounded-lg p-4 shadow-sm flex flex-col justify-between h-40 transition-colors duration-300 ${getStatusColor(pc.estado, pc.tiempo_limite)}`}>
+            <div className={`border rounded-lg p-4 shadow-sm flex flex-col justify-between h-40 transition-colors duration-300 ${getStatusColor(pc.estado, pc.tiempo_limite, pc.inicio_sesion)}`}>
                 <div className="flex justify-between items-start">
                     <div className="flex items-center gap-2">
                         <Monitor size={20} />
                         <span className="font-bold text-lg">PC {pc.id}</span>
                     </div>
-                    <div className="text-xs font-semibold px-2 py-1 rounded-full bg-white/50 border border-white/20 uppercase">
-                        {pc.estado}
+                    <div className="text-xs font-semibold px-2 py-1 rounded-full bg-white/50 border border-white/20 uppercase flex flex-col items-end">
+                        <span>{pc.estado}</span>
+                        {pc.estado === 'ocupada' && isExtendedSession(pc.inicio_sesion, pc.tiempo_limite) && (
+                            <span className="text-[10px] mt-0.5 tracking-wider text-orange-800 font-bold">+EXT</span>
+                        )}
                     </div>
                 </div>
 
@@ -220,8 +242,8 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
                         <>
                             <div className="flex items-center gap-2 text-sm font-medium">
                                 <User size={16} />
-                                <span className="truncate" title={pc.voluntario?.fullName || 'Desconocido'}>
-                                    {pc.voluntario?.fullName || 'Voluntario'}
+                                <span className="truncate" title={pc.voluntario?.fullName || pc.voluntario_nombre_libre || 'Desconocido'}>
+                                    {pc.voluntario?.fullName || pc.voluntario_nombre_libre || 'Voluntario'}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2 text-lg font-bold font-mono">

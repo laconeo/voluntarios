@@ -399,6 +399,17 @@ async function handleMessage(message, sender, sendResponse) {
                 break;
             }
 
+            case 'LOGOUT_SESSION': {
+                if (!pcId) throw new Error('PC no configurada');
+                // Al forzar el tiempo actual, expiring = 0.
+                await supabasePatch(`pcs_status?id=eq.${pcId}`, {
+                    tiempo_limite: new Date().toISOString()
+                });
+                await checkStatus();
+                sendResponse({ success: true });
+                break;
+            }
+
             case 'GET_VOLUNTEERS': {
                 const volunteers = await getActiveVolunteers();
                 sendResponse({ success: true, volunteers });
