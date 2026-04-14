@@ -177,26 +177,39 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
     const load = useCallback(async () => {
         const since = sinceForPeriod(period);
         setRefreshing(true);
+        // No limpiamos 'data' inmediatamente para evitar parpadeo si ya había algo
+        // Pero si es la carga inicial (loading true), sí lo dejamos en null
 
         try {
-            console.log('[StandMetrics] load() → period:', period, '| since:', since?.toISOString() ?? 'TODO EL EVENTO');
+            console.log('[StandMetrics] load() -> period:', period, '| since:', since?.toISOString() ?? 'TODO EL EVENTO');
             
             // ── Métricas Diarias (Resumen en Servidor - RPC) ────────────────────
-            // Optimizamos descargando solo los totales por día ya procesados
-            const summary = await experienceService.getDailySummary(eventId, since);
+            // Intentamos obtener el resumen. Si falla por el tipo UUID, el service lo logueará.
+            let summary: any[] = [];
+            try {
+                summary = await experienceService.getDailySummary(eventId, since);
+            } catch (err) {
+                console.error('[StandMetrics] Error en getDailySummary:', err);
+                // No lanzamos el error para permitir que al menos cargue stationStats si funcionan
+            }
             
             // ── Estadísticas por Puesto (Para el desglose inferior) ──────────────
-            const stationStats = await experienceService.getStatsForEvent(eventId, since);
+            let stationStats: StationStats[] = [];
+            try {
+                stationStats = await experienceService.getStatsForEvent(eventId, since);
+            } catch (err) {
+                console.error('[StandMetrics] Error en getStatsForEvent:', err);
+            }
 
             // ── Unificar datos para la UI ──
-            const days: DayRow[] = summary.map(row => ({
+            const days: DayRow[] = (summary || []).map(row => ({
                 date: row.day,
                 label: dayLabel(row.day),
-                pcSessions: Number(row.pc_sessions),
-                pcPersonas: Number(row.pc_personas),
-                pcExtensiones: Number(row.pc_extensiones),
-                expSessions: Number(row.exp_sessions),
-                expPersonas: Number(row.exp_personas)
+                pcSessions: Number(row.pc_sessions || 0),
+                pcPersonas: Number(row.pc_personas || 0),
+                pcExtensiones: Number(row.pc_extensiones || 0),
+                expSessions: Number(row.exp_sessions || 0),
+                expPersonas: Number(row.exp_personas || 0)
             }));
 
             const totals: Totals = days.reduce(

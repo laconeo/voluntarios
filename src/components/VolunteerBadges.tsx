@@ -4,8 +4,8 @@ import { ChevronLeft, Printer, User } from 'lucide-react';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { Event } from '../types';
 import { toast } from 'react-hot-toast';
-import voluntarioImg from '../assets/VOLUNTARIO.png';
-import coordinadorImg from '../assets/COORDINADOR.png';
+const voluntarioImg = 'VOLUNTARIO.png';
+const coordinadorImg = 'COORDINADOR.png';
 
 interface VolunteerBadgesProps {
     eventId: string;

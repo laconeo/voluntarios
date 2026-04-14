@@ -169,34 +169,57 @@ export const experienceService = {
         eventoId: string,
         since?: Date
     ): Promise<StationStats[]> => {
-        const logs = await experienceService.getLogsForEvent(eventoId, since);
-        const map = new Map<string, StationStats>();
-        for (const log of logs) {
-            const key = log.stationId;
-            if (!map.has(key)) {
-                map.set(key, {
-                    stationId: key,
-                    stationNombre: log.stationNombre || '?',
-                    totalExperiencias: 0,
-                    totalPersonas: 0,
-                });
+        try {
+            console.log(`[experienceService] getStatsForEvent -> eventId: ${eventoId}, since: ${since?.toISOString()}`);
+            const logs = await experienceService.getLogsForEvent(eventoId, since);
+            console.log(`[experienceService] getStatsForEvent -> found ${logs.length} logs`);
+            
+            const map = new Map<string, StationStats>();
+            for (const log of logs) {
+                const key = log.stationId;
+                if (!map.has(key)) {
+                    map.set(key, {
+                        stationId: key,
+                        stationNombre: log.stationNombre || 'Puesto Desconocido',
+                        totalExperiencias: 0,
+                        totalPersonas: 0,
+                    });
+                }
+                const s = map.get(key)!;
+                s.totalExperiencias++;
+                s.totalPersonas += log.cantidadPersonas;
             }
-            const s = map.get(key)!;
-            s.totalExperiencias++;
-            s.totalPersonas += log.cantidadPersonas;
+            return Array.from(map.values()).sort((a, b) =>
+                a.stationNombre.localeCompare(b.stationNombre)
+            );
+        } catch (error) {
+            console.error('[experienceService] Error en getStatsForEvent:', error);
+            throw error;
         }
-        return Array.from(map.values()).sort((a, b) =>
-            a.stationNombre.localeCompare(b.stationNombre)
-        );
     },
 
     // Resumen diario agregado en servidor (RPC)
     getDailySummary: async (eventoId: string, since?: Date): Promise<any[]> => {
-        const { data, error } = await supabase.rpc('get_stand_metrics_summary', {
-            p_event_id: eventoId,
-            p_since: since ? since.toISOString() : null
-        });
-        if (error) throw error;
-        return data || [];
+        try {
+            console.log(`[experienceService] getDailySummary -> eventId: ${eventoId}, since: ${since?.toISOString()}`);
+            const { data, error } = await supabase.rpc('get_stand_metrics_summary', {
+                p_event_id: eventoId,
+                p_since: since ? since.toISOString() : null
+            });
+            
+            if (error) {
+                console.error('[experienceService] RPC Error (get_stand_metrics_summary):', error);
+                throw error;
+            }
+            
+            console.log(`[experienceService] getDailySummary -> received ${data?.length || 0} days of data`);
+            return data || [];
+        } catch (error: any) {
+            // Manejo específico para error de tipo (UUID vs TEXT)
+            if (error?.message?.includes('invalid input syntax for type uuid')) {
+                console.error('[experienceService] ERROR CRITICO: La base de datos espera un UUID pero el ID es Texto. Se requiere actualizar el RPC en Supabase.');
+            }
+            throw error;
+        }
     }
 };
