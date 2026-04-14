@@ -115,47 +115,72 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
       const bookings = await mockApi.getUserBookings(user.id);
       setUserBookings(bookings);
 
-      const myShiftIds = bookings
-        .filter(b => b.status !== 'cancelled' && b.shift?.id)
-        .map(b => b.shift!.id);
+      const confirmedBookings = bookings.filter(b => b.status === 'confirmed' && b.shift?.id);
+      
+      if (confirmedBookings.length > 0) {
+        // Group my assignments by date/time slot to find all relevant coordinators in those periods
+        const myTimeSlots = new Set(
+          confirmedBookings.map(b => `${b.shift!.date}|${b.shift!.timeSlot}`)
+        );
 
-      if (myShiftIds.length > 0) {
+        // Fetch all events I'm registered in
+        const eventIds = Array.from(new Set(bookings.map(b => b.eventId)));
+        
+        // Fetch all shifts for these events to find other shifts in the same time slots
+        const allShiftsResults = await Promise.all(eventIds.map(id => mockApi.getShiftsByEvent(id)));
+        const allEventShifts = allShiftsResults.flat();
+        
+        // Shifts that happen at the same time as the user's shifts
+        const relevantShifts = allEventShifts.filter(s => myTimeSlots.has(`${s.date}|${s.timeSlot}`));
+        const relevantShiftIds = relevantShifts.map(s => s.id);
+
+        // 1. Gather all Coordinator IDs explicitly assigned to these shifts
         const coordinatorIds = new Set<string>();
-        bookings.forEach(b => {
-          b.shift?.coordinatorIds?.forEach(id => coordinatorIds.add(id));
+        relevantShifts.forEach(s => {
+          s.coordinatorIds?.forEach(id => coordinatorIds.add(id));
         });
 
+        // 2. Fetch those coordinator users
         const usersFromAssignment = await (coordinatorIds.size > 0
           ? mockApi.getUsersByIds(Array.from(coordinatorIds))
           : Promise.resolve([]));
 
-        const shiftBookings = await mockApi.getBookingsForShifts(myShiftIds);
+        // 3. Fetch all bookings for these relevant shifts to find people with "Coordinador" role
+        const shiftBookings = await (relevantShiftIds.length > 0 
+          ? mockApi.getBookingsForShifts(relevantShiftIds)
+          : Promise.resolve([]));
+
         const usersFromBookings = shiftBookings
           .filter(b => {
             const roleName = b.shift?.role?.name;
-            const isCoordinator = roleName?.toLowerCase().includes('coordinador');
-            return isCoordinator;
+            return roleName?.toLowerCase().includes('coordinador');
           })
           .map(b => ({ ...b.user!, shiftId: b.shiftId }));
 
+        // Build the final map: volunteer's shiftId -> List of coordinators in that time slot
         const map: Record<string, User[]> = {};
-        bookings.forEach(myBooking => {
-          if (!myBooking.shift) return;
-          const shiftId = myBooking.shift.id;
-          const shiftCoords: User[] = [];
+        
+        confirmedBookings.forEach(myBooking => {
+          const shift = myBooking.shift!;
+          const slotKey = `${shift.date}|${shift.timeSlot}`;
+          
+          // Coordinators assigned to any shift in this same slot
+          const slotShifts = relevantShifts.filter(s => `${s.date}|${s.timeSlot}` === slotKey);
+          const slotShiftIds = slotShifts.map(s => s.id);
 
-          if (myBooking.shift.coordinatorIds) {
-            const assigned = usersFromAssignment.filter(u => myBooking.shift!.coordinatorIds.includes(u.id));
-            shiftCoords.push(...assigned);
-          }
+          const assignedInSlot = usersFromAssignment.filter(u => 
+            slotShifts.some(s => s.coordinatorIds?.includes(u.id))
+          );
 
-          const booked = usersFromBookings
-            .filter(ub => ub.shiftId === shiftId && ub.id)
+          const bookedInSlot = usersFromBookings
+            .filter(ub => slotShiftIds.includes(ub.shiftId!))
             .map(ub => ({ ...ub, shiftId: undefined }));
 
-          const all = [...shiftCoords, ...booked];
+          // Combine and deduplicate
+          const all = [...assignedInSlot, ...bookedInSlot];
           const unique = Array.from(new Map(all.map(item => [item.id, item])).values());
-          map[shiftId] = unique as User[];
+          
+          map[shift.id] = unique as User[];
         });
 
         setCoordinatorsMap(map);
@@ -170,46 +195,85 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
 
   // Compute dates with available shifts where user is NOT booked
   useEffect(() => {
-    if (!event || shiftDates.length === 0) return;
-    const bookedDates = new Set(
-      userBookings
-        .filter(b => b.status !== 'cancelled' && b.shift?.date)
-        .map(b => b.shift!.date)
-    );
-    const pending = shiftDates.filter(d => !bookedDates.has(d)).sort();
-    setPendingDates(pending);
+    if (!event) return;
 
-    // Show modal only once per session on first load, and only if the event has it enabled
-    if (!welcomeShownRef.current && pending.length > 0 && event?.showAvailableShiftsModal) {
-      welcomeShownRef.current = true;
-      setShowWelcomeModal(true);
-
-      // Load shift info (count + roles) for each pending date (async inner fn)
-      const targetEventId = eventId || 'event_1';
-      (async () => {
-        const infoMap: Record<string, { count: number; roles: string[] }> = {};
-        await Promise.all(
-          pending.map(async (dateStr) => {
-            try {
-              const dayShifts = await mockApi.getShiftsForDate(targetEventId, dateStr);
-              const available = dayShifts.filter(s => s.availableVacancies > 0);
-              const allRoles = await mockApi.getAllRoles();
-              const visibleRoles = allRoles.filter(r => r.isVisible !== false);
-              const roleNames = [...new Set(
-                available
-                  .map(s => visibleRoles.find(r => r.id === s.roleId)?.name)
-                  .filter(Boolean) as string[]
-              )];
-              infoMap[dateStr] = { count: available.length, roles: roleNames };
-            } catch {
-              infoMap[dateStr] = { count: 0, roles: [] };
-            }
-          })
+    const calculateAvailableShifts = async () => {
+      try {
+        const targetEventId = eventId || 'event_1';
+        
+        // 1. Get user's current booked dates
+        const bookedDates = new Set(
+          userBookings
+            .filter(b => b.status !== 'cancelled' && b.shift?.date)
+            .map(b => b.shift!.date)
         );
+
+        // 2. Fetch all shifts for the event to check vacancies accurately
+        // Using allShifts once is much more efficient than fetching day by day in a loop
+        const allShifts = await mockApi.getShiftsByEvent(targetEventId);
+        const rolesData = await mockApi.getAllRoles();
+        const visibleRoles = rolesData.filter(r => r.isVisible !== false);
+
+        // 3. Create a set of visible role IDs for efficient lookup
+        const visibleRoleIds = new Set(visibleRoles.map(r => r.id));
+
+        const infoMap: Record<string, { count: number; roles: string[] }> = {};
+        const datesWithVacancies: string[] = [];
+
+        // Group shifts by date and check for vacancies
+        const groupedByDate: Record<string, Shift[]> = {};
+        allShifts.forEach(s => {
+          if (!groupedByDate[s.date]) groupedByDate[s.date] = [];
+          groupedByDate[s.date].push(s);
+        });
+
+        // Sort dates to ensure consistent display
+        const sortedDates = Object.keys(groupedByDate).sort();
+
+        sortedDates.forEach(dateStr => {
+          // Skip dates where user is already confirmed or pending
+          if (bookedDates.has(dateStr)) return;
+
+          const dayShifts = groupedByDate[dateStr];
+          
+          // CRITICAL: Filter shifts to ONLY those that have vacancies AND are visible to volunteers
+          const available = dayShifts.filter(s => 
+            s.availableVacancies > 0 && 
+            visibleRoleIds.has(s.roleId)
+          );
+          
+          if (available.length > 0) {
+            datesWithVacancies.push(dateStr);
+            
+            // Get unique names of available roles
+            const roleNames = [...new Set(
+              available
+                .map(s => visibleRoles.find(r => r.id === s.roleId)?.name)
+                .filter(Boolean) as string[]
+            )];
+
+            // Calculate TOTAL available slots (vacancies) instead of just counting shifts
+            const totalSpots = available.reduce((acc, s) => acc + s.availableVacancies, 0);
+            
+            infoMap[dateStr] = { count: totalSpots, roles: roleNames };
+          }
+        });
+
+        setPendingDates(datesWithVacancies);
         setPendingDatesInfo(infoMap);
-      })();
-    }
-  }, [shiftDates, userBookings, event, eventId]);
+
+        // Show modal only once per session on first load, and only if vacancies exist and modal is enabled for this event
+        if (!welcomeShownRef.current && datesWithVacancies.length > 0 && event?.showAvailableShiftsModal) {
+          welcomeShownRef.current = true;
+          setShowWelcomeModal(true);
+        }
+      } catch (error) {
+        console.error("Error calculating available shifts for welcome modal:", error);
+      }
+    };
+
+    calculateAvailableShifts();
+  }, [userBookings, event, eventId]);
 
   useEffect(() => {
     mockApi.getAllRoles().then(setRoles);
@@ -584,7 +648,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                 Últimos turnos disponibles
               </h3>
               <p className="text-white/80 text-sm">
-                Hay <span className="font-bold text-white">{pendingDates.length} {pendingDates.length === 1 ? 'día' : 'días'}</span> con turnos donde todavía no estás inscripto.
+                Hay <span className="font-bold text-white">{pendingDates.length} {pendingDates.length === 1 ? 'día' : 'días'}</span> con vacantes disponibles para vos.
               </p>
             </div>
 
@@ -598,7 +662,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Seleccioná un día para ver los turnos</p>
                 <span className="text-xs font-semibold text-primary-600 bg-primary-50 border border-primary-200 px-2.5 py-1 rounded-full whitespace-nowrap">
-                  Hay <span className="font-extrabold">{pendingDates.length}</span> {pendingDates.length === 1 ? 'día' : 'días'} aún <span className="font-extrabold uppercase tracking-wide">disponibles</span>
+                  Hay <span className="font-extrabold">{pendingDates.length}</span> {pendingDates.length === 1 ? 'día' : 'días'} con <span className="font-extrabold uppercase tracking-wide">lugares</span>
                 </span>
               </div>
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
@@ -613,7 +677,7 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                       <div className="flex items-start gap-3">
                         <div className="w-9 h-9 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold shrink-0 flex-col leading-none">
                           <span className="text-base font-extrabold">{info?.count ?? '...'}</span>
-                          <span className="text-[9px] font-semibold uppercase opacity-70">turnos</span>
+                          <span className="text-[9px] font-semibold uppercase opacity-70">lugares</span>
                         </div>
                         <div>
                           <p className="font-semibold text-gray-800 capitalize text-sm">{formatDateLabel(dateStr)}</p>

@@ -58,20 +58,17 @@ export const pcControlService = {
     if (error) throw error;
   },
 
-  // Snooze (add 5 minutes)
+  // Snooze (add 5 minutes) - Atomic via RPC to prevent race conditions
   snoozePc: async (id: number): Promise<void> => {
-    // First get current limit
-    const { data, error } = await supabase
-      .from('pcs_status')
-      .select('tiempo_limite')
-      .eq('id', id)
-      .single();
+    const { error } = await supabase.rpc('snooze_pc', { 
+      p_pc_id: id,
+      p_minutes: 5
+    });
 
-    if (error || !data.tiempo_limite) throw new Error('No se pudo obtener el tiempo límite actual');
-
-    const newLimit = new Date(new Date(data.tiempo_limite).getTime() + 5 * 60000).toISOString();
-
-    await pcControlService.updatePcStatus(id, { tiempo_limite: newLimit });
+    if (error) {
+      console.error('Error in snoozePc RPC:', error);
+      throw new Error('No se pudo extender el tiempo de la PC');
+    }
   },
 
   // Log usage report

@@ -35,22 +35,29 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             try {
                 const allEvents = await mockApi.getAllEvents();
 
+                // Get events where user is assigned as coordinator in shifts
+                const userCoordinatorShifts = await mockApi.getShiftsWhereUserIsCoordinator(user.id);
+                const shiftEventIds = new Set(userCoordinatorShifts.map(s => s.eventId));
+
+                // Get user bookings to check for roles that require approval (often coordinators)
                 const userBookings = await mockApi.getUserBookings(user.id);
-                const coordinatorBookingEventIds = userBookings
+                const approvedRoleEventIds = userBookings
                     .filter(b => b.status === 'confirmed' && b.shift?.role?.requiresApproval)
                     .map(b => b.eventId);
+
+                // Combine sources
+                const coordinatorRelevantEventIds = new Set([...shiftEventIds, ...approvedRoleEventIds]);
 
                 const coordinatorEvents: Event[] = [];
                 if (globalEventId) {
                     const event = allEvents.find(e => e.id === globalEventId);
                     if (event) coordinatorEvents.push(event);
                 } else {
-                    for (const event of allEvents) {
-                        const eventShifts = await mockApi.getShiftsByEvent(event.id);
-                        if (eventShifts.some(s => s.coordinatorIds.includes(user.id)) || coordinatorBookingEventIds.includes(event.id)) {
+                    allEvents.forEach(event => {
+                        if (coordinatorRelevantEventIds.has(event.id)) {
                             coordinatorEvents.push(event);
                         }
-                    }
+                    });
                 }
 
                 if (coordinatorEvents.length > 0) {
@@ -127,12 +134,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             setShifts(myShifts);
 
             const eventBookings = await mockApi.getBookingsByEvent(eventId);
-            // Enrich bookings with user data
-            const enrichedBookings = await Promise.all(eventBookings.map(async (booking) => {
-                const user = await mockApi.getUserById(booking.userId);
-                return { ...booking, user };
-            }));
-            setBookings(enrichedBookings);
+            setBookings(eventBookings);
         } catch (error) {
             toast.error('Error al cargar datos del evento');
         } finally {
@@ -226,7 +228,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
 
         doc.setFontSize(10);
         doc.setTextColor(55, 65, 81);
-        doc.text(`Evento: ${eventName} | Coordinador: ${user.fullName}`, 14, 23);
+        doc.text(`Evento: ${eventName}`, 14, 23);
 
         let yPos = 35;
 
@@ -284,8 +286,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
 
     const handleShareWhatsApp = () => {
         const eventName = events.find(e => e.id === selectedEventId)?.nombre || 'Evento';
-        let text = `*Listado de Voluntarios - ${eventName}*\n`;
-        text += `Coordinador: ${user.fullName}\n\n`;
+        let text = `*Listado de Voluntarios - ${eventName}*\n\n`;
 
         sortedGroups.forEach(group => {
             const groupBookings = group.shifts.flatMap(s => bookings.filter(b => b.shiftId === s.id && b.status === 'confirmed'));
@@ -301,7 +302,9 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             text += '\n';
         });
 
-        const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        // Sanitize text to remove control characters that might cause encoding issues
+        const sanitizedText = text.replace(/[\u200B-\u200D\uFEFF]/g, '');
+        const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(sanitizedText)}`;
         window.open(url, '_blank');
     };
 
@@ -524,7 +527,10 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                         );
 
                         // Calculate total occupied spots based on shift data (from DB) to check consistency
+                        // We subtract coordinators because they are counted in occupancy but usually not shown in this specific booking list
+                        const totalCoordinators = group.shifts.reduce((acc, s) => acc + (s.coordinatorIds?.length || 0), 0);
                         const totalOccupied = group.shifts.reduce((acc, s) => acc + (s.totalVacancies - s.availableVacancies), 0);
+                        const expectedVolunteers = Math.max(0, totalOccupied - totalCoordinators);
 
                         // If searching, filter bookings
                         const displayBookings = searchTerm
@@ -556,10 +562,11 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                         <div className="text-right">
                                             <span className="text-sm text-gray-500 block">
                                                 {displayBookings.length} voluntarios en lista
+                                                {totalCoordinators > 0 && ` (+${totalCoordinators} coord.)`}
                                             </span>
-                                            {totalOccupied > displayBookings.length && (
+                                            {!searchTerm && expectedVolunteers > displayBookings.length && (
                                                 <span className="text-xs text-orange-500 font-medium" title="Hay más vacantes ocupadas en el sistema de las que se muestran aquí. Posibles usuarios con estado desconocido o filtro activo.">
-                                                    ⚠️ {totalOccupied} vacantes ocupadas
+                                                    ⚠️ {expectedVolunteers} vacantes ocupadas sin datos
                                                 </span>
                                             )}
                                         </div>

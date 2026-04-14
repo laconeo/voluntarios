@@ -66,7 +66,7 @@ const mapShift = (row: any): Shift => ({
     timeSlot: row.time_slot,
     roleId: row.role_id,
     totalVacancies: row.total_vacancies,
-    availableVacancies: row.total_vacancies, // Calc logic needed
+    availableVacancies: row.available_vacancies ?? row.total_vacancies,
     coordinatorIds: row.coordinator_ids || [],
 });
 
@@ -582,25 +582,24 @@ export const supabaseApi = {
 
     // ==================== EVENTS ====================
     getAllEvents: async (): Promise<Event[]> => {
-        const { data: events, error } = await supabase.from('events').select('*').limit(10000);
+        const { data: events, error } = await supabase.from('events').select('*').order('fecha_inicio', { ascending: false });
         if (error) throw error;
 
-        // Fetch active bookings recursively to bypass 1000 row limit
-        const bookings = await fetchAllPaginated<any>(() =>
-            supabase.from('bookings').select('event_id, user_id').eq('status', 'confirmed')
+        // Fetch ALL confirmed bookings across all events using pagination to avoid the 1000-row limit
+        const bookingData = await fetchAllPaginated<any>(() => 
+            supabase.from('bookings')
+                .select('event_id, user_id')
+                .eq('status', 'confirmed')
         );
 
         const eventsWithCounts = events.map(event => {
             const mapped = mapEvent(event);
-
-            // Calculate unique volunteers for this event
-            if (bookings) {
-                const eventBookings = bookings.filter(b => b.event_id === event.id);
-                // Count unique userIds
+            if (bookingData) {
+                // Count all unique users registered for this event (Total: 537)
+                const eventBookings = bookingData.filter(b => b.event_id === event.id);
                 const uniqueUsers = new Set(eventBookings.map(b => b.user_id));
                 mapped.voluntarios = uniqueUsers.size;
             }
-
             return mapped;
         });
 
@@ -807,7 +806,9 @@ export const supabaseApi = {
 
         // Calculate vacancies
         const shiftIds = shifts.map(s => s.id);
-        const { data: bookings } = await supabase.from('bookings').select('shift_id').in('shift_id', shiftIds).eq('status', 'confirmed');
+        const bookings = await fetchAllPaginated<any>(() => 
+            supabase.from('bookings').select('shift_id').in('shift_id', shiftIds).eq('status', 'confirmed')
+        );
 
         return shifts.map(s => {
             const bookedCount = bookings?.filter(b => b.shift_id === s.id).length || 0;
@@ -824,8 +825,47 @@ export const supabaseApi = {
     },
 
     getShiftsByEvent: async (eventId: string): Promise<Shift[]> => {
-        const shifts = await fetchAllPaginated<any>(() => supabase.from('shifts').select('*').eq('event_id', eventId));
-        return shifts.map(mapShift);
+        const shifts = await fetchAllPaginated<any>(() => 
+            supabase.from('shifts')
+                .select('*, roles(*)')
+                .eq('event_id', eventId)
+        );
+
+        if (!shifts || shifts.length === 0) return [];
+
+        // Fetch all non-cancelled bookings for these shifts to calculate availability
+        const shiftIds = shifts.map(s => s.id);
+        const bookings = await fetchAllPaginated<any>(() => 
+            supabase.from('bookings')
+                .select('shift_id')
+                .in('shift_id', shiftIds)
+                .neq('status', 'cancelled')
+        );
+
+        return shifts.map(s => {
+            const bookedCount = bookings?.filter(b => b.shift_id === s.id).length || 0;
+            // Coordinators also subtract from available spots (as per system design in signup)
+            const coordinatorCount = s.coordinator_ids ? s.coordinator_ids.length : 0;
+            
+            return {
+                ...mapShift(s),
+                availableVacancies: Math.max(0, s.total_vacancies - bookedCount - coordinatorCount),
+                role: s.roles ? mapRole(s.roles) : undefined
+            } as any;
+        });
+    },
+
+    getShiftsWhereUserIsCoordinator: async (userId: string): Promise<Shift[]> => {
+        const { data, error } = await supabase
+            .from('shifts')
+            .select('*, roles(*)')
+            .contains('coordinator_ids', [userId]);
+        
+        if (error) throw error;
+        return (data || []).map(s => ({
+            ...mapShift(s),
+            role: s.roles ? mapRole(s.roles) : undefined
+        } as any));
     },
 
     getShiftById: async (shiftId: string): Promise<Shift | null> => {
@@ -1209,7 +1249,12 @@ export const supabaseApi = {
     },
 
     getBookingsByEvent: async (eventId: string): Promise<Booking[]> => {
-        const data = await fetchAllPaginated<any>(() => supabase.from('bookings').select('*').eq('event_id', eventId).neq('status', 'cancelled'));
+        const data = await fetchAllPaginated<any>(() => 
+            supabase.from('bookings')
+                .select('*, users(*), shifts(*, roles(*))')
+                .eq('event_id', eventId)
+                .neq('status', 'cancelled')
+        );
         return (data || []).map(mapBooking);
     },
 
@@ -1222,16 +1267,8 @@ export const supabaseApi = {
         const { data } = await query;
         if (!data) return [];
 
-        return data.map((b: any) => {
-            const booking = mapBooking(b);
-            if (b.shifts) {
-                booking.shift = mapShift(b.shifts) as Shift & { role: Role };
-                if (b.shifts.roles) {
-                    booking.shift.role = mapRole(b.shifts.roles);
-                }
-            }
-            return booking;
-        }).sort((a, b) => new Date(a.shift?.date!).getTime() - new Date(b.shift?.date!).getTime());
+        return data.map((b: any) => mapBooking(b))
+            .sort((a, b) => new Date(a.shift?.date!).getTime() - new Date(b.shift?.date!).getTime());
     },
 
     getBookingsForShifts: async (shiftIds: string[]): Promise<Booking[]> => {
@@ -1732,19 +1769,41 @@ export const supabaseApi = {
 
 
     getDashboardMetrics: async (eventId: string): Promise<DashboardMetrics> => {
-        // Calculate heavily.
-        // Fetch all bookings and shifts for event.
-        const shifts = await fetchAllPaginated<any>(() => supabase.from('shifts').select('*').eq('event_id', eventId));
-        const bookings = await fetchAllPaginated<any>(() => supabase.from('bookings').select('*').eq('event_id', eventId).eq('status', 'confirmed'));
-        const allBookings = await fetchAllPaginated<any>(() => supabase.from('bookings').select('*').eq('event_id', eventId));
-        const waitlist = await fetchAllPaginated<any>(() => supabase.from('waitlist').select('*').eq('event_id', eventId));
-        const users = await fetchAllPaginated<any>(() => supabase.from('users').select('*')); // Filter later
+        // Fetch baseline event data in parallel
+        const [shifts, allBookings, waitlist, roles, stakes] = await Promise.all([
+            fetchAllPaginated<any>(() => supabase.from('shifts').select('*').eq('event_id', eventId)),
+            fetchAllPaginated<any>(() => supabase.from('bookings').select('*').eq('event_id', eventId)),
+            fetchAllPaginated<any>(() => supabase.from('waitlist').select('*').eq('event_id', eventId)),
+            supabase.from('roles').select('*').eq('event_id', eventId),
+            supabase.from('stakes').select('*').eq('event_id', eventId).limit(1000)
+        ]);
+
+        const bookings = allBookings.filter(b => b.status === 'confirmed');
+        const roleData = roles.data || [];
+        const stakeData = stakes.data || [];
+
+        // Collect ALL relevant user IDs (confirmed bookings + coordinators)
+        const relevantUserIds = new Set<string>();
+        bookings.forEach(b => relevantUserIds.add(b.user_id));
+        shifts.forEach(s => {
+            if (s.coordinator_ids) s.coordinator_ids.forEach((id: string) => relevantUserIds.add(id));
+        });
+
+        // Fetch ONLY relevant users instead of the entire DB
+        let users: any[] = [];
+        if (relevantUserIds.size > 0) {
+            const userIdsArray = Array.from(relevantUserIds);
+            const chunkSize = 500;
+            for (let i = 0; i < userIdsArray.length; i += chunkSize) {
+                const chunk = userIdsArray.slice(i, i + chunkSize);
+                const { data: chunkUsers } = await supabase.from('users').select('*').in('id', chunk);
+                if (chunkUsers) users = [...users, ...chunkUsers];
+            }
+        }
+
         const userMaterials = await fetchAllPaginated<any>(() => supabase.from('user_materials').select('user_id').eq('event_id', eventId));
 
-        const { data: roles } = await supabase.from('roles').select('*').eq('event_id', eventId); // for names?
-        const { data: stakes } = await supabase.from('stakes').select('*').eq('event_id', eventId).limit(10000);
-
-        if (!shifts || !bookings || !roles || !users || !userMaterials) {
+        if (!shifts || !bookings || !users) {
             // Return empty metrics?
             return {
                 eventId,
@@ -1816,7 +1875,7 @@ export const supabaseApi = {
         // Distribution
         const roleDistribution = bookings.reduce((acc: any[], b) => {
             const shift = shifts.find(s => s.id === b.shift_id);
-            const role = roles.find(r => r.id === shift?.role_id);
+            const role = roleData.find(r => r.id === shift?.role_id);
             if (role) {
                 const existing = acc.find((r: any) => r.roleName === role.name);
                 if (existing) {
@@ -1844,7 +1903,7 @@ export const supabaseApi = {
 
         // Add unbooked coords to role distribution
         unbookedCoordsPerShift.forEach(item => {
-            const role = roles.find(r => r.id === item.shift.role_id);
+            const role = roleData.find(r => r.id === item.shift.role_id);
             if (role) {
                 const existing = roleDistribution.find((r: any) => r.roleName === role.name);
                 if (existing) {
@@ -1930,7 +1989,7 @@ export const supabaseApi = {
             let stakeGroup = 'Desconocida';
 
             if (u && u.stake_id) {
-                const stake = stakes?.find(s => s.id === u.stake_id);
+                const stake = stakeData.find(s => s.id === u.stake_id);
                 if (stake) {
                     let rawName = stake.name || '';
                     const parts = rawName.split(/[/\\-]/);

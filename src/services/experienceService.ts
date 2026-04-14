@@ -189,4 +189,14 @@ export const experienceService = {
             a.stationNombre.localeCompare(b.stationNombre)
         );
     },
+
+    // Resumen diario agregado en servidor (RPC)
+    getDailySummary: async (eventoId: string, since?: Date): Promise<any[]> => {
+        const { data, error } = await supabase.rpc('get_stand_metrics_summary', {
+            p_event_id: eventoId,
+            p_since: since ? since.toISOString() : null
+        });
+        if (error) throw error;
+        return data || [];
+    }
 };

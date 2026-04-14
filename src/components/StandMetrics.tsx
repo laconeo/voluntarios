@@ -176,83 +176,47 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
 
     const load = useCallback(async () => {
         const since = sinceForPeriod(period);
+        setRefreshing(true);
 
-        console.log('[StandMetrics] load() → period:', period, '| since:', since?.toISOString() ?? 'SIN FILTRO (todo el evento)');
-        console.log('[StandMetrics] eventId:', eventId);
+        try {
+            console.log('[StandMetrics] load() → period:', period, '| since:', since?.toISOString() ?? 'TODO EL EVENTO');
+            
+            // ── Métricas Diarias (Resumen en Servidor - RPC) ────────────────────
+            // Optimizamos descargando solo los totales por día ya procesados
+            const summary = await experienceService.getDailySummary(eventId, since);
+            
+            // ── Estadísticas por Puesto (Para el desglose inferior) ──────────────
+            const stationStats = await experienceService.getStatsForEvent(eventId, since);
 
-        // ── Experiencias ─────────────────────────────────────────────────
-        const expLogs = await experienceService.getLogsForEvent(eventId, since);
-        const stationStats = await experienceService.getStatsForEvent(eventId, since);
+            // ── Unificar datos para la UI ──
+            const days: DayRow[] = summary.map(row => ({
+                date: row.day,
+                label: dayLabel(row.day),
+                pcSessions: Number(row.pc_sessions),
+                pcPersonas: Number(row.pc_personas),
+                pcExtensiones: Number(row.pc_extensiones),
+                expSessions: Number(row.exp_sessions),
+                expPersonas: Number(row.exp_personas)
+            }));
 
-        console.log('[StandMetrics] expLogs recibidos:', expLogs.length, '| fechas únicas:', [...new Set(expLogs.map(l => toLocalDateStr(l.createdAt)))].sort());
+            const totals: Totals = days.reduce(
+                (acc, r) => ({
+                    pcSessions: acc.pcSessions + r.pcSessions,
+                    pcPersonas: acc.pcPersonas + r.pcPersonas,
+                    pcExtensiones: acc.pcExtensiones + r.pcExtensiones,
+                    expSessions: acc.expSessions + r.expSessions,
+                    expPersonas: acc.expPersonas + r.expPersonas,
+                }),
+                { pcSessions: 0, pcPersonas: 0, pcExtensiones: 0, expSessions: 0, expPersonas: 0 }
+            );
 
-        // ── PCs (bitacora_uso) — paginado para superar el límite de 1000 filas ─
-        const PC_PAGE_SIZE = 1000;
-        let pcLogs: any[] = [];
-        let pcFrom = 0;
-        while (true) {
-            let pcQ = supabase
-                .from('bitacora_uso')
-                .select('pc_id, duracion_total, acciones_reportadas, created_at')
-                .eq('evento_id', eventId)
-                .order('created_at', { ascending: true })
-                .range(pcFrom, pcFrom + PC_PAGE_SIZE - 1);
-            if (since) pcQ = pcQ.gte('created_at', since.toISOString());
-            const { data: pcPage, error: pcError } = await pcQ;
-            if (pcError) { console.error('[StandMetrics] PC query error:', pcError); break; }
-            if (!pcPage || pcPage.length === 0) break;
-            pcLogs = [...pcLogs, ...pcPage];
-            if (pcPage.length < PC_PAGE_SIZE) break;
-            pcFrom += PC_PAGE_SIZE;
+            setData({ days, totals, stationStats, loadedAt: new Date() });
+        } catch (error) {
+            console.error('[StandMetrics] Error fatal cargando métricas:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
         }
-        console.log('[StandMetrics] pcLogs recibidos (paginado):', pcLogs.length);
-
-        // ── Unificar por día ─────────────────────────────────────────────
-        const dayMap = new Map<string, DayRow>();
-
-        const getOrCreate = (dateStr: string): DayRow => {
-            if (!dayMap.has(dateStr)) {
-                dayMap.set(dateStr, {
-                    date: dateStr,
-                    label: dayLabel(dateStr),
-                    pcSessions: 0, pcPersonas: 0, pcExtensiones: 0,
-                    expSessions: 0, expPersonas: 0,
-                });
-            }
-            return dayMap.get(dateStr)!;
-        };
-
-        for (const pc of pcLogs) {
-            const d = toLocalDateStr(pc.created_at);
-            const row = getOrCreate(d);
-            row.pcSessions++;
-            row.pcPersonas += Number(pc.acciones_reportadas?.people_helped) || 0;
-            row.pcExtensiones += Number(pc.acciones_reportadas?.extensions) || 0;
-        }
-
-        for (const ex of expLogs) {
-            const d = toLocalDateStr(ex.createdAt);
-            const row = getOrCreate(d);
-            row.expSessions++;
-            row.expPersonas += ex.cantidadPersonas;
-        }
-
-        const days = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-
-        const totals: Totals = days.reduce(
-            (acc, r) => ({
-                pcSessions: acc.pcSessions + r.pcSessions,
-                pcPersonas: acc.pcPersonas + r.pcPersonas,
-                pcExtensiones: acc.pcExtensiones + r.pcExtensiones,
-                expSessions: acc.expSessions + r.expSessions,
-                expPersonas: acc.expPersonas + r.expPersonas,
-            }),
-            { pcSessions: 0, pcPersonas: 0, pcExtensiones: 0, expSessions: 0, expPersonas: 0 }
-        );
-
-        setData({ days, totals, stationStats, loadedAt: new Date() });
-        setLoading(false);
-        setRefreshing(false);
     }, [eventId, period]);
 
     // Auto-refresh completo cada 2 minutos
