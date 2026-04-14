@@ -28,7 +28,10 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [pendingDates, setPendingDates] = useState<string[]>([]);
-  const [pendingDatesInfo, setPendingDatesInfo] = useState<Record<string, { count: number; roles: string[] }>>({});
+  const [pendingDatesInfo, setPendingDatesInfo] = useState<Record<string, { 
+    totalVacancies: number; 
+    shifts: { timeSlot: string; roleName: string; vacancies: number; dateStr: string }[] 
+  }>>({});
   const [activeTab, setActiveTab] = useState<'shifts' | 'bookings'>('shifts');
   const [isBooking, setIsBooking] = useState(false);
   const welcomeShownRef = useRef(false);
@@ -245,17 +248,26 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
           if (available.length > 0) {
             datesWithVacancies.push(dateStr);
             
-            // Get unique names of available roles
-            const roleNames = [...new Set(
-              available
-                .map(s => visibleRoles.find(r => r.id === s.roleId)?.name)
-                .filter(Boolean) as string[]
-            )];
+            // Format each shift for detail view
+            const shiftDetails = available.map(s => {
+              const roleName = visibleRoles.find(r => r.id === s.roleId)?.name || 'Voluntario';
+              const dateObj = new Date(s.date + 'T12:00:00');
+              const formattedDate = dateObj.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+              
+              return {
+                timeSlot: s.timeSlot,
+                roleName,
+                vacancies: s.availableVacancies,
+                dateStr: formattedDate
+              };
+            });
 
-            // Calculate TOTAL available slots (vacancies) instead of just counting shifts
             const totalSpots = available.reduce((acc, s) => acc + s.availableVacancies, 0);
             
-            infoMap[dateStr] = { count: totalSpots, roles: roleNames };
+            infoMap[dateStr] = { 
+              totalVacancies: totalSpots, 
+              shifts: shiftDetails 
+            };
           }
         });
 
@@ -666,37 +678,52 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                 </span>
               </div>
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
-                {pendingDates.map((dateStr, idx) => {
+                {pendingDates.map((dateStr) => {
                   const info = pendingDatesInfo[dateStr];
                   return (
-                    <button
+                    <div
                       key={dateStr}
-                      onClick={() => handleWelcomeDateSelect(dateStr)}
-                      className="w-full flex items-start justify-between px-4 py-3.5 rounded-xl border border-gray-100 bg-gray-50 hover:bg-primary-50 hover:border-primary-200 transition-all group text-left"
+                      className="w-full flex flex-col px-4 py-4 rounded-xl border border-gray-100 bg-gray-50 mb-3"
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold shrink-0 flex-col leading-none">
-                          <span className="text-base font-extrabold">{info?.count ?? '...'}</span>
-                          <span className="text-[9px] font-semibold uppercase opacity-70">lugares</span>
+                      <button
+                        onClick={() => handleWelcomeDateSelect(dateStr)}
+                        className="flex items-center justify-between group text-left mb-3 w-full"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold shrink-0 flex-col leading-none">
+                            <span className="text-lg font-extrabold">{info?.totalVacancies ?? '...'}</span>
+                            <span className="text-[9px] font-semibold uppercase opacity-70">lugares</span>
+                          </div>
+                          <p className="font-bold text-gray-900 capitalize text-base">{formatDateLabel(dateStr)}</p>
                         </div>
-                        <div>
-                          <p className="font-semibold text-gray-800 capitalize text-sm">{formatDateLabel(dateStr)}</p>
-                          {info && info.roles.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1.5">
-                              {info.roles.map(role => (
-                                <span key={role} className="text-[10px] font-semibold bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
-                                  {role}
-                                </span>
-                              ))}
+                        <div className="bg-primary-50 p-1.5 rounded-full text-primary-600 group-hover:bg-primary-100 transition-colors">
+                          <ArrowRight size={18} />
+                        </div>
+                      </button>
+
+                      {info && info.shifts.length > 0 && (
+                        <div className="space-y-1.5 pl-1">
+                          {info.shifts.map((s, sIdx) => (
+                            <div 
+                              key={`${dateStr}-${sIdx}`} 
+                              className="flex items-center gap-2 text-xs text-gray-600 font-medium bg-white/60 py-1.5 px-3 rounded-lg border border-gray-100"
+                            >
+                              <div className="w-1.5 h-1.5 rounded-full bg-primary-400" />
+                              <span className="text-gray-400 font-bold lowercase">{s.dateStr}</span>
+                              <span className="font-bold">{s.timeSlot}</span>
+                              <span className="text-gray-400">|</span>
+                              <span className="font-semibold text-gray-700">{s.roleName}</span>
+                              <span className={`ml-auto font-bold ${s.vacancies === 1 ? 'text-orange-600' : 'text-primary-600'}`}>
+                                ({s.vacancies} {s.vacancies === 1 ? 'lugar' : 'lugares'})
+                              </span>
                             </div>
-                          )}
-                          {!info && (
-                            <span className="text-[10px] text-gray-400 italic">Cargando roles...</span>
-                          )}
+                          ))}
                         </div>
-                      </div>
-                      <ArrowRight size={16} className="text-gray-300 group-hover:text-primary-500 transition-colors shrink-0 mt-1" />
-                    </button>
+                      )}
+                      {!info && (
+                        <span className="text-[10px] text-gray-400 italic">Cargando turnos...</span>
+                      )}
+                    </div>
                   );
                 })}
               </div>
