@@ -4,6 +4,8 @@ import { ChevronLeft, Printer, User } from 'lucide-react';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { Event } from '../types';
 import { toast } from 'react-hot-toast';
+import voluntarioImg from '../assets/VOLUNTARIO.png';
+import coordinadorImg from '../assets/COORDINADOR.png';
 
 interface VolunteerBadgesProps {
     eventId: string;
@@ -320,7 +322,7 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                                 id={`badge-${badge.id}`}
                                 onClick={() => toggleSelect(badge.id)}
                                 style={{ 
-                                    backgroundImage: `url(${import.meta.env.BASE_URL}${badge.roleName === 'Coordinador' ? 'COORDINADOR.png' : 'VOLUNTARIO.png'})` 
+                                    backgroundImage: `url("${badge.roleName === 'Coordinador' ? coordinadorImg : voluntarioImg}")` 
                                 }}
                             >
                                 {/* Selection Indicator */}

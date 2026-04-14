@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { User, Shift, Role, Booking } from '../types';
 import { mockApi } from '../services/mockApiService';
 import { ChevronLeft, ChevronRight, Clock, AlertTriangle, Calendar as CalendarIcon, MapPin, CheckCircle2, Plus, Info, Mail, Phone, Shield, Share2, Copy, Download, X, Youtube, Sparkles, ArrowRight } from 'lucide-react';
+import { formatShiftSummary } from '../lib/utils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import RoleDetailModal from './RoleDetailModal';
@@ -204,23 +205,25 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
       try {
         const targetEventId = eventId || 'event_1';
         
-        // 1. Get user's current booked dates
-        const bookedDates = new Set(
+        // 1. Get user's current booked shift IDs to exclude them specifically
+        const bookedShiftIds = new Set(
           userBookings
-            .filter(b => b.status !== 'cancelled' && b.shift?.date)
-            .map(b => b.shift!.date)
+            .filter(b => b.status !== 'cancelled' && b.shiftId)
+            .map(b => b.shiftId!)
         );
 
-        // 2. Fetch all shifts for the event to check vacancies accurately
-        // Using allShifts once is much more efficient than fetching day by day in a loop
-        const allShifts = await mockApi.getShiftsByEvent(targetEventId);
-        const rolesData = await mockApi.getAllRoles();
-        const visibleRoles = rolesData.filter(r => r.isVisible !== false);
+        // 2. Fetch all shifts, roles AND all bookings for this event to calculate real availability
+        // This ensures the calculation is exactly as in the WhatsApp reports
+        const [allShifts, rolesData, allEventBookings] = await Promise.all([
+          mockApi.getShiftsByEvent(targetEventId),
+          mockApi.getRolesByEvent(targetEventId),
+          mockApi.getBookingsByEvent(targetEventId)
+        ]);
 
-        // 3. Create a set of visible role IDs for efficient lookup
-        const visibleRoleIds = new Set(visibleRoles.map(r => r.id));
-
-        const infoMap: Record<string, { count: number; roles: string[] }> = {};
+        const infoMap: Record<string, { 
+          totalVacancies: number; 
+          shifts: { timeSlot: string; roleName: string; vacancies: number; dateStr: string; summary: string }[] 
+        }> = {};
         const datesWithVacancies: string[] = [];
 
         // Group shifts by date and check for vacancies
@@ -234,31 +237,39 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
         const sortedDates = Object.keys(groupedByDate).sort();
 
         sortedDates.forEach(dateStr => {
-          // Skip dates where user is already confirmed or pending
-          if (bookedDates.has(dateStr)) return;
-
           const dayShifts = groupedByDate[dateStr];
           
-          // CRITICAL: Filter shifts to ONLY those that have vacancies AND are visible to volunteers
-          const available = dayShifts.filter(s => 
-            s.availableVacancies > 0 && 
-            visibleRoleIds.has(s.roleId)
-          );
+          // Calculate real availability just like in generateInviteText in EventVolunteersList
+          const available = dayShifts
+            .map(s => {
+              const confirmedCount = allEventBookings.filter(b => b.shiftId === s.id && b.status === 'confirmed').length;
+              const pendingCount = allEventBookings.filter(b => b.shiftId === s.id && b.status === 'pending').length;
+              const coordCount = s.coordinatorIds ? s.coordinatorIds.length : 0;
+              
+              // We count confirmed and coordinators as occupied slots
+              const occupied = confirmedCount + coordCount;
+              const realAvailable = Math.max(0, s.totalVacancies - occupied);
+              
+              return { ...s, realAvailable };
+            })
+            .filter(s => 
+              s.realAvailable > 0 && 
+              !bookedShiftIds.has(s.id) // Still filter out what the user already has
+            );
           
           if (available.length > 0) {
             datesWithVacancies.push(dateStr);
             
-            // Format each shift for detail view
+            // Format each shift for detail view using shared utility
             const shiftDetails = available.map(s => {
-              const roleName = visibleRoles.find(r => r.id === s.roleId)?.name || 'Voluntario';
-              const dateObj = new Date(s.date + 'T12:00:00');
-              const formattedDate = dateObj.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+              const roleName = rolesData.find(r => r.id === s.roleId)?.name || 'Voluntario';
               
               return {
                 timeSlot: s.timeSlot,
                 roleName,
-                vacancies: s.availableVacancies,
-                dateStr: formattedDate
+                vacancies: s.realAvailable,
+                dateStr,
+                summary: formatShiftSummary(s.date, s.timeSlot, roleName, s.realAvailable)
               };
             });
 
@@ -527,9 +538,11 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
       text += "No tienes turnos registrados.\n";
     } else {
       activeBookings.forEach(booking => {
-        const date = booking.shift.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString('es-ES') : 'N/A';
-        const roleName = booking.shift.role?.name || 'Rol';
-        text += `- ${date} ${booking.shift.timeSlot} (${roleName}) - ${booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'}\n`;
+        text += `${formatShiftSummary(
+          booking.shift?.date || '', 
+          booking.shift?.timeSlot || '', 
+          booking.shift?.role?.name || 'Voluntario'
+        )} - ${booking.status === 'confirmed' ? 'Confirmado' : 'Pendiente'}\n`;
         if (booking.shift?.id && coordinatorsMap[booking.shift.id] && coordinatorsMap[booking.shift.id].length > 0) {
           const coords = coordinatorsMap[booking.shift.id];
           text += `  👤 Coordinador: ${coords.map(c => `${c.fullName} (${c.phone})`).join(', ')}\n`;
@@ -690,10 +703,6 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                         className="flex items-center justify-between group text-left mb-3 w-full"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold shrink-0 flex-col leading-none">
-                            <span className="text-lg font-extrabold">{info?.totalVacancies ?? '...'}</span>
-                            <span className="text-[9px] font-semibold uppercase opacity-70">lugares</span>
-                          </div>
                           <p className="font-bold text-gray-900 capitalize text-base">{formatDateLabel(dateStr)}</p>
                         </div>
                         <div className="bg-primary-50 p-1.5 rounded-full text-primary-600 group-hover:bg-primary-100 transition-colors">
@@ -709,12 +718,8 @@ const VolunteerPortal: React.FC<VolunteerPortalProps> = ({ user, onLogout, event
                               className="flex items-center gap-2 text-xs text-gray-600 font-medium bg-white/60 py-1.5 px-3 rounded-lg border border-gray-100"
                             >
                               <div className="w-1.5 h-1.5 rounded-full bg-primary-400" />
-                              <span className="text-gray-400 font-bold lowercase">{s.dateStr}</span>
-                              <span className="font-bold">{s.timeSlot}</span>
-                              <span className="text-gray-400">|</span>
-                              <span className="font-semibold text-gray-700">{s.roleName}</span>
-                              <span className={`ml-auto font-bold ${s.vacancies === 1 ? 'text-orange-600' : 'text-primary-600'}`}>
-                                ({s.vacancies} {s.vacancies === 1 ? 'lugar' : 'lugares'})
+                              <span className="font-medium text-gray-700">
+                                {s.summary.startsWith('- ') ? s.summary.substring(2) : s.summary}
                               </span>
                             </div>
                           ))}

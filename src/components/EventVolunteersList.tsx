@@ -9,6 +9,7 @@ import type { User, Booking, Shift, Stake } from '../types';
 import { toast } from 'react-hot-toast';
 import { emailService } from '../services/emailService';
 import * as XLSX from 'xlsx';
+import { formatShiftSummary } from '../lib/utils';
 
 interface EventVolunteersListProps {
     eventId: string;
@@ -484,9 +485,11 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             text += "No tienes turnos registrados.\n";
         } else {
             activeBookings.forEach(booking => {
-                const date = booking.shift?.date ? new Date(booking.shift.date + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', weekday: 'short' }) : 'N/A';
-                const roleName = booking.shift?.role?.name || 'Rol';
-                text += `✅ ${date} ${booking.shift?.timeSlot} | ${roleName}\n`;
+                text += `✅ ${formatShiftSummary(
+                    booking.shift?.date || '',
+                    booking.shift?.timeSlot || '',
+                    booking.shift?.role?.name || 'Voluntario'
+                ).substring(2)}\n`; // Remove the "- " prefix
             });
         }
 
@@ -1332,8 +1335,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                 } else {
                                     availableShiftsForInvite.slice(0, 10).forEach(s => {
                                         const roleName = roles.find(r => r.id === s.roleId)?.name || 'Voluntario';
-                                        const dateStr = new Date(s.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
-                                        text += `- ${dateStr} ${s.timeSlot} - ${roleName} (${s.realAvailable} lugar${(s.realAvailable) !== 1 ? 'es' : ''})\n`;
+                                        text += `${formatShiftSummary(s.date, s.timeSlot, roleName, s.realAvailable)}\n`;
                                     });
                                     if (availableShiftsForInvite.length > 10) text += `\n... y ${availableShiftsForInvite.length - 10} turnos mas.\n`;
                                 }
