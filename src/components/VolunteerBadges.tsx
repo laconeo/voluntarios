@@ -320,7 +320,7 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                                 id={`badge-${badge.id}`}
                                 onClick={() => toggleSelect(badge.id)}
                                 style={{ 
-                                    backgroundImage: `url(${badge.roleName === 'Coordinador' ? '/COORDINADOR.png' : '/VOLUNTARIO.png'})` 
+                                    backgroundImage: `url(${import.meta.env.BASE_URL}${badge.roleName === 'Coordinador' ? 'COORDINADOR.png' : 'VOLUNTARIO.png'})` 
                                 }}
                             >
                                 {/* Selection Indicator */}

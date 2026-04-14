@@ -98,7 +98,7 @@ const ExperienceStationPage: React.FC = () => {
         return (
             <div style={{ minHeight: '100dvh', background: FS_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ textAlign: 'center' }}>
-                    <img src="/logo-familysearch.png" alt="FamilySearch" style={{ height: 36, marginBottom: 24, opacity: 0.6 }} onError={e => (e.currentTarget.style.display = 'none')} />
+                    <img src={`${import.meta.env.BASE_URL}FamilySearch-logo.png`} alt="FamilySearch" style={{ height: 36, marginBottom: 24, opacity: 0.6 }} onError={e => (e.currentTarget.style.display = 'none')} />
                     <div style={{ width: 40, height: 40, border: `3px solid ${FS_GREEN}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
                     <p style={{ color: '#555', fontSize: 15 }}>Cargando…</p>
                 </div>
@@ -124,7 +124,7 @@ const ExperienceStationPage: React.FC = () => {
             <div style={{ minHeight: '100dvh', background: FS_BG, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
                 {/* Header FS */}
                 <header style={{ background: 'white', borderBottom: `3px solid ${FS_GREEN}`, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <img src="/logo-familysearch.png" alt="FamilySearch" style={{ height: 28 }} onError={e => (e.currentTarget.style.display = 'none')} />
+                    <img src={`${import.meta.env.BASE_URL}FamilySearch-logo.png`} alt="FamilySearch" style={{ height: 28 }} onError={e => (e.currentTarget.style.display = 'none')} />
                     <div>
                         <p style={{ fontSize: 11, color: '#888', margin: 0 }}>Registro de experiencias</p>
                         <p style={{ fontSize: 14, fontWeight: 600, color: '#333', margin: 0 }}>{eventName}</p>
@@ -199,7 +199,7 @@ const ExperienceStationPage: React.FC = () => {
                 <div style={{ flex: 1, textAlign: 'center' }}>
                     <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{eventName}</p>
                 </div>
-                <img src="/logo-familysearch.png" alt="FS" style={{ height: 22 }} onError={e => (e.currentTarget.style.display = 'none')} />
+                <img src={`${import.meta.env.BASE_URL}FamilySearch-logo.png`} alt="FS" style={{ height: 22 }} onError={e => (e.currentTarget.style.display = 'none')} />
             </header>
 
             <div style={{ flex: 1, maxWidth: 480, margin: '0 auto', width: '100%', padding: '24px 16px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
