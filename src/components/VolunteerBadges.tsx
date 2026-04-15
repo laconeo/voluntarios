@@ -4,8 +4,9 @@ import { ChevronLeft, Printer, User } from 'lucide-react';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { Event } from '../types';
 import { toast } from 'react-hot-toast';
-const voluntarioImg = 'VOLUNTARIO.png';
-const coordinadorImg = 'COORDINADOR.png';
+const baseUrl = import.meta.env.BASE_URL || '/';
+const voluntarioImg = `${baseUrl}VOLUNTARIO.png`;
+const coordinadorImg = `${baseUrl}COORDINADOR.png`;
 
 interface VolunteerBadgesProps {
     eventId: string;
@@ -143,7 +144,7 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-20">
+        <div className="min-h-screen bg-gray-50 pb-20 print:bg-white print:pb-0 print:min-h-0">
             {/* Header - Hidden on print */}
             <div className="bg-white border-b border-gray-200 sticky top-0 z-50 print:hidden">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
@@ -202,51 +203,66 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
 
 
             {/* Badges Container */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 print:p-0 print:m-0 print:max-w-none">
                 {/* Mosaic and Styles */}
                 <style dangerouslySetInnerHTML={{
                     __html: `
-                    @media print {
-                        @page {
-                            size: A4;
-                            margin: 10mm;
+                        @media print {
+                            @page {
+                                size: A4 portrait;
+                                margin: 10mm;
+                            }
+                            /* Force everything to white background except cards */
+                            html, body, #root, .min-h-screen, .bg-gray-50, .max-w-7xl, .badge-mosaic {
+                                background-color: white !important;
+                                background-image: none !important;
+                            }
+                            body {
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                            .print-container {
+                                display: block !important;
+                                padding: 0 !important;
+                                margin: 0 !important;
+                                width: 100% !important;
+                                max-width: none !important;
+                                background-color: white !important;
+                            }
+                            .badge-mosaic {
+                                display: grid !important;
+                                grid-template-columns: repeat(2, 90mm) !important;
+                                gap: 0 !important; 
+                                row-gap: 0 !important;
+                                justify-content: center !important;
+                                align-content: start !important;
+                                margin: 0 auto !important;
+                                padding: 0 !important;
+                                background-color: white !important;
+                            }
+                            .badge-card {
+                                display: none !important;
+                            }
+                            .badge-card.selected {
+                                display: flex !important;
+                                width: 90mm !important;
+                                height: 110mm !important;
+                                border: 0.1mm solid #eee !important;
+                                margin: 0 !important;
+                                box-shadow: none !important;
+                                break-inside: avoid;
+                                page-break-inside: avoid;
+                                background-size: cover !important;
+                                background-position: center !important;
+                                background-repeat: no-repeat !important;
+                                transform: none !important;
+                                box-sizing: border-box !important;
+                                background-color: white !important; /* Ensure card background is white */
+                            }
+                            .no-print {
+                                display: none !important;
+                            }
                         }
-                        body {
-                            background: white;
-                            -webkit-print-color-adjust: exact;
-                        }
-                        .print-container {
-                            display: block !important;
-                            padding: 0 !important;
-                            margin: 0 !important;
-                        }
-                        .badge-mosaic {
-                            display: grid !important;
-                            grid-template-columns: repeat(2, 90mm) !important;
-                            gap: 0 !important;
-                            row-gap: 5mm !important; 
-                            justify-content: center !important;
-                        }
-                        .badge-card {
-                            display: none !important; /* Default hide all */
-                        }
-                        .badge-card.selected {
-                            display: block !important; /* Show only selected */
-                            width: 90mm !important;
-                            height: 110mm !important;
-                            border: 0.1mm solid #eee !important;
-                            margin: 0 !important;
-                            box-shadow: none !important;
-                            break-inside: avoid;
-                            page-break-inside: avoid;
-                            background-size: cover !important;
-                            background-position: center !important;
-                            background-repeat: no-repeat !important;
-                        }
-                        .no-print {
-                            display: none !important;
-                        }
-                    }
 
                     .badge-mosaic {
                         display: grid;
@@ -283,7 +299,7 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
 
                     .name-container {
                         position: absolute;
-                        top: 48%;
+                        top: calc(48% - 7px);
                         left: 0;
                         right: 0;
                         transform: translateY(-50%);
