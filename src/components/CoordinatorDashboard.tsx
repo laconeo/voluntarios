@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
-import type { User, Event, Shift, Booking, Role } from '../types';
-import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown, Utensils, Monitor, BarChart2, X } from 'lucide-react';
+import type { User, Event, Shift, Booking, Role, Material } from '../types';
+import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown, Utensils, Monitor, BarChart2, X, Shirt, Tag, Ticket, Droplets, Package } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
@@ -29,6 +29,10 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [hasNoAssignedShifts, setHasNoAssignedShifts] = useState(false);
     const [showVolunteerPortal, setShowVolunteerPortal] = useState(false);
+
+    // Materials tracking
+    const [materials, setMaterials] = useState<Material[]>([]);
+    const [deliveredMaterials, setDeliveredMaterials] = useState<Record<string, Record<string, boolean>>>({}); // userId -> materialId -> bool
 
     useEffect(() => {
         const loadInitialData = async () => {
@@ -86,9 +90,66 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
     useEffect(() => {
         if (selectedEventId) {
             loadEventData(selectedEventId);
+            loadMaterialsData(selectedEventId);
             setSelectedTimeSlot('all'); // Reset time slot selection when event changes
         }
     }, [selectedEventId]);
+
+    const loadMaterialsData = async (eventId: string) => {
+        try {
+            const [materialsData, deliveryData] = await Promise.all([
+                mockApi.getMaterialsByEvent(eventId),
+                mockApi.getUserMaterials(eventId),
+            ]);
+            // Filter out 'food' category (handled separately via Vianda)
+            const trackMaterials = materialsData.filter(m => m.category !== 'food');
+            setMaterials(trackMaterials);
+
+            // Build delivery state map
+            const deliveryMap: Record<string, Record<string, boolean>> = {};
+            if (Array.isArray(deliveryData)) {
+                deliveryData.forEach((d: any) => {
+                    if (!deliveryMap[d.user_id]) deliveryMap[d.user_id] = {};
+                    deliveryMap[d.user_id][d.material_id] = true;
+                });
+            }
+            setDeliveredMaterials(deliveryMap);
+        } catch (error) {
+            console.error('Error cargando materiales:', error);
+        }
+    };
+
+    const handleMaterialToggle = async (userId: string, materialId: string) => {
+        const current = deliveredMaterials[userId]?.[materialId] ?? false;
+        const newStatus = !current;
+
+        // Optimistic update
+        setDeliveredMaterials(prev => ({
+            ...prev,
+            [userId]: { ...prev[userId], [materialId]: newStatus }
+        }));
+
+        try {
+            await mockApi.toggleUserMaterial(selectedEventId, userId, materialId, newStatus);
+        } catch (error) {
+            console.error('Error guardando material:', error);
+            // Revert
+            setDeliveredMaterials(prev => ({
+                ...prev,
+                [userId]: { ...prev[userId], [materialId]: current }
+            }));
+        }
+    };
+
+    // Returns appropriate icon for a material based on its name/category
+    const getMaterialIcon = (material: Material) => {
+        const name = material.name.toLowerCase();
+        if (name.includes('remera') || name.includes('camiseta') || name.includes('shirt')) return <Shirt size={13} />;
+        if (name.includes('gafete') || name.includes('credencial') || name.includes('badge')) return <Tag size={13} />;
+        if (name.includes('entrada') || name.includes('ticket') || name.includes('acceso')) return <Ticket size={13} />;
+        if (name.includes('botella') || name.includes('agua') || name.includes('bottle')) return <Droplets size={13} />;
+        return <Package size={13} />;
+    };
 
     const loadEventData = async (eventId: string) => {
         setIsLoading(true);
@@ -174,7 +235,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
     };
 
     const exportToCSV = () => {
-        const headers = ['Fecha', 'Horario', 'Rol', 'Nombre', 'DNI', 'Email', 'Teléfono', 'Estado', 'Vianda', 'Asistencia'];
+        const headers = ['Fecha', 'Horario', 'Rol', 'Nombre', 'DNI', 'Email', 'Teléfono', 'Estado', 'Vianda', ...materials.map(m => m.name), 'Asistencia'];
         const csvRows = [headers.join(',')];
 
         filteredShifts.forEach(shift => {
@@ -192,6 +253,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                     booking.user?.phone || '',
                     booking.status,
                     booking.foodDelivered ? 'Si' : 'No',
+                    ...materials.map(m => (booking.user?.id && deliveredMaterials[booking.user.id]?.[m.id] ? 'Si' : 'No')),
                     booking.attendance || 'Pendiente'
                 ];
                 csvRows.push(row.map(field => `"${field}"`).join(','));
@@ -254,12 +316,13 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             yPos += 8;
 
             // Table
-            const tableColumn = ["Nombre", "DNI", "Rol", "Vianda", "Asistencia"];
+            const tableColumn = ["Nombre", "DNI", "Rol", "Vianda", ...materials.map(m => m.name), "Asistencia"];
             const tableRows = groupBookings.map(b => [
                 b.user?.fullName || '',
                 b.user?.dni || '',
                 b.roleName || '',
                 b.foodDelivered ? 'Si' : '',
+                ...materials.map(m => (b.user?.id && deliveredMaterials[b.user.id]?.[m.id] ? 'Si' : '')),
                 b.attendance === 'attended' ? 'Presente' : (b.attendance === 'absent' ? 'Ausente' : '')
             ]);
 
@@ -581,6 +644,11 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
                                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
                                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vianda</th>
+                                                        {materials.length > 0 && (
+                                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                                                                Materiales
+                                                            </th>
+                                                        )}
                                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asistencia</th>
                                                     </tr>
                                                 </thead>
@@ -612,6 +680,31 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                                     <Utensils size={20} />
                                                                 </button>
                                                             </td>
+                                                            {materials.length > 0 && booking.user?.id && (
+                                                                <td className="px-4 py-4 whitespace-normal">
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {materials.map(material => {
+                                                                            const uid = booking.user!.id;
+                                                                            const isDelivered = deliveredMaterials[uid]?.[material.id] ?? false;
+                                                                            return (
+                                                                                <button
+                                                                                    key={material.id}
+                                                                                    onClick={() => handleMaterialToggle(uid, material.id)}
+                                                                                    title={`${material.name}: ${isDelivered ? 'Entregado ✓' : 'Pendiente'}`}
+                                                                                    className={`flex items-center gap-1 px-1.5 py-1 rounded-md text-xs font-semibold border transition-all ${
+                                                                                        isDelivered
+                                                                                            ? 'bg-green-100 text-green-800 border-green-300 ring-1 ring-green-400'
+                                                                                            : 'bg-white text-gray-500 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                                                                                    }`}
+                                                                                >
+                                                                                    {getMaterialIcon(material)}
+                                                                                    <span className="max-w-[50px] truncate">{material.name}</span>
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </td>
+                                                            )}
                                                             <td className="px-6 py-4 whitespace-nowrap">
                                                                 <div className="flex gap-2">
                                                                     <button
@@ -693,6 +786,33 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                             </button>
                                                         </div>
                                                     </div>
+                                                    {/* Materials row - mobile */}
+                                                    {materials.length > 0 && booking.user?.id && (
+                                                        <div className="pl-2 mb-3">
+                                                            <div className="text-xs font-semibold text-gray-400 uppercase mb-1.5">Materiales</div>
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                {materials.map(material => {
+                                                                    const uid = booking.user!.id;
+                                                                    const isDelivered = deliveredMaterials[uid]?.[material.id] ?? false;
+                                                                    return (
+                                                                        <button
+                                                                            key={material.id}
+                                                                            onClick={() => handleMaterialToggle(uid, material.id)}
+                                                                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all active:scale-95 ${
+                                                                                isDelivered
+                                                                                    ? 'bg-green-100 text-green-800 border-green-300 shadow-sm'
+                                                                                    : 'bg-white text-gray-600 border-gray-300'
+                                                                            }`}
+                                                                        >
+                                                                            {getMaterialIcon(material)}
+                                                                            {material.name}
+                                                                            {isDelivered && <CheckCircle size={11} className="text-green-600" />}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     <div className="pl-2 grid grid-cols-1 gap-1 mb-4">
                                                         <div className="text-sm text-gray-600 flex items-center gap-2">
