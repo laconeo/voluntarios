@@ -813,52 +813,49 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                             <table className="min-w-full divide-y divide-gray-200">
                                                 <thead className="bg-gray-50">
                                                     <tr>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">Voluntario / Talle</th>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">Rol / Contacto</th>
-                                                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-12">Vianda</th>
+                                                        <th className="px-3 py-2 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-[35%]">Voluntario / Info</th>
+                                                        <th className="px-2 py-2 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider w-10">V</th>
                                                         {materials.length > 0 && (
-                                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            <th className="px-3 py-2 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                                                                 Materiales
                                                             </th>
                                                         )}
-                                                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Asistencia</th>
+                                                        <th className="px-3 py-2 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider w-24">Asistencia</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="bg-white divide-y divide-gray-200">
                                                     {displayBookings.map(booking => (
                                                         <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
-                                                            <td className="px-4 py-3">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="text-sm font-bold text-gray-900">{booking.user?.fullName}</div>
-                                                                    <span className="text-[10px] font-black bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded border border-primary-200">
+                                                            <td className="px-3 py-2">
+                                                                <div className="flex flex-wrap items-center gap-x-2">
+                                                                    <div className="text-sm font-bold text-gray-900 leading-tight">{booking.user?.fullName}</div>
+                                                                    <span className="text-[9px] font-black bg-primary-100 text-primary-700 px-1 rounded border border-primary-200">
                                                                         {booking.user?.tshirtSize || '-'}
                                                                     </span>
+                                                                    <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1 rounded">
+                                                                        {booking.roleName}
+                                                                    </span>
                                                                 </div>
-                                                                <div className="text-[11px] text-gray-500 font-mono">DNI: {booking.user?.dni}</div>
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                <div className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 mb-1">
-                                                                    {booking.roleName}
-                                                                </div>
-                                                                <div className="text-[11px] text-gray-500 truncate max-w-[150px]" title={booking.user?.email}>
-                                                                    {booking.user?.phone || booking.user?.email}
+                                                                <div className="flex gap-2 text-[10px] text-gray-400 mt-0.5">
+                                                                    <span className="font-mono">DNI: {booking.user?.dni}</span>
+                                                                    <span className="truncate max-w-[120px]">{booking.user?.phone || booking.user?.email}</span>
                                                                 </div>
                                                             </td>
-                                                            <td className="px-4 py-3 text-center">
+                                                            <td className="px-2 py-2 text-center">
                                                                 <button
                                                                     onClick={() => handleFoodStatusChange(booking.id, booking.foodDelivered)}
-                                                                    className={`p-1.5 rounded-full transition-all ${booking.foodDelivered
-                                                                        ? 'bg-orange-500 text-white shadow-sm ring-2 ring-orange-200'
-                                                                        : 'bg-gray-100 text-gray-400 hover:bg-orange-100 hover:text-orange-500'
+                                                                    className={`p-1 rounded-full transition-all ${booking.foodDelivered
+                                                                        ? 'bg-orange-500 text-white shadow-sm'
+                                                                        : 'bg-gray-100 text-gray-400 hover:text-orange-500'
                                                                         }`}
                                                                     title={booking.foodDelivered ? 'Vianda entregada' : 'Marcar vianda'}
                                                                 >
-                                                                    <Utensils size={16} />
+                                                                    <Utensils size={14} />
                                                                 </button>
                                                             </td>
                                                             {materials.length > 0 && booking.user?.id && (
-                                                                <td className="px-4 py-3">
-                                                                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                                                <td className="px-3 py-2">
+                                                                    <div className="flex flex-wrap gap-1">
                                                                         {materials.map(material => {
                                                                             const uid = booking.user!.id;
                                                                             const isDelivered = deliveredMaterials[uid]?.[material.id] ?? false;
@@ -866,42 +863,40 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                                                 <button
                                                                                     key={material.id}
                                                                                     onClick={() => handleMaterialToggle(uid, material.id)}
-                                                                                    title={`${material.name}: ${isDelivered ? 'Entregado ✓' : 'Pendiente'}`}
-                                                                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border transition-all ${
+                                                                                    title={`${material.name}: ${isDelivered ? 'Entregado' : 'Pendiente'}`}
+                                                                                    className={`flex items-center gap-1 p-0.5 px-1 rounded border transition-all ${
                                                                                         isDelivered
                                                                                             ? 'bg-green-600 text-white border-green-700 shadow-sm'
-                                                                                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                                                                            : 'bg-white text-gray-400 border-gray-200'
                                                                                     }`}
                                                                                 >
                                                                                     {getMaterialIcon(material)}
-                                                                                    <span className="max-w-[40px] truncate">{material.name}</span>
+                                                                                    <span className="text-[8px] font-bold uppercase hidden md:inline">{material.name.substring(0, 3)}</span>
                                                                                 </button>
                                                                             );
                                                                         })}
                                                                     </div>
                                                                 </td>
                                                             )}
-                                                            <td className="px-4 py-3">
+                                                            <td className="px-3 py-2">
                                                                 <div className="flex justify-center gap-1">
                                                                     <button
                                                                         onClick={() => handleAttendanceChange(booking.id, 'attended')}
-                                                                        className={`p-1.5 rounded-lg transition-all ${booking.attendance === 'attended'
+                                                                        className={`p-1.5 rounded-md transition-all ${booking.attendance === 'attended'
                                                                             ? 'bg-green-600 text-white shadow-md'
-                                                                            : 'bg-gray-100 text-gray-300 hover:bg-green-50 hover:text-green-500'
+                                                                            : 'bg-gray-100 text-gray-300 hover:text-green-500'
                                                                             }`}
-                                                                        title="Presente"
                                                                     >
-                                                                        <CheckCircle size={20} />
+                                                                        <CheckCircle size={18} />
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleAttendanceChange(booking.id, 'absent')}
-                                                                        className={`p-1.5 rounded-lg transition-all ${booking.attendance === 'absent'
+                                                                        className={`p-1.5 rounded-md transition-all ${booking.attendance === 'absent'
                                                                             ? 'bg-red-600 text-white shadow-md'
-                                                                            : 'bg-gray-100 text-gray-300 hover:bg-red-50 hover:text-red-500'
+                                                                            : 'bg-gray-100 text-gray-300 hover:text-red-500'
                                                                             }`}
-                                                                        title="Ausente"
                                                                     >
-                                                                        <XCircle size={20} />
+                                                                        <XCircle size={18} />
                                                                     </button>
                                                                 </div>
                                                             </td>
@@ -1058,18 +1053,9 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-50">
                                         <tr>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Fecha/Hora</th>
-                                            <th 
-                                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                                                onClick={() => {
-                                                    setSortAlphabetically(true);
-                                                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-                                                }}
-                                            >
-                                                Voluntario {sortAlphabetically && (sortDir === 'asc' ? '↑' : '↓')}
-                                            </th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol / Talle</th>
-                                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Asistencia</th>
+                                            <th className="px-3 py-2 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-20">Fecha/Hora</th>
+                                            <th className="px-3 py-2 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Voluntario / Info</th>
+                                            <th className="px-3 py-2 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider w-20">Asistencia</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
@@ -1104,46 +1090,44 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
 
                                             return sortedBookings.length > 0 ? sortedBookings.map(booking => (
                                                 <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="px-4 py-3 whitespace-nowrap">
-                                                        <div className="text-xs text-gray-900 font-medium">
+                                                    <td className="px-3 py-2">
+                                                        <div className="text-[10px] text-gray-900 font-bold">
                                                             {parseDateHelper(booking.shiftDate || '').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
                                                         </div>
-                                                        <div className="text-[10px] text-gray-500">{booking.shiftTime}</div>
+                                                        <div className="text-[9px] text-gray-500">{booking.shiftTime}</div>
                                                     </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap">
-                                                        <div className="text-sm font-bold text-gray-900">{booking.user?.fullName}</div>
-                                                        <div className="text-[11px] text-gray-500">DNI: {booking.user?.dni}</div>
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap">
-                                                        <div className="flex flex-col gap-1">
-                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-100 w-fit">
-                                                                {booking.roleName}
-                                                            </span>
-                                                            <span className="text-[10px] font-black bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded border border-gray-200 w-fit">
-                                                                Talle: {booking.user?.tshirtSize || '-'}
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex flex-wrap items-center gap-x-2">
+                                                            <div className="text-sm font-bold text-gray-900 leading-tight">{booking.user?.fullName}</div>
+                                                            <span className="text-[9px] font-black bg-primary-100 text-primary-700 px-1 rounded">
+                                                                {booking.user?.tshirtSize || '-'}
                                                             </span>
                                                         </div>
+                                                        <div className="flex gap-2 text-[10px] text-gray-400">
+                                                            <span className="font-mono">DNI: {booking.user?.dni}</span>
+                                                            <span className="font-bold text-blue-600">{booking.roleName}</span>
+                                                        </div>
                                                     </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap">
+                                                    <td className="px-3 py-2">
                                                         <div className="flex justify-center gap-1">
                                                             <button
                                                                 onClick={() => handleAttendanceChange(booking.id, 'attended')}
-                                                                className={`p-1.5 rounded-lg transition-all ${booking.attendance === 'attended' ? 'text-white bg-green-600 shadow-sm' : 'text-gray-300 bg-gray-100'}`}
+                                                                className={`p-1.5 rounded-md transition-all ${booking.attendance === 'attended' ? 'text-white bg-green-600 shadow-sm' : 'text-gray-300 bg-gray-100'}`}
                                                             >
-                                                                <CheckCircle size={18} />
+                                                                <CheckCircle size={16} />
                                                             </button>
                                                             <button
                                                                 onClick={() => handleAttendanceChange(booking.id, 'absent')}
-                                                                className={`p-1.5 rounded-lg transition-all ${booking.attendance === 'absent' ? 'text-white bg-red-600 shadow-sm' : 'text-gray-300 bg-gray-100'}`}
+                                                                className={`p-1.5 rounded-md transition-all ${booking.attendance === 'absent' ? 'text-white bg-red-600 shadow-sm' : 'text-gray-300 bg-gray-100'}`}
                                                             >
-                                                                <XCircle size={18} />
+                                                                <XCircle size={16} />
                                                             </button>
                                                         </div>
                                                     </td>
                                                 </tr>
                                             )) : (
                                                 <tr>
-                                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                                                    <td colSpan={3} className="px-6 py-12 text-center text-gray-500">
                                                         No se encontraron voluntarios.
                                                     </td>
                                                 </tr>
