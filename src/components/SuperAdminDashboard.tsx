@@ -16,6 +16,7 @@ import PCMonitor from './PCMonitor';
 import ExperienceStationManager from './ExperienceStationManager';
 import StandMetrics from './StandMetrics';
 import CoordinatorDashboard from './CoordinatorDashboard';
+import { supabase } from '../lib/supabaseClient';
 
 interface SuperAdminDashboardProps {
     user: User;
@@ -166,6 +167,35 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         } finally {
             setMostrarModal(false);
             setEventoSeleccionado(null);
+        }
+    };
+
+    const handleClearMetrics = async (eventId: string, eventName: string) => {
+        const confirmar1 = window.confirm(`¿Estás seguro de que quieres LIMPIAR TODAS las métricas del stand para el evento "${eventName}"?\n\nEsta acción eliminará todos los registros de computadoras y experiencias de apellidos. No se puede deshacer.`);
+        if (!confirmar1) return;
+
+        const confirmar2 = window.confirm(`⚠️ ADVERTENCIA FINAL:\n\nEstás a punto de borrar permanentemente toda la bitácora de uso y experiencias del evento.\n¿Confirmar eliminación definitiva?`);
+        if (!confirmar2) return;
+
+        try {
+            const { error: expError } = await supabase
+                .from('experience_logs')
+                .delete()
+                .eq('evento_id', eventId);
+            
+            if (expError) throw expError;
+
+            const { error: bitError } = await supabase
+                .from('bitacora_uso')
+                .delete()
+                .eq('evento_id', eventId);
+
+            if (bitError) throw bitError;
+
+            toast.success('Métricas del stand limpiadas exitosamente.');
+        } catch (error: any) {
+            console.error('[SuperAdminDashboard] Error limpiando métricas:', error);
+            toast.error('Ocurrió un error al limpiar las métricas.');
         }
     };
 
@@ -1104,6 +1134,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                     Eliminar Evento
                                 </button>
                             )}
+                            <button
+                                onClick={() => handleClearMetrics(eventoSeleccionado.id, eventoSeleccionado.nombre)}
+                                className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 flex items-center justify-center gap-2"
+                            >
+                                <Trash2 size={16} />
+                                Limpiar Métricas
+                            </button>
                         </div>
                     </div>
                 )}

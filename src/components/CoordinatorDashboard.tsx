@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { User, Event, Shift, Booking, Role, Material } from '../types';
-import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown, Utensils, Monitor, BarChart2, X, Shirt, Tag, Ticket, Droplets, Package } from 'lucide-react';
+import { Download, CheckCircle, XCircle, Clock, Calendar, Search, Printer, Share2, FileText, MoreVertical, ChevronUp, ChevronDown, Utensils, Monitor, BarChart2, X, Shirt, Tag, Ticket, Droplets, Package, Users } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
@@ -29,6 +29,9 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [hasNoAssignedShifts, setHasNoAssignedShifts] = useState(false);
     const [showVolunteerPortal, setShowVolunteerPortal] = useState(false);
+    const [sortAlphabetically, setSortAlphabetically] = useState(false);
+    const [viewMode, setViewMode] = useState<'grouped' | 'flat'>('grouped');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
     // Materials tracking
     const [materials, setMaterials] = useState<Material[]>([]);
@@ -235,11 +238,16 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
     };
 
     const exportToCSV = () => {
-        const headers = ['Fecha', 'Horario', 'Rol', 'Nombre', 'DNI', 'Email', 'Teléfono', 'Estado', 'Vianda', ...materials.map(m => m.name), 'Asistencia'];
+        const headers = ['Fecha', 'Horario', 'Rol', 'Nombre', 'Talle', 'DNI', 'Email', 'Teléfono', 'Estado', 'Vianda', ...materials.map(m => m.name), 'Asistencia'];
         const csvRows = [headers.join(',')];
 
         filteredShifts.forEach(shift => {
-            const shiftBookings = bookings.filter(b => b.shiftId === shift.id && b.status === 'confirmed');
+            let shiftBookings = bookings.filter(b => b.shiftId === shift.id && b.status === 'confirmed');
+            
+            if (sortAlphabetically) {
+                shiftBookings = [...shiftBookings].sort((a, b) => (a.user?.fullName || '').localeCompare(b.user?.fullName || ''));
+            }
+
             const role = roles.find(r => r.id === shift.roleId);
 
             shiftBookings.forEach(booking => {
@@ -248,6 +256,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                     shift.timeSlot,
                     role?.name || 'Desconocido',
                     booking.user?.fullName || '',
+                    booking.user?.tshirtSize || '',
                     booking.user?.dni || '',
                     booking.user?.email || '',
                     booking.user?.phone || '',
@@ -297,9 +306,13 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
         // Process each group of shifts as a section
         sortedGroups.forEach(group => {
             // Gather bookings for this group
-            const groupBookings = group.shifts.flatMap(s =>
+            let groupBookings = group.shifts.flatMap(s =>
                 bookings.filter(b => b.shiftId === s.id && b.status === 'confirmed').map(b => ({ ...b, roleName: getRoleName(s.roleId) }))
             );
+
+            if (sortAlphabetically) {
+                groupBookings.sort((a, b) => (a.user?.fullName || '').localeCompare(b.user?.fullName || ''));
+            }
 
             if (groupBookings.length === 0) return;
 
@@ -316,9 +329,10 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
             yPos += 8;
 
             // Table
-            const tableColumn = ["Nombre", "DNI", "Rol", "Vianda", ...materials.map(m => m.name), "Asistencia"];
+            const tableColumn = ["Nombre", "Talle", "DNI", "Rol", "Vianda", ...materials.map(m => m.name), "Asistencia"];
             const tableRows = groupBookings.map(b => [
                 b.user?.fullName || '',
+                b.user?.tshirtSize || '',
                 b.user?.dni || '',
                 b.roleName || '',
                 b.foodDelivered ? 'Si' : '',
@@ -447,6 +461,102 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                     </div>
                 </div>
 
+                {/* T-shirt Size Summary */}
+                {(() => {
+                    const allCurrentBookings = filteredShifts.flatMap(s => 
+                        bookings.filter(b => b.shiftId === s.id && b.status !== 'cancelled')
+                    );
+                    
+                    // Filter them like the main list (using searchTerm)
+                    const filteredForSummary = searchTerm
+                        ? allCurrentBookings.filter(b => 
+                            b.user?.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            b.user?.dni.includes(searchTerm)
+                        )
+                        : allCurrentBookings;
+
+                    const summary: Record<string, number> = {};
+                    filteredForSummary.forEach(b => {
+                        const size = b.user?.tshirtSize || 'Sin talle';
+                        summary[size] = (summary[size] || 0) + 1;
+                    });
+
+                    // Delivery summary
+                    const tShirtMaterial = materials.find(m => {
+                        const n = m.name.toLowerCase();
+                        return n.includes('remera') || n.includes('camiseta') || n.includes('shirt');
+                    });
+
+                    let deliveredCount = 0;
+                    const pendingSizes: Record<string, number> = {};
+                    if (tShirtMaterial) {
+                        filteredForSummary.forEach(b => {
+                            const isDelivered = b.user?.id && deliveredMaterials[b.user.id]?.[tShirtMaterial.id];
+                            if (isDelivered) {
+                                deliveredCount++;
+                            } else {
+                                const size = b.user?.tshirtSize || 'Sin talle';
+                                pendingSizes[size] = (pendingSizes[size] || 0) + 1;
+                            }
+                        });
+                    }
+                    const pendingCount = filteredForSummary.length - deliveredCount;
+
+                    const sizesOrder = ['S', 'M', 'L', 'XL', 'XXL', 'Sin talle'];
+                    const activeSizes = sizesOrder.filter(s => summary[s]);
+                    const activePendingSizes = sizesOrder.filter(s => pendingSizes[s]);
+
+                    if (filteredForSummary.length === 0) return null;
+
+                    return (
+                        <div className="mb-6 bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:hidden">
+                            <div className="flex items-center gap-2 mb-3 text-gray-700 font-semibold text-sm uppercase tracking-wider">
+                                <Shirt size={16} className="text-primary-500" />
+                                <span>Resumen de Talles ({filteredForSummary.length} personas)</span>
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                                {activeSizes.map(size => (
+                                    <div key={size} className="flex items-center bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 shadow-inner">
+                                        <span className="text-xs font-bold text-gray-500 mr-2">{size}:</span>
+                                        <span className="text-lg font-black text-primary-700">{summary[size]}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            {tShirtMaterial && (
+                                <div className="mt-4 pt-3 border-t border-gray-100">
+                                    <div className="flex items-center gap-4 mb-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                            <span className="text-xs text-gray-600">Entregadas: <span className="font-bold text-gray-900">{deliveredCount}</span></span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+                                            <span className="text-xs text-gray-600">Pendientes: <span className="font-bold text-orange-600">{pendingCount}</span></span>
+                                        </div>
+                                        <div className="ml-auto bg-primary-50 px-2 py-1 rounded text-[10px] font-bold text-primary-700">
+                                            {Math.round((deliveredCount / filteredForSummary.length) * 100)}% COMPLETADO
+                                        </div>
+                                    </div>
+                                    
+                                    {pendingCount > 0 && (
+                                        <div className="bg-orange-50 rounded-lg p-2 border border-orange-100">
+                                            <p className="text-[10px] font-bold text-orange-700 mb-1 uppercase tracking-tighter">Faltan entregar por talle:</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {activePendingSizes.map(size => (
+                                                    <span key={size} className="text-xs font-semibold text-orange-800">
+                                                        {size}: <span className="font-black underline">{pendingSizes[size]}</span>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
 
                 {/* ── Barra de controles: búsqueda arriba, selects + botones abajo ── */}
                 <div className="mb-6 flex flex-col gap-3 print:hidden">
@@ -463,6 +573,61 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="pl-10 w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         />
+                    </div>
+
+                    {/* Orden Alfabético y Modo de Vista */}
+                    <div className="flex flex-wrap items-center gap-3 px-1">
+                        <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
+                            <button
+                                onClick={() => setViewMode('grouped')}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                    viewMode === 'grouped' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                            >
+                                <Calendar size={14} className="inline mr-1.5" />
+                                Por Turnos
+                            </button>
+                            <button
+                                onClick={() => setViewMode('flat')}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                    viewMode === 'flat' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                            >
+                                <Users size={14} className="inline mr-1.5" />
+                                Lista Única
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => {
+                                if (sortAlphabetically) {
+                                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                                } else {
+                                    setSortAlphabetically(true);
+                                    setSortDir('asc');
+                                }
+                            }}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                                sortAlphabetically 
+                                    ? 'bg-primary-100 text-primary-700 border border-primary-200 shadow-sm' 
+                                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                            }`}
+                        >
+                            <Search size={14} />
+                            Orden Alfabético {sortAlphabetically && (sortDir === 'asc' ? '↑' : '↓')}
+                        </button>
+                        
+                        {sortAlphabetically && (
+                            <button 
+                                onClick={() => {
+                                    setSortAlphabetically(false);
+                                    setSortDir('asc');
+                                }}
+                                className="text-xs text-gray-400 hover:text-gray-600 underline"
+                            >
+                                Restablecer orden
+                            </button>
+                        )}
                     </div>
 
                     {/* Fila 2: selects izquierda • botones derecha */}
@@ -581,7 +746,7 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                 </div>
 
                 <div className="space-y-6">
-                    {sortedGroups.map(group => {
+                    {viewMode === 'grouped' ? sortedGroups.map(group => {
                         // Gather bookings: Show non-cancelled (including pending, waitlist, cancellation_requested)
                         const groupBookings = group.shifts.flatMap(s =>
                             bookings
@@ -596,12 +761,20 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                         const expectedVolunteers = Math.max(0, totalOccupied - totalCoordinators);
 
                         // If searching, filter bookings
-                        const displayBookings = searchTerm
+                        let displayBookings = searchTerm
                             ? groupBookings.filter(b =>
                                 b.user?.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                 b.user?.dni.includes(searchTerm)
                             )
-                            : groupBookings;
+                            : [...groupBookings];
+
+                        // Sort alphabetically if enabled
+                        if (sortAlphabetically) {
+                            displayBookings.sort((a, b) => {
+                                const cmp = (a.user?.fullName || '').localeCompare(b.user?.fullName || '');
+                                return sortDir === 'asc' ? cmp : -cmp;
+                            });
+                        }
 
                         if (displayBookings.length === 0 && searchTerm) return null;
 
@@ -640,49 +813,52 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                             <table className="min-w-full divide-y divide-gray-200">
                                                 <thead className="bg-gray-50">
                                                     <tr>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Voluntario</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vianda</th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">Voluntario / Talle</th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">Rol / Contacto</th>
+                                                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-12">Vianda</th>
                                                         {materials.length > 0 && (
-                                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                                 Materiales
                                                             </th>
                                                         )}
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asistencia</th>
+                                                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Asistencia</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="bg-white divide-y divide-gray-200">
                                                     {displayBookings.map(booking => (
-                                                        <tr key={booking.id}>
-                                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                                <div className="text-sm font-medium text-gray-900">{booking.user?.fullName}</div>
-                                                                <div className="text-sm text-gray-500">DNI: {booking.user?.dni}</div>
+                                                        <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="text-sm font-bold text-gray-900">{booking.user?.fullName}</div>
+                                                                    <span className="text-[10px] font-black bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded border border-primary-200">
+                                                                        {booking.user?.tshirtSize || '-'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-[11px] text-gray-500 font-mono">DNI: {booking.user?.dni}</div>
                                                             </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                            <td className="px-4 py-3">
+                                                                <div className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 mb-1">
                                                                     {booking.roleName}
-                                                                </span>
+                                                                </div>
+                                                                <div className="text-[11px] text-gray-500 truncate max-w-[150px]" title={booking.user?.email}>
+                                                                    {booking.user?.phone || booking.user?.email}
+                                                                </div>
                                                             </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                                <div className="text-sm text-gray-900">{booking.user?.email}</div>
-                                                                <div className="text-sm text-gray-500">{booking.user?.phone}</div>
-                                                            </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                            <td className="px-4 py-3 text-center">
                                                                 <button
                                                                     onClick={() => handleFoodStatusChange(booking.id, booking.foodDelivered)}
-                                                                    className={`p-1.5 rounded-full transition-colors flex items-center gap-2 ${booking.foodDelivered
-                                                                        ? 'bg-orange-100 text-orange-600 ring-2 ring-orange-500'
-                                                                        : 'text-gray-400 hover:bg-orange-50 hover:text-orange-500'
+                                                                    className={`p-1.5 rounded-full transition-all ${booking.foodDelivered
+                                                                        ? 'bg-orange-500 text-white shadow-sm ring-2 ring-orange-200'
+                                                                        : 'bg-gray-100 text-gray-400 hover:bg-orange-100 hover:text-orange-500'
                                                                         }`}
                                                                     title={booking.foodDelivered ? 'Vianda entregada' : 'Marcar vianda'}
                                                                 >
-                                                                    <Utensils size={20} />
+                                                                    <Utensils size={16} />
                                                                 </button>
                                                             </td>
                                                             {materials.length > 0 && booking.user?.id && (
-                                                                <td className="px-4 py-4 whitespace-normal">
-                                                                    <div className="flex flex-wrap gap-1">
+                                                                <td className="px-4 py-3">
+                                                                    <div className="flex flex-wrap gap-1 max-w-[200px]">
                                                                         {materials.map(material => {
                                                                             const uid = booking.user!.id;
                                                                             const isDelivered = deliveredMaterials[uid]?.[material.id] ?? false;
@@ -691,41 +867,41 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                                                     key={material.id}
                                                                                     onClick={() => handleMaterialToggle(uid, material.id)}
                                                                                     title={`${material.name}: ${isDelivered ? 'Entregado ✓' : 'Pendiente'}`}
-                                                                                    className={`flex items-center gap-1 px-1.5 py-1 rounded-md text-xs font-semibold border transition-all ${
+                                                                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border transition-all ${
                                                                                         isDelivered
-                                                                                            ? 'bg-green-100 text-green-800 border-green-300 ring-1 ring-green-400'
-                                                                                            : 'bg-white text-gray-500 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                                                                                            ? 'bg-green-600 text-white border-green-700 shadow-sm'
+                                                                                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                                                                     }`}
                                                                                 >
                                                                                     {getMaterialIcon(material)}
-                                                                                    <span className="max-w-[50px] truncate">{material.name}</span>
+                                                                                    <span className="max-w-[40px] truncate">{material.name}</span>
                                                                                 </button>
                                                                             );
                                                                         })}
                                                                     </div>
                                                                 </td>
                                                             )}
-                                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                                <div className="flex gap-2">
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex justify-center gap-1">
                                                                     <button
                                                                         onClick={() => handleAttendanceChange(booking.id, 'attended')}
-                                                                        className={`p-1 rounded-full transition-colors ${booking.attendance === 'attended'
-                                                                            ? 'bg-green-100 text-green-600 ring-2 ring-green-500'
-                                                                            : 'text-gray-400 hover:bg-green-50 hover:text-green-500'
+                                                                        className={`p-1.5 rounded-lg transition-all ${booking.attendance === 'attended'
+                                                                            ? 'bg-green-600 text-white shadow-md'
+                                                                            : 'bg-gray-100 text-gray-300 hover:bg-green-50 hover:text-green-500'
                                                                             }`}
                                                                         title="Presente"
                                                                     >
-                                                                        <CheckCircle size={24} />
+                                                                        <CheckCircle size={20} />
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleAttendanceChange(booking.id, 'absent')}
-                                                                        className={`p-1 rounded-full transition-colors ${booking.attendance === 'absent'
-                                                                            ? 'bg-red-100 text-red-600 ring-2 ring-red-500'
-                                                                            : 'text-gray-400 hover:bg-red-50 hover:text-red-500'
+                                                                        className={`p-1.5 rounded-lg transition-all ${booking.attendance === 'absent'
+                                                                            ? 'bg-red-600 text-white shadow-md'
+                                                                            : 'bg-gray-100 text-gray-300 hover:bg-red-50 hover:text-red-500'
                                                                             }`}
                                                                         title="Ausente"
                                                                     >
-                                                                        <XCircle size={24} />
+                                                                        <XCircle size={20} />
                                                                     </button>
                                                                 </div>
                                                             </td>
@@ -827,6 +1003,10 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                                             <span className="text-xs font-semibold text-gray-400 uppercase w-12">Tel:</span>
                                                             <span>{booking.user?.phone}</span>
                                                         </div>
+                                                        <div className="text-sm text-gray-600 flex items-center gap-2">
+                                                            <span className="text-xs font-semibold text-gray-400 uppercase w-12">Talle:</span>
+                                                            <span className="font-bold text-primary-700">{booking.user?.tshirtSize || '-'}</span>
+                                                        </div>
                                                     </div>
 
                                                     <div className="flex gap-3 pl-2 mt-4 border-t border-gray-100 pt-3">
@@ -862,7 +1042,118 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
                                 </div>
                             </div>
                         );
-                    })}
+                    }) : (
+                        /* Flat List View */
+                        <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                                <div className="flex items-center gap-2 text-gray-700 font-medium">
+                                    <Users size={18} className="text-primary-500" />
+                                    <span>Listado General de Voluntarios</span>
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                    {shifts.reduce((acc, s) => acc + bookings.filter(b => b.shiftId === s.id && b.status !== 'cancelled').length, 0)} voluntarios en total
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Fecha/Hora</th>
+                                            <th 
+                                                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                onClick={() => {
+                                                    setSortAlphabetically(true);
+                                                    setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                                                }}
+                                            >
+                                                Voluntario {sortAlphabetically && (sortDir === 'asc' ? '↑' : '↓')}
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol / Talle</th>
+                                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Asistencia</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {(() => {
+                                            const allBookings = filteredShifts.flatMap(s => 
+                                                bookings.filter(b => b.shiftId === s.id && b.status !== 'cancelled')
+                                                    .map(b => ({ 
+                                                        ...b, 
+                                                        roleName: getRoleName(s.roleId),
+                                                        shiftDate: s.date,
+                                                        shiftTime: s.timeSlot
+                                                    }))
+                                            );
+
+                                            const filteredBookings = searchTerm
+                                                ? allBookings.filter(b => 
+                                                    b.user?.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                                    b.user?.dni.includes(searchTerm)
+                                                )
+                                                : allBookings;
+
+                                            const sortedBookings = [...filteredBookings].sort((a, b) => {
+                                                if (sortAlphabetically) {
+                                                    const cmp = (a.user?.fullName || '').localeCompare(b.user?.fullName || '');
+                                                    return sortDir === 'asc' ? cmp : -cmp;
+                                                }
+                                                // Default sort by date/time
+                                                const dateCompare = (a.shiftDate || '').localeCompare(b.shiftDate || '');
+                                                if (dateCompare !== 0) return dateCompare;
+                                                return (a.shiftTime || '').localeCompare(b.shiftTime || '');
+                                            });
+
+                                            return sortedBookings.length > 0 ? sortedBookings.map(booking => (
+                                                <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="px-4 py-3 whitespace-nowrap">
+                                                        <div className="text-xs text-gray-900 font-medium">
+                                                            {parseDateHelper(booking.shiftDate || '').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-500">{booking.shiftTime}</div>
+                                                    </td>
+                                                    <td className="px-4 py-3 whitespace-nowrap">
+                                                        <div className="text-sm font-bold text-gray-900">{booking.user?.fullName}</div>
+                                                        <div className="text-[11px] text-gray-500">DNI: {booking.user?.dni}</div>
+                                                    </td>
+                                                    <td className="px-4 py-3 whitespace-nowrap">
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-100 w-fit">
+                                                                {booking.roleName}
+                                                            </span>
+                                                            <span className="text-[10px] font-black bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded border border-gray-200 w-fit">
+                                                                Talle: {booking.user?.tshirtSize || '-'}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 whitespace-nowrap">
+                                                        <div className="flex justify-center gap-1">
+                                                            <button
+                                                                onClick={() => handleAttendanceChange(booking.id, 'attended')}
+                                                                className={`p-1.5 rounded-lg transition-all ${booking.attendance === 'attended' ? 'text-white bg-green-600 shadow-sm' : 'text-gray-300 bg-gray-100'}`}
+                                                            >
+                                                                <CheckCircle size={18} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleAttendanceChange(booking.id, 'absent')}
+                                                                className={`p-1.5 rounded-lg transition-all ${booking.attendance === 'absent' ? 'text-white bg-red-600 shadow-sm' : 'text-gray-300 bg-gray-100'}`}
+                                                            >
+                                                                <XCircle size={18} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )) : (
+                                                <tr>
+                                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                                                        No se encontraron voluntarios.
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })()}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
 
                     {
                         sortedGroups.length === 0 && !searchTerm && (
