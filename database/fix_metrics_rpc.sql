@@ -25,7 +25,7 @@ BEGIN
     RETURN QUERY
     WITH pc_stats AS (
         SELECT 
-            (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Argentina/Buenos_Aires')::date as d,
+            (created_at AT TIME ZONE 'America/Argentina/Buenos_Aires')::date as d,
             COUNT(*) as sessions,
             SUM(COALESCE((acciones_reportadas->>'people_helped')::int, 1)) as personas,
             SUM(COALESCE((acciones_reportadas->>'extensions')::int, 0)) as extensions
@@ -36,7 +36,7 @@ BEGIN
     ),
     exp_stats AS (
         SELECT 
-            (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Argentina/Buenos_Aires')::date as d,
+            (created_at AT TIME ZONE 'America/Argentina/Buenos_Aires')::date as d,
             COUNT(*) as sessions,
             SUM(cantidad_personas) as personas
         FROM experience_logs

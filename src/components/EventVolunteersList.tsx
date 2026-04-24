@@ -9,7 +9,7 @@ import type { User, Booking, Shift, Stake } from '../types';
 import { toast } from 'react-hot-toast';
 import { emailService } from '../services/emailService';
 import * as XLSX from 'xlsx';
-import { formatShiftSummary } from '../lib/utils';
+import { formatShiftSummary, toLocalDateStr } from '../lib/utils';
 
 interface EventVolunteersListProps {
     eventId: string;
@@ -317,7 +317,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Voluntarios");
 
-            const fileName = `Voluntarios_Evento_${eventId}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            const fileName = `Voluntarios_Evento_${eventId}_${toLocalDateStr(new Date())}.xlsx`;
             XLSX.writeFile(wb, fileName);
             toast.success('Excel generado correctamente');
         } catch (error) {

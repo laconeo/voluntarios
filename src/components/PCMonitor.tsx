@@ -29,6 +29,15 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
     // Derived: how many PCs this event has (from the event record itself, or localStorage fallback)
     const cantidadPCs = eventData?.cantidadPCs ?? null;
 
+    // Helper to parse dates safely across browsers (iOS Safari is strict)
+    const parseSafeDate = (dateStr: string) => {
+        if (!dateStr) return new Date();
+        // Replace space with T for ISO compliance
+        const isoStr = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+        const d = new Date(isoStr);
+        return isNaN(d.getTime()) ? new Date() : d;
+    };
+
     const fetchPcs = useCallback(async (evId?: string) => {
         try {
             const data = await pcControlService.getAllPcsStatus(evId);
@@ -172,7 +181,7 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
 
     const calculateTimeRemaining = (limit: string) => {
         const now = new Date();
-        const end = new Date(limit);
+        const end = parseSafeDate(limit);
         const diffMs = end.getTime() - now.getTime();
         if (diffMs <= 0) return '00:00';
         const minutes = Math.floor(diffMs / 60000);
@@ -182,8 +191,8 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
 
     const isExtendedSession = (inicio?: string, limit?: string) => {
         if (!inicio || !limit) return false;
-        const start = new Date(inicio).getTime();
-        const end = new Date(limit).getTime();
+        const start = parseSafeDate(inicio).getTime();
+        const end = parseSafeDate(limit).getTime();
         // Si hay una diferencia mayor a 21 minutos, se considera extendida
         return (end - start) > 1260000;
     };
@@ -193,7 +202,7 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
         if (status === 'ocupada') {
             if (limit) {
                 const now = new Date();
-                const end = new Date(limit);
+                const end = parseSafeDate(limit);
                 const diffMinutes = (end.getTime() - now.getTime()) / 60000;
                 if (diffMinutes <= 0) return 'bg-red-100 border-red-300 text-red-800 animate-pulse';
                 if (diffMinutes < 2) return 'bg-yellow-100 border-yellow-300 text-yellow-800';
@@ -203,6 +212,7 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
         }
         if (status === 'bloqueada') return 'bg-gray-200 border-gray-400 text-gray-600';
         if (status === 'mantenimiento') return 'bg-orange-100 border-orange-300 text-orange-800';
+        if (status === 'sin_conexion') return 'bg-gray-100 border-gray-300 text-gray-400';
         return 'bg-white border-gray-200';
     };
 
@@ -230,7 +240,7 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
                         <span className="font-bold text-lg">PC {pc.id}</span>
                     </div>
                     <div className="text-xs font-semibold px-2 py-1 rounded-full bg-white/50 border border-white/20 uppercase flex flex-col items-end">
-                        <span>{pc.estado}</span>
+                        <span>{pc.estado === 'sin_conexion' ? 'SIN CONEXION' : pc.estado}</span>
                         {pc.estado === 'ocupada' && isExtendedSession(pc.inicio_sesion, pc.tiempo_limite) && (
                             <span className="text-[10px] mt-0.5 tracking-wider text-orange-800 font-bold">+EXT</span>
                         )}
@@ -255,10 +265,13 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
                     {pc.estado === 'disponible' && (
                         <span className="text-sm italic opacity-75">Esperando usuario...</span>
                     )}
+                    {pc.estado === 'sin_conexion' && (
+                        <span className="text-sm italic opacity-60">Extensión no iniciada</span>
+                    )}
                 </div>
 
                 <div className="flex justify-end pt-2 border-t border-black/5">
-                    {pc.estado !== 'disponible' && (
+                    {pc.estado !== 'disponible' && pc.estado !== 'sin_conexion' && (
                         <button
                             onClick={() => handleReset(pc.id)}
                             className="bg-white/80 hover:bg-white text-gray-700 hover:text-red-600 p-1.5 rounded transition-colors"
@@ -288,7 +301,7 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
             // Los IDs reales en BD los usamos directamente; los restantes son fantasmas "disponible"
             const allIds = Array.from({ length: cantidadPCs }, (_, i) => i + 1);
             return allIds.map(id => {
-                const pc = pcs.find(p => p.id === id) || { id, estado: 'disponible' } as PCStatus;
+                const pc = pcs.find(p => p.id === id) || { id, estado: 'sin_conexion' } as PCStatus;
                 return <PCCard key={id} pc={pc} />;
             });
         }
@@ -331,7 +344,7 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
                         <p className="text-gray-600 font-medium flex items-center gap-1 mt-1">
                             {eventData.nombre}
                             <span className="text-gray-400 text-sm ml-2 font-normal">
-                                {eventData.fechaInicio ? new Date(eventData.fechaInicio).toLocaleDateString() : ''}
+                                {eventData.fechaInicio ? parseSafeDate(eventData.fechaInicio).toLocaleDateString() : ''}
                             </span>
                             {cantidadPCs !== null && (
                                 <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
@@ -347,6 +360,9 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
                 <div className="flex flex-col gap-3 items-end">
                     {/* Leyenda de estados */}
                     <div className="flex gap-2">
+                        <div className="flex items-center gap-1 text-xs">
+                            <div className="w-3 h-3 bg-gray-200 border border-gray-400 rounded"></div> Offline
+                        </div>
                         <div className="flex items-center gap-1 text-xs">
                             <div className="w-3 h-3 bg-green-200 border border-green-400 rounded"></div> Libre
                         </div>

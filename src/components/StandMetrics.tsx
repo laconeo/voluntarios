@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { experienceService, type StationStats } from '../services/experienceService';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { toLocalDateStr } from '../lib/utils';
 import { supabase } from '../lib/supabaseClient';
 import { Monitor, Users, Zap, Clock, TrendingUp, RefreshCw, AlertTriangle, Activity, Download } from 'lucide-react';
 
@@ -15,6 +16,8 @@ import { Monitor, Users, Zap, Clock, TrendingUp, RefreshCw, AlertTriangle, Activ
 interface StandMetricsProps {
     eventId: string;
     eventName: string;
+    eventStart?: string; // YYYY-MM-DD
+    eventEnd?: string;   // YYYY-MM-DD
 }
 
 interface DayRow {
@@ -83,8 +86,14 @@ const FS_DARK = '#006838';
 const FS_BLUE = '#005994';
 const FS_BORDER = '#d9d9d9';
 
-const sinceForPeriod = (p: Period): Date | undefined => {
-    if (p === 'all') return undefined;
+const sinceForPeriod = (p: Period, eventStart?: string): Date | undefined => {
+    if (p === 'all') {
+        if (eventStart) {
+            const d = new Date(eventStart + 'T00:00:00');
+            return isNaN(d.getTime()) ? undefined : d;
+        }
+        return undefined;
+    }
     const d = new Date();
     if (p === 'today') d.setHours(0, 0, 0, 0);
     if (p === 'week') { d.setDate(d.getDate() - 6); d.setHours(0, 0, 0, 0); }
@@ -96,18 +105,9 @@ const dayLabel = (dateStr: string): string => {
     return d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
 };
 
-// Extrae 'YYYY-MM-DD' en la zona horaria LOCAL del navegador (no UTC)
-// Esto es crítico para Argentina (UTC-3): una sesión a las 23:00 local no
-// debe aparecer como el día siguiente al convertir a UTC.
-const toLocalDateStr = (dateInput: string | Date): string => {
-    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    // Usamos el offset local para compensar la diferencia con UTC
-    const offsetMs = d.getTimezoneOffset() * 60_000;
-    const localDate = new Date(d.getTime() - offsetMs);
-    return localDate.toISOString().split('T')[0];
-};
+// used via import from ../lib/utils
 
-const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
+const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventStart, eventEnd }) => {
     const [period, setPeriod] = useState<Period>('today');
     const [data, setData] = useState<MetricsState | null>(null);
     const [loading, setLoading] = useState(true);
@@ -175,7 +175,7 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
     }, [fetchDeadTime]);
 
     const load = useCallback(async () => {
-        const since = sinceForPeriod(period);
+        const since = sinceForPeriod(period, eventStart);
         setRefreshing(true);
         // No limpiamos 'data' inmediatamente para evitar parpadeo si ya había algo
         // Pero si es la carga inicial (loading true), sí lo dejamos en null
@@ -202,15 +202,23 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
             }
 
             // ── Unificar datos para la UI ──
-            const days: DayRow[] = (summary || []).map(row => ({
-                date: row.day,
-                label: dayLabel(row.day),
-                pcSessions: Number(row.pc_sessions || 0),
-                pcPersonas: Number(row.pc_personas || 0),
-                pcExtensiones: Number(row.pc_extensiones || 0),
-                expSessions: Number(row.exp_sessions || 0),
-                expPersonas: Number(row.exp_personas || 0)
-            }));
+            const days: DayRow[] = (summary || [])
+                .filter(row => {
+                    // Filtrado estricto por fechas de evento si es "todo el evento"
+                    if (period === 'all' && eventStart && eventEnd) {
+                        return row.day >= eventStart && row.day <= eventEnd;
+                    }
+                    return true;
+                })
+                .map(row => ({
+                    date: row.day,
+                    label: dayLabel(row.day),
+                    pcSessions: Number(row.pc_sessions || 0),
+                    pcPersonas: Number(row.pc_personas || 0),
+                    pcExtensiones: Number(row.pc_extensiones || 0),
+                    expSessions: Number(row.exp_sessions || 0),
+                    expPersonas: Number(row.exp_personas || 0)
+                }));
 
             const totals: Totals = days.reduce(
                 (acc, r) => ({
@@ -230,7 +238,7 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName }) => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [eventId, period]);
+    }, [eventId, period, eventStart, eventEnd]);
 
     // Auto-refresh completo cada 2 minutos
     const MAIN_REFRESH_S = 120;

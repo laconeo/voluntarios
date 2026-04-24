@@ -4,6 +4,7 @@ import { mockApi } from '../services/mockApiService';
 import { pcControlService } from '../services/pcControlService';
 import type { DashboardMetrics, Event, Booking } from '../types';
 import { toast } from 'react-hot-toast';
+import { toLocalDateStr } from '../lib/utils';
 import Modal from './Modal';
 
 interface MetricsDashboardProps {
@@ -55,7 +56,7 @@ const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ eventId, onNavigate
 
                 let dateStr = '';
                 try {
-                    dateStr = new Date(log.created_at).toISOString().split('T')[0];
+                    dateStr = toLocalDateStr(log.created_at);
                 } catch (e) {
                     return; // Skip invalid dates
                 }

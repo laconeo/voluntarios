@@ -16,6 +16,9 @@ import ExperienceStationPage from './components/ExperienceStationPage';
 import { supabase } from './lib/supabaseClient';
 import Header from './components/Header';
 import UserProfile from './components/UserProfile';
+import EventMonitor from './components/EventMonitor';
+import StandaloneCoordinatorDashboard from './components/StandaloneCoordinatorDashboard';
+import StandaloneVolunteerBadges from './components/StandaloneVolunteerBadges';
 import { Toaster, toast } from 'react-hot-toast';
 
 // Wrapper para StandMetrics – carga el evento por slug y pasa props
@@ -37,7 +40,12 @@ const StandMetricsWrapper: React.FC = () => {
 
   if (loading) return <div className="p-8 text-center">Cargando métricas...</div>;
   if (!event) return <div className="p-8 text-center text-red-600">Evento no encontrado</div>;
-  return <StandMetrics eventId={event.id} eventName={event.nombre} />;
+  return <StandMetrics 
+    eventId={event.id} 
+    eventName={event.nombre} 
+    eventStart={event.fechaInicio} 
+    eventEnd={event.fechaFin} 
+  />;
 };
 
 // Wrapper component to handle event slug logic
@@ -200,7 +208,10 @@ const AppContent: React.FC = () => {
   const locationObj = useLocation();
   const isStandMonitor = locationObj.pathname.includes('/stand-monitor');
   const isStandMetrics = locationObj.pathname.includes('/stand-metrics');
-  const isFullscreen = isStandMonitor || isStandMetrics;
+  const isEventMonitor = locationObj.pathname.includes('/monitor');
+  const isAsistencia = locationObj.pathname.includes('/asistencia');
+  const isCredenciales = locationObj.pathname.includes('/credenciales');
+  const isFullscreen = isStandMonitor || isStandMetrics || isEventMonitor || isAsistencia || isCredenciales;
 
   useEffect(() => {
     // Listen for Password Recovery event
@@ -341,6 +352,10 @@ const AppContent: React.FC = () => {
             <Route path="/:eventSlug/stand-monitor" element={<PCMonitor />} />
 
             <Route path="/:eventSlug/stand-metrics" element={<StandMetricsWrapper />} />
+
+            <Route path="/:eventSlug/monitor" element={<EventMonitor />} />
+            <Route path="/:eventSlug/asistencia" element={<StandaloneCoordinatorDashboard />} />
+            <Route path="/:eventSlug/credenciales" element={<StandaloneVolunteerBadges />} />
 
             {/* Registro de experiencias para voluntarios (acceso sin auth desde celular) */}
             <Route path="/:eventSlug/registro" element={<ExperienceStationPage />} />

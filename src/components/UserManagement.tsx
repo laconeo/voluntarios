@@ -3,6 +3,7 @@ import { Users, Search, Filter, Download, Edit2, Ban, CheckCircle, X, Save, Uplo
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { User, Event, Booking } from '../types';
 import { toast } from 'react-hot-toast';
+import { toLocalDateStr } from '../lib/utils';
 
 interface UserManagementProps {
     user: User;
@@ -394,7 +395,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user: currentUser, onBa
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `usuarios_${new Date().toISOString().split('T')[0]}.csv`;
+        link.download = `usuarios_${toLocalDateStr(new Date())}.csv`;
         link.click();
         toast.success('Exportación completada');
     };

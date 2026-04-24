@@ -5,6 +5,7 @@ import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { User, Stake } from '../types';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
+import { toLocalDateStr } from '../lib/utils';
 
 interface EcclesiasticalPermissionProps {
     eventId: string;
@@ -76,7 +77,7 @@ const EcclesiasticalPermission: React.FC<EcclesiasticalPermissionProps> = ({ eve
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Voluntarios");
 
-            const fileName = `Permisos_Eclesiasticos_${new Date().toISOString().split('T')[0]}.xlsx`;
+            const fileName = `Permisos_Eclesiasticos_${toLocalDateStr(new Date())}.xlsx`;
             XLSX.writeFile(wb, fileName);
             toast.success('Excel generado correctamente');
         } catch (error) {

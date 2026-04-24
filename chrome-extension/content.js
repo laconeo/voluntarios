@@ -355,12 +355,7 @@
         <div style="margin-bottom:18px;">
           <label class="__fs-label__">¿Qué actividad realizaste?</label>
           <select id="__fs-act__" class="__fs-select__">
-            <option value="">— Seleccioná una actividad —</option>
-            <option>Crear cuenta FamilySearch</option>
-            <option>Árbol Familiar / Recuerdos</option>
-            <option>Indexación / Revisión</option>
-            <option>Participa</option>
-            <option>Otros</option>
+            <option>Feria del Libro</option>
           </select>
         </div>
 

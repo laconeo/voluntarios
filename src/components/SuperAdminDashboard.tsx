@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, Users, MoreHorizontal, ChevronRight, X, Package, ChevronDown, FileText, CheckSquare, Contact, Monitor } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Search, Archive, TrendingUp, Copy, Users, MoreHorizontal, ChevronRight, X, Package, ChevronDown, FileText, CheckSquare, Contact, Monitor, Smartphone } from 'lucide-react';
 import { mockApi } from '../services/mockApiService';
 import type { Event, User } from '../types';
 import { toast } from 'react-hot-toast';
@@ -736,6 +735,18 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                                             <Monitor size={16} />
                                                             <span>Monitor de Stand (PCs)</span>
                                                         </button>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                 e.stopPropagation();
+                                                                 window.open(`${window.location.origin}${window.location.pathname.split('#')[0]}#/${evento.slug}/monitor`, '_blank');
+                                                                 setActiveDropdownId(null);
+                                                             }}
+                                                             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-[#005994] hover:bg-blue-50 transition-colors"
+                                                         >
+                                                             <Smartphone size={16} />
+                                                             <span>Monitor del Evento</span>
+                                                         </button>
 
                                                         {evento.voluntarios === 0 && (
                                                             <>

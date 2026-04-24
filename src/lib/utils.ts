@@ -35,3 +35,17 @@ export const formatShiftSummary = (
   
   return base;
 };
+
+/**
+ * Formats a Date object or ISO string to YYYY-MM-DD in LOCAL timezone
+ * Critical for regions like Argentina (UTC-3) to avoid "future day" issues
+ * when using toISOString() which always uses UTC.
+ */
+export const toLocalDateStr = (dateInput: string | Date): string => {
+  if (!dateInput) return '';
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  // Use local offset to shift the time so toISOString returns the local date
+  const offsetMs = d.getTimezoneOffset() * 60_000;
+  const localDate = new Date(d.getTime() - offsetMs);
+  return localDate.toISOString().split('T')[0];
+};

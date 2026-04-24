@@ -135,7 +135,7 @@ export interface Stake {
   createdAt?: string;
 }
 
-export type PCEstado = 'disponible' | 'ocupada' | 'bloqueada' | 'mantenimiento';
+export type PCEstado = 'disponible' | 'ocupada' | 'bloqueada' | 'mantenimiento' | 'sin_conexion';
 
 export interface PCStatus {
   id: number;
