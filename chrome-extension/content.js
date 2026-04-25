@@ -20,6 +20,7 @@
   let localTimerInterval = null;
   let remainingSeconds = 0;
   let menuOpen = false;
+  let currentView = null; // 'login', 'pause', 'report' or null
 
 
 
@@ -93,6 +94,14 @@
 
     const isAvailable = !state || state.estado === 'disponible';
     const isPaused = state?.estado === 'pausa';
+    const nextView = isAvailable ? 'login' : isPaused ? 'pause' : 'report';
+
+    if (currentView === nextView && overlayEl) {
+        // Solo actualizar si hay cambios sutiles pero no re-inyectar todo el HTML y event listeners
+        return;
+    }
+
+    currentView = nextView;
 
     if (isAvailable) {
       overlayEl.innerHTML = loginHTML(pcId);
@@ -108,6 +117,7 @@
 
   function hideOverlay() {
     if (overlayEl) { overlayEl.remove(); overlayEl = null; }
+    currentView = null;
     document.body.style.overflow = '';
     ensureWidget();
     startCountdown();

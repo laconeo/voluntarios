@@ -11,12 +11,18 @@ const SUPABASE_KEY = "sb_publishable_sbG7mEBN9__P-JnZlwnjng_tbbuNMnT";
 
 // Nombre del alarm — único identificador
 const ALARM_NAME = 'pc-stand-poll';
-const ALARM_PERIOD_MIN = 0.1;  // cada ~6 segundos (mínimo Chrome = 0.1 min = 6s)
+const ALARM_PERIOD_MIN = 0.2;  // cada ~12 segundos (reducido para mejorar estabilidad)
 
 let pcId = null;
 let eventoId = null;
 let currentState = null;
 let isOverlayActive = false;
+
+// Locks y Caches para evitar saturación
+let isCheckingStatus = false;
+let volunteersCache = null;
+let volunteersCacheTime = 0;
+const VOLUNTEERS_CACHE_TTL = 60000; // 1 minuto
 
 // ============================================================
 // INICIALIZACIÓN
@@ -144,20 +150,23 @@ async function resetConfig() {
 // ============================================================
 
 async function checkStatus() {
-    if (!pcId) return;
+    if (!pcId || isCheckingStatus) return;
+    isCheckingStatus = true;
 
     let pcData = null;
     try {
         pcData = await fetchPcStatus(pcId, eventoId);
     } catch (err) {
         console.error('[PC] Error al consultar Supabase:', err.message);
-        return; // No cambiar estado si hay error de red — mantener lo que había
+        isCheckingStatus = false;
+        return; 
     }
 
     if (!pcData) {
         // La PC no existe en DB → registrarla
         try { await registerPc(pcId, eventoId); } catch { /* ya existe */ }
         await syncState({ estado: 'disponible', tiempo_limite: null, voluntario_id: null, voluntario_nombre: null });
+        isCheckingStatus = false;
         return;
     }
 
@@ -168,13 +177,18 @@ async function checkStatus() {
         voluntario_nombre: pcData.voluntario?.full_name || pcData.voluntario_nombre_libre || null,
         voluntario_nombre_libre: pcData.voluntario_nombre_libre || null,
     });
+    
+    isCheckingStatus = false;
 }
 
 async function syncState(newState) {
     const prevEstado = currentState?.estado;
+    const prevStateStr = JSON.stringify(currentState);
+    const newStateStr = JSON.stringify(newState);
+    
     currentState = newState;
 
-    // Persistir en storage para que popup y worker "frío" lean el último estado
+    // Persistir en storage
     await chrome.storage.local.set({ currentState, isOverlayActive });
 
     let shouldBlock = true;
@@ -183,6 +197,7 @@ async function syncState(newState) {
         const remaining = getRemainingSeconds(newState.tiempo_limite);
         if (remaining > 0) {
             shouldBlock = false;
+            // Solo broadcast si el estado cambió significativamente o pasaron los 12s del alarm
             broadcastToTabs({
                 type: 'TIMER_UPDATE',
                 remaining,
@@ -191,11 +206,12 @@ async function syncState(newState) {
             });
         }
     } else if (newState.estado === 'pausa') {
-        shouldBlock = true; // El overlay bloquea la pantalla en modo pausa
+        shouldBlock = true;
     } else if (newState.estado === 'disponible') {
         shouldBlock = true;
     }
 
+    // Lógica de Overlay
     if (shouldBlock && !isOverlayActive) {
         isOverlayActive = true;
         await chrome.storage.local.set({ isOverlayActive });
@@ -205,11 +221,13 @@ async function syncState(newState) {
         await chrome.storage.local.set({ isOverlayActive });
         broadcastToTabs({ type: 'HIDE_OVERLAY' });
     } else if (isOverlayActive) {
-        // Si ya está activo pero cambió el estado (ej: de disponible a pausa)
-        broadcastToTabs({ type: 'SHOW_OVERLAY', pcId, currentState: newState });
+        // Si ya estaba activo, solo reenviar si hay cambios reales en el objeto de estado
+        if (prevStateStr !== newStateStr) {
+            broadcastToTabs({ type: 'SHOW_OVERLAY', pcId, currentState: newState });
+        }
     }
 
-    console.log(`[PC] Estado=${newState.estado} | Overlay=${isOverlayActive} | Restante=${newState.tiempo_limite ? getRemainingSeconds(newState.tiempo_limite) + 's' : 'n/a'}`);
+    console.log(`[PC] Estado=${newState.estado} | Overlay=${isOverlayActive}`);
 }
 
 // ============================================================
@@ -388,20 +406,28 @@ async function submitReport(id, voluntarioId, nombreLibre, actions, peopleCount)
 async function getActiveVolunteers() {
     if (!eventoId) throw new Error('Debes configurar a qué Evento pertenece esta PC primero.');
     
+    // Usar cache si es reciente (< 60s)
+    const now = Date.now();
+    if (volunteersCache && (now - volunteersCacheTime < VOLUNTEERS_CACHE_TTL)) {
+        return volunteersCache;
+    }
+
     try {
-        // Traer todos los bookings directamente del evento actual usando event_id (columna correcta en la DB)
-        // Pedimos explicitamente el user_id e inner join manual para evitar posibles nulls por alias proxy en DB.
         const bookingsData = await supabaseGet(`bookings?select=user_id,users(id,full_name)&event_id=eq.${eventoId}&status=eq.confirmed`);
         
         if (!bookingsData || bookingsData.length === 0) {
-            throw new Error('No hay voluntarios confirmados aún para este evento. Usa el comodín temporalmente 👤.');
+            throw new Error('No hay voluntarios confirmados aún.');
         }
         
         const seen = new Set();
-        return bookingsData
+        const result = bookingsData
             .filter(b => b.users && !seen.has(b.user_id) && seen.add(b.user_id))
             .map(b => ({ id: b.user_id, fullName: b.users.full_name || 'Sin nombre' }))
             .sort((a, b) => a.fullName.localeCompare(b.fullName));
+            
+        volunteersCache = result;
+        volunteersCacheTime = now;
+        return result;
             
     } catch (e) {
         throw e;

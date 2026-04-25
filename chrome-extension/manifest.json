@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "PC Stand - Modo Kiosk",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Extensión que permite la integración y el control de la PC del stand de FamilySearch con el sistema de Gestión de Voluntarios (SGV). Provee Timer de atención óptima, menú de recursos y gestión de informe de uso. https://laconeo.github.io/voluntarios/",
     "permissions": [
         "tabs",
