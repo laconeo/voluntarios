@@ -28,7 +28,12 @@ BEGIN
             (created_at AT TIME ZONE 'America/Argentina/Buenos_Aires')::date as d,
             COUNT(*) as sessions,
             SUM(COALESCE((acciones_reportadas->>'people_helped')::int, 1)) as personas,
-            SUM(COALESCE((acciones_reportadas->>'extensions')::int, 0)) as extensions
+            SUM(COALESCE(
+                (acciones_reportadas->>'extensions')::int, 
+                (acciones_reportadas->>'extensiones')::int,
+                CASE WHEN duracion_total > 20 THEN (duracion_total - 20) / 5 ELSE 0 END,
+                0
+            )) as extensions
         FROM bitacora_uso
         WHERE evento_id = p_event_id
         AND (p_since IS NULL OR created_at >= p_since)

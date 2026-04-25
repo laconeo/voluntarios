@@ -54,13 +54,31 @@ const EventMonitor: React.FC = () => {
 
     const apps = [
         {
-            id: 'asistencia',
-            name: 'Coordinador',
-            subName: 'Asistencia',
+            id: 'voluntarios',
+            name: 'Gestión',
+            subName: 'de Voluntarios',
             icon: Users,
             color: 'bg-[#8CB83E]',
             shadow: 'shadow-[#8CB83E]/20',
+            path: `/${eventSlug}`
+        },
+        {
+            id: 'asistencia',
+            name: 'Coordinador',
+            subName: 'Asistencia',
+            icon: Layout,
+            color: 'bg-teal-700',
+            shadow: 'shadow-teal-700/20',
             path: `/${eventSlug}/asistencia`
+        },
+        {
+            id: 'recepcionista',
+            name: 'Recepcionista',
+            subName: 'Asignar PCs',
+            icon: Users,
+            color: 'bg-purple-600',
+            shadow: 'shadow-purple-600/20',
+            path: `/${eventSlug}/recepcionista`
         },
         {
             id: 'metrics',

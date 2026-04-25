@@ -201,3 +201,22 @@ select:focus {
 .animate-slide-up {
   animation: slideUp 0.3s ease-out;
 }
+
+@keyframes pulse-green {
+  0% { box-shadow: 0 0 0 0 rgba(140, 184, 62, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(140, 184, 62, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(140, 184, 62, 0); }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-pulse-green {
+  animation: pulse-green 2s infinite;
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 2s infinite;
+}

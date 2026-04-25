@@ -521,7 +521,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                 <div
                                     key={evento.id}
                                     onClick={() => iniciarEditarEvento(evento)}
-                                    className="group bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden flex flex-col"
+                                    className="group bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col"
                                 >
                                     <div className="p-6 flex-1">
                                         <div className="flex justify-between items-start mb-4">
@@ -567,7 +567,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                         </div>
                                     </div>
 
-                                    <div className="bg-gray-50 px-4 py-3 border-t border-gray-100 flex items-center justify-between relative">
+                                    <div className="bg-gray-50 px-4 py-3 border-t border-gray-100 rounded-b-lg flex items-center justify-between relative">
                                         <div className="flex gap-1">
                                             {evento.estado !== 'Archivado' && (
                                                 <button
@@ -605,6 +605,21 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
+                                                                setEventoSeleccionado(evento);
+                                                                setVistaActual('voluntarios');
+                                                                setActiveDropdownId(null);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                                                        >
+                                                            <Users size={16} className="text-green-600" />
+                                                            <span>Gestionar Voluntarios</span>
+                                                        </button>
+
+                                                        <div className="my-1 border-t border-gray-100" />
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
                                                                 iniciarEditarEvento(evento);
                                                                 setActiveDropdownId(null);
                                                             }}
@@ -628,18 +643,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                                             </button>
                                                         )}
 
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setEventoSeleccionado(evento);
-                                                                setVistaActual('voluntarios');
-                                                                setActiveDropdownId(null);
-                                                            }}
-                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                                        >
-                                                            <Users size={16} className="text-green-600" />
-                                                            <span>Gestionar Voluntarios</span>
-                                                        </button>
+
 
                                                         <button
                                                             onClick={(e) => {

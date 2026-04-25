@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { experienceService, type StationStats } from '../services/experienceService';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { toLocalDateStr } from '../lib/utils';
+import { toLocalDateStr, parseSafeDate } from '../lib/utils';
+import { pcControlService } from '../services/pcControlService';
 import { supabase } from '../lib/supabaseClient';
 import { Monitor, Users, Zap, Clock, TrendingUp, RefreshCw, AlertTriangle, Activity, Download } from 'lucide-react';
 
@@ -38,10 +39,24 @@ interface Totals {
     expPersonas: number;
 }
 
+interface DailyStationStats {
+    day: string; // YYYY-MM-DD
+    label: string;
+    stats: StationStats[];
+}
+
+interface HourlyStats {
+    hour: number;
+    pcSessions: number;
+    expSessions: number;
+}
+
 interface MetricsState {
     days: DayRow[];
     totals: Totals;
     stationStats: StationStats[];
+    dailyStationStats: DailyStationStats[];
+    hourlyStats: HourlyStats[];
     loadedAt: Date;
 }
 
@@ -194,12 +209,69 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
             }
             
             // ── Estadísticas por Puesto (Para el desglose inferior) ──────────────
-            let stationStats: StationStats[] = [];
-            try {
-                stationStats = await experienceService.getStatsForEvent(eventId, since);
-            } catch (err) {
-                console.error('[StandMetrics] Error en getStatsForEvent:', err);
+            // Obtenemos los logs para agrupar por día y puesto si es necesario
+            const allLogs = await experienceService.getLogsForEvent(eventId, since);
+            
+            // Agregación total
+            const mapTotal = new Map<string, StationStats>();
+            // Agregación por día
+            const mapDaily = new Map<string, Map<string, StationStats>>();
+            // Distribución horaria
+            const hourlyMap = new Map<number, HourlyStats>();
+            for (let h = 0; h < 24; h++) {
+                hourlyMap.set(h, { hour: h, pcSessions: 0, expSessions: 0 });
             }
+
+            for (const log of allLogs) {
+                const logDate = parseSafeDate(log.createdAt);
+                const day = toLocalDateStr(logDate);
+                const hour = logDate.getHours();
+                const stId = log.stationId;
+                const stNombre = log.stationNombre || 'Puesto Desconocido';
+
+                // Total
+                if (!mapTotal.has(stId)) {
+                    mapTotal.set(stId, { stationId: stId, stationNombre: stNombre, totalExperiencias: 0, totalPersonas: 0 });
+                }
+                const st = mapTotal.get(stId)!;
+                st.totalExperiencias++;
+                st.totalPersonas += log.cantidadPersonas;
+
+                // Diario
+                if (!mapDaily.has(day)) mapDaily.set(day, new Map());
+                const dayMap = mapDaily.get(day)!;
+                if (!dayMap.has(stId)) {
+                    dayMap.set(stId, { stationId: stId, stationNombre: stNombre, totalExperiencias: 0, totalPersonas: 0 });
+                }
+                const dSt = dayMap.get(stId)!;
+                dSt.totalExperiencias++;
+                dSt.totalPersonas += log.cantidadPersonas;
+
+                // Horario
+                const hStat = hourlyMap.get(hour)!;
+                hStat.expSessions++;
+            }
+
+            // Bitácora para sesiones de PC por hora
+            const bitacora = await pcControlService.getBitacoraForEvent(eventId, since);
+            for (const b of bitacora) {
+                const bDate = parseSafeDate(b.created_at);
+                const hour = bDate.getHours();
+                const hStat = hourlyMap.get(hour)!;
+                hStat.pcSessions++;
+            }
+
+            const stationStats = Array.from(mapTotal.values()).sort((a, b) => a.stationNombre.localeCompare(b.stationNombre));
+            
+            const dailyStationStats: DailyStationStats[] = Array.from(mapDaily.entries())
+                .map(([day, dayMap]) => ({
+                    day,
+                    label: dayLabel(day),
+                    stats: Array.from(dayMap.values()).sort((a, b) => a.stationNombre.localeCompare(b.stationNombre))
+                }))
+                .sort((a, b) => b.day.localeCompare(a.day)); // Descendente por fecha
+
+            const hourlyStats = Array.from(hourlyMap.values());
 
             // ── Unificar datos para la UI ──
             const days: DayRow[] = (summary || [])
@@ -231,7 +303,7 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                 { pcSessions: 0, pcPersonas: 0, pcExtensiones: 0, expSessions: 0, expPersonas: 0 }
             );
 
-            setData({ days, totals, stationStats, loadedAt: new Date() });
+            setData({ days, totals, stationStats, dailyStationStats, hourlyStats, loadedAt: new Date() });
         } catch (error) {
             console.error('[StandMetrics] Error fatal cargando métricas:', error);
         } finally {
@@ -394,6 +466,7 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
 
     const totalPersonas = (data?.totals.pcPersonas ?? 0) + (data?.totals.expPersonas ?? 0);
     const totalSessions = (data?.totals.pcSessions ?? 0) + (data?.totals.expSessions ?? 0);
+    const avgPeoplePerExp = totalSessions > 0 ? (totalPersonas / totalSessions).toFixed(1) : '0';
     const maxPersonasDia = data ? Math.max(...data.days.map(d => d.pcPersonas + d.expPersonas), 1) : 1;
 
     if (loading) {
@@ -487,9 +560,9 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
             {/* ── Totalizadores ── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14 }}>
                 <StatCard icon={<Users size={20} color={FS_GREEN} />} bg="#f0faf4" border="#b0e0c0" label="Personas atendidas" value={totalPersonas} sub="en total" valColor={FS_DARK} />
-                <StatCard icon={<Zap size={20} color={FS_BLUE} />} bg="#f0f6fc" border="#b0d0e8" label="Experiencias totales" value={totalSessions} sub="registradas" valColor={FS_BLUE} />
-                <StatCard icon={<Monitor size={20} color="#7c3aed" />} bg="#f5f0ff" border="#d0b8f5" label="Sesiones PC" value={data?.totals.pcSessions ?? 0} sub={`${data?.totals.pcExtensiones ?? 0} extensiones`} valColor="#7c3aed" />
-                <StatCard icon={<Users size={20} color="#0891b2" />} bg="#f0f9fc" border="#b0dde8" label="Personas vía puestos" value={data?.totals.expPersonas ?? 0} sub={`${data?.totals.expSessions ?? 0} experiencias`} valColor="#0891b2" />
+                <StatCard icon={<Zap size={20} color={FS_BLUE} />} bg="#f0f6fc" border="#b0d0e8" label="Puestos de atención" value={data?.totals.expPersonas ?? 0} sub={`${data?.totals.expSessions ?? 0} experiencias únicas`} valColor={FS_BLUE} />
+                <StatCard icon={<Monitor size={20} color="#7c3aed" />} bg="#f5f0ff" border="#d0b8f5" label="Personas en PC" value={data?.totals.pcPersonas ?? 0} sub={`${data?.totals.pcSessions ?? 0} sesiones de PC`} valColor="#7c3aed" />
+                <StatCard icon={<Activity size={20} color="#0891b2" />} bg="#f0f9fc" border="#b0dde8" label="Promedio por experiencia" value={avgPeoplePerExp} sub="Personas / Sesión" valColor="#0891b2" />
             </div>
 
             {/* ── Tiempo muerto en tiempo real ── */}
@@ -623,9 +696,9 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                                     <div key={row.date}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                                             <span style={{ fontSize: 13, fontWeight: 600, color: '#333', textTransform: 'capitalize' }}>{row.label}</span>
-                                            <span style={{ fontSize: 13, color: '#555' }}>
+                                            <span style={{ fontSize: 13, color: '#444' }}>
                                                 <strong style={{ color: FS_DARK }}>{total}</strong> personas
-                                                <span style={{ color: '#aaa', marginLeft: 8 }}>({row.pcSessions + row.expSessions} exp.)</span>
+                                                <span style={{ color: '#555', marginLeft: 8, fontWeight: 800 }}>({row.pcSessions + row.expSessions} exp.)</span>
                                             </span>
                                         </div>
                                         <div style={{ height: 18, background: '#eee', borderRadius: 9, overflow: 'hidden', display: 'flex' }}>
@@ -691,58 +764,47 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                 )}
             </Section>
 
+            {/* ── Gráfico por Hora ── */}
+            <Section title="Distribución por Hora (Actividad)" icon={<Clock size={18} color={FS_BLUE} />}>
+                {data?.hourlyStats ? (
+                    <HourlyChart stats={data.hourlyStats} />
+                ) : (
+                    <Empty text="Cargando distribución..." />
+                )}
+            </Section>
+
             {/* ── Detalle por puesto de experiencia ── */}
+
             <Section title="Desglose por puesto de experiencia" icon={<Zap size={18} color={FS_BLUE} />}>
                 {!data?.stationStats.length ? (
                     <Empty text="Sin registros de experiencias en el período." />
                 ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ background: '#f5f5f5' }}>
-                                    <Th>Puesto</Th>
-                                    <Th align="right">Experiencias</Th>
-                                    <Th align="right">Personas atendidas</Th>
-                                    <Th align="right">Promedio</Th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {data.stationStats.map((st, i) => (
-                                    <tr key={st.stationId} style={{ background: i % 2 === 0 ? 'white' : '#fafafa', borderBottom: `1px solid ${FS_BORDER}` }}>
-                                        <td style={{ padding: '9px 12px', fontWeight: 600, color: '#333' }}>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: FS_GREEN, flexShrink: 0 }} />
-                                                {st.stationNombre}
-                                            </span>
-                                        </td>
-                                        <Td>{st.totalExperiencias}</Td>
-                                        <Td>{st.totalPersonas}</Td>
-                                        <Td color="#555">{st.totalExperiencias > 0 ? (st.totalPersonas / st.totalExperiencias).toFixed(1) : '—'}</Td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                            <tfoot>
-                                <tr style={{ background: '#f0f6ff', borderTop: `2px solid ${FS_BLUE}` }}>
-                                    <td style={{ padding: '10px 12px', fontWeight: 700, color: FS_BLUE, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</td>
-                                    <Td bold>{data.totals.expSessions}</Td>
-                                    <Td bold>{data.totals.expPersonas}</Td>
-                                    <Td bold color="#555">{data.totals.expSessions > 0 ? (data.totals.expPersonas / data.totals.expSessions).toFixed(1) : '—'}</Td>
-                                </tr>
-                            </tfoot>
-                        </table>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        {/* Si hay más de un día en dailyStationStats y estamos en modo 'all', mostramos el desglose diario */}
+                        {(period === 'all' || data.dailyStationStats.length > 1) && data.dailyStationStats.map(ds => (
+                            <div key={ds.day} style={{ border: `1px solid ${FS_BORDER}`, borderRadius: 8, overflow: 'hidden' }}>
+                                <div style={{ background: '#f8fafc', padding: '8px 12px', borderBottom: `1px solid ${FS_BORDER}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontWeight: 700, fontSize: 13, color: '#334155', textTransform: 'capitalize' }}>{ds.label}</span>
+                                    <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{ds.stats.reduce((acc, s) => acc + s.totalPersonas, 0)} personas</span>
+                                </div>
+                                <StationTable stats={ds.stats} totalsColor={FS_BLUE} />
+                            </div>
+                        ))}
+
+                        {/* Siempre mostramos el total acumulado al final si hay múltiples días, o como tabla única si es un solo día */}
+                        <div>
+                            {data.dailyStationStats.length > 1 && (
+                                <p style={{ fontSize: 12, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+                                    Resumen Total Acumulado
+                                </p>
+                            )}
+                            <StationTable stats={data.stationStats} totalsColor={FS_BLUE} isTotal />
+                        </div>
                     </div>
                 )}
             </Section>
 
-            {/* ── Detalle PCs ── */}
-            <Section title="Computadoras — resumen del período" icon={<Monitor size={18} color="#7c3aed" />}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 16 }}>
-                    <MiniStat label="Sesiones" value={data?.totals.pcSessions ?? 0} color="#7c3aed" />
-                    <MiniStat label="Personas ayudadas" value={data?.totals.pcPersonas ?? 0} color={FS_BLUE} />
-                    <MiniStat label="Extensiones de tiempo" value={data?.totals.pcExtensiones ?? 0} color="#d97706" />
-                    <MiniStat label="Minutos extra" value={(data?.totals.pcExtensiones ?? 0) * 5} color="#d97706" />
-                </div>
-            </Section>
+
         </div>
     );
 };
@@ -751,14 +813,16 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
 
 const StatCard = ({ icon, bg, border, label, value, sub, valColor }: {
     icon: React.ReactNode; bg: string; border: string;
-    label: string; value: number; sub?: string; valColor?: string;
+    label: string; value: number | string; sub?: string; valColor?: string;
 }) => (
     <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
         <div style={{ background: 'white', borderRadius: 10, padding: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>{icon}</div>
         <div>
-            <p style={{ fontSize: 28, fontWeight: 800, color: valColor || '#1a1a1a', margin: 0 }}>{value.toLocaleString()}</p>
+            <p style={{ fontSize: 28, fontWeight: 800, color: valColor || '#1a1a1a', margin: 0 }}>
+                {typeof value === 'number' ? value.toLocaleString() : value}
+            </p>
             <p style={{ fontSize: 12, color: '#555', margin: '2px 0 0', fontWeight: 600 }}>{label}</p>
-            {sub && <p style={{ fontSize: 11, color: '#888', margin: '1px 0 0' }}>{sub}</p>}
+            {sub && <p style={{ fontSize: 12, color: '#444', margin: '1px 0 0', fontWeight: 700 }}>{sub}</p>}
         </div>
     </div>
 );
@@ -792,5 +856,95 @@ const Td = ({ children, align = 'right', color, bold }: { children: React.ReactN
 const Empty = ({ text }: { text: string }) => (
     <div style={{ padding: '32px 0', textAlign: 'center', color: '#aaa', fontSize: 14 }}>{text}</div>
 );
+
+const StationTable = ({ stats, totalsColor, isTotal }: { stats: StationStats[]; totalsColor: string; isTotal?: boolean }) => {
+    const totalExp = stats.reduce((acc, s) => acc + s.totalExperiencias, 0);
+    const totalPers = stats.reduce((acc, s) => acc + s.totalPersonas, 0);
+
+    return (
+        <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ background: '#f5f5f5' }}>
+                        <Th>Puesto</Th>
+                        <Th align="right">Experiencias</Th>
+                        <Th align="right">Personas</Th>
+                        <Th align="right">Promedio</Th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {stats.map((st, i) => (
+                        <tr key={st.stationId} style={{ background: i % 2 === 0 ? 'white' : '#fafafa', borderBottom: `1px solid ${FS_BORDER}` }}>
+                            <td style={{ padding: '9px 12px', fontWeight: 600, color: '#333' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: FS_GREEN, flexShrink: 0 }} />
+                                    {st.stationNombre}
+                                </span>
+                            </td>
+                            <Td>{st.totalExperiencias}</Td>
+                            <Td>{st.totalPersonas}</Td>
+                            <Td color="#555">{st.totalExperiencias > 0 ? (st.totalPersonas / st.totalExperiencias).toFixed(1) : '—'}</Td>
+                        </tr>
+                    ))}
+                </tbody>
+                <tfoot>
+                    <tr style={{ background: isTotal ? '#f0f6ff' : '#f8fafc', borderTop: `1px solid ${isTotal ? totalsColor : FS_BORDER}` }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 700, color: isTotal ? totalsColor : '#555', fontSize: 12, textTransform: 'uppercase' }}>Subtotal</td>
+                        <Td bold>{totalExp}</Td>
+                        <Td bold>{totalPers}</Td>
+                        <Td bold color="#555">{totalExp > 0 ? (totalPers / totalExp).toFixed(1) : '—'}</Td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    );
+};
+
+const HourlyChart = ({ stats }: { stats: HourlyStats[] }) => {
+    // Filtrar solo las horas con actividad para que el gráfico no sea demasiado ancho si no hay nada
+    // Pero mejor mostrar de 8am a 20pm por defecto o el rango activo
+    const activeStats = stats.filter(s => s.hour >= 8 && s.hour <= 21);
+    const maxVal = Math.max(...stats.map(s => s.pcSessions + s.expSessions), 1);
+
+    return (
+        <div style={{ padding: '10px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 160, borderBottom: `2px solid ${FS_BORDER}`, paddingBottom: 5, overflowX: 'auto', minWidth: '100%' }} className="hide-scrollbar">
+                {activeStats.map(s => {
+                    const pcH = (s.pcSessions / maxVal) * 100;
+                    const expH = (s.expSessions / maxVal) * 100;
+                    const total = s.pcSessions + s.expSessions;
+
+                    return (
+                        <div key={s.hour} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 25 }}>
+                            <div style={{ width: '100%', height: 140, display: 'flex', flexDirection: 'column-reverse', gap: 1 }}>
+                                {/* Barra Experiencias */}
+                                <div 
+                                    style={{ height: `${expH}%`, background: FS_GREEN, width: '100%', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} 
+                                    title={`Experiencias: ${s.expSessions}`}
+                                />
+                                {/* Barra PCs */}
+                                <div 
+                                    style={{ height: `${pcH}%`, background: '#7c3aed', width: '100%', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} 
+                                    title={`Sesiones PC: ${s.pcSessions}`}
+                                />
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#666', marginTop: 8 }}>{s.hour}h</span>
+                        </div>
+                    );
+                })}
+            </div>
+            <div style={{ display: 'flex', gap: 16, marginTop: 12, justifyContent: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 12, height: 12, background: '#7c3aed', borderRadius: 2 }} />
+                    <span style={{ fontSize: 11, color: '#666' }}>Computadoras</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 12, height: 12, background: FS_GREEN, borderRadius: 2 }} />
+                    <span style={{ fontSize: 11, color: '#666' }}>Puestos de experiencia</span>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default StandMetrics;

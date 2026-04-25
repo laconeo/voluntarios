@@ -135,10 +135,11 @@ export interface Stake {
   createdAt?: string;
 }
 
-export type PCEstado = 'disponible' | 'ocupada' | 'bloqueada' | 'mantenimiento' | 'sin_conexion';
+export type PCEstado = 'disponible' | 'ocupada' | 'bloqueada' | 'mantenimiento' | 'sin_conexion' | 'pausa';
 
 export interface PCStatus {
   id: number;
+  evento_id?: string;
   estado: PCEstado;
   voluntario_id?: string;
   voluntario_nombre_libre?: string;
@@ -151,6 +152,7 @@ export interface PCStatus {
 export interface BitacoraUso {
   id: string;
   pc_id: number;
+  evento_id: string;
   voluntario_id: string;
   acciones_reportadas: any;
   duracion_total: number;

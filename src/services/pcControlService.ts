@@ -75,6 +75,7 @@ export const pcControlService = {
   createBitacora: async (entry: Omit<BitacoraUso, 'id' | 'created_at'>): Promise<void> => {
     const { error } = await supabase.from('bitacora_uso').insert({
       pc_id: entry.pc_id,
+      evento_id: entry.evento_id,
       voluntario_id: entry.voluntario_id,
       acciones_reportadas: entry.acciones_reportadas,
       duracion_total: entry.duracion_total
@@ -131,5 +132,30 @@ export const pcControlService = {
 
     if (error) throw error;
     return data;
+  },
+
+  // Get Bitacora for specific event with optional date filter
+  getBitacoraForEvent: async (eventoId: string, since?: Date): Promise<BitacoraUso[]> => {
+    try {
+      let query = supabase
+        .from('bitacora_uso')
+        .select('*')
+        .eq('evento_id', eventoId)
+        .order('created_at', { ascending: true });
+
+      if (since) {
+        query = query.gte('created_at', since.toISOString());
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.warn('[pcControlService] Error fetching bitacora, falling back to empty list:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.error('[pcControlService] Fatal error in getBitacoraForEvent:', err);
+      return [];
+    }
   }
 };

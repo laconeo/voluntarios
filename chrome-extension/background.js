@@ -99,12 +99,37 @@ async function configure(newPcId, newEventoId, newEventoNombre) {
     eventoId = newEventoId || null;
     const eventoNombre = newEventoNombre || null;
     await chrome.storage.local.set({ pcId, eventoId, eventoNombre, configured: true });
+    
+    // Al identificar la PC con el evento, forzamos estado 'disponible' en la DB
+    // Usamos UPSERT para que si ya existe (en otro evento o estado), se actualice correctamente
+    try {
+        await registerPc(pcId, eventoId);
+        console.log(`[PC] DB actualizada: PC ${pcId} ahora disponible para evento ${eventoId}`);
+    } catch (err) {
+        console.error('[PC] Error al registrar/actualizar PC en configure:', err.message);
+        throw err; // Re-lanzar para que el popup muestre el error al usuario
+    }
+
     scheduleAlarm();           // asegurar alarm activo al configurar
     await checkStatus();       // check inmediato
     console.log(`[PC] Configurado PC=${pcId} | Evento=${eventoId} (${eventoNombre})`);
 }
 
 async function resetConfig() {
+    // Al "Cambiar PC", marcamos la PC actual como offline (sin_conexion) antes de limpiar
+    if (pcId) {
+        try {
+            await supabasePatch(`pcs_status?id=eq.${pcId}`, { 
+                estado: 'sin_conexion',
+                voluntario_id: null,
+                inicio_sesion: null,
+                tiempo_limite: null
+            });
+        } catch (err) {
+            console.warn('[PC] Error al poner offline en resetConfig:', err.message);
+        }
+    }
+
     chrome.alarms.clear(ALARM_NAME);
     pcId = null; eventoId = null; currentState = null; isOverlayActive = false;
     await chrome.storage.local.set({
@@ -162,8 +187,11 @@ async function syncState(newState) {
                 type: 'TIMER_UPDATE',
                 remaining,
                 voluntarioNombre: newState.voluntario_nombre,
+                estado: newState.estado
             });
         }
+    } else if (newState.estado === 'pausa') {
+        shouldBlock = true; // El overlay bloquea la pantalla en modo pausa
     } else if (newState.estado === 'disponible') {
         shouldBlock = true;
     }
@@ -176,6 +204,9 @@ async function syncState(newState) {
         isOverlayActive = false;
         await chrome.storage.local.set({ isOverlayActive });
         broadcastToTabs({ type: 'HIDE_OVERLAY' });
+    } else if (isOverlayActive) {
+        // Si ya está activo pero cambió el estado (ej: de disponible a pausa)
+        broadcastToTabs({ type: 'SHOW_OVERLAY', pcId, currentState: newState });
     }
 
     console.log(`[PC] Estado=${newState.estado} | Overlay=${isOverlayActive} | Restante=${newState.tiempo_limite ? getRemainingSeconds(newState.tiempo_limite) + 's' : 'n/a'}`);
@@ -249,9 +280,32 @@ async function fetchPcStatus(id, evId) {
 }
 
 async function registerPc(id, evId) {
-    const body = { id, estado: 'disponible' };
-    if (evId) body.evento_id = evId;
-    await supabasePost('pcs_status', body);
+    const body = { 
+        id, 
+        estado: 'disponible',
+        evento_id: evId || null,
+        voluntario_id: null,
+        inicio_sesion: null,
+        tiempo_limite: null
+    };
+    
+    // Usar UPSERT (POST con Prefer: resolution=merge-duplicates)
+    // Esto asegura que si el ID ya existe, se actualice el evento y el estado.
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/pcs_status`, {
+        method: 'POST',
+        headers: {
+            'apikey': SUPABASE_KEY, 
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json', 
+            'Prefer': 'resolution=merge-duplicates' 
+        },
+        body: JSON.stringify(body),
+    });
+    
+    if (!res.ok) { 
+        const t = await res.text(); 
+        throw new Error(`UPSERT pcs_status → ${res.status}: ${t}`); 
+    }
 }
 
 async function getEvents() {
@@ -277,6 +331,21 @@ async function startSession(id, userId, nombreLibre, durationMinutes = 20) {
     };
     if (eventoId) body.evento_id = eventoId;
     await supabasePatch(`pcs_status?id=eq.${id}`, body);
+    // Resetear contador de extensiones al iniciar sesión
+    await chrome.storage.local.set({ extensionsCount: 0 });
+}
+
+async function pauseSession(id) {
+    await supabasePatch(`pcs_status?id=eq.${id}`, {
+        estado: 'pausa',
+        inicio_sesion: new Date().toISOString()
+    });
+}
+
+async function resumeSession(id) {
+    await supabasePatch(`pcs_status?id=eq.${id}`, {
+        estado: 'ocupada'
+    });
 }
 
 async function snoozePc(id) {
@@ -287,18 +356,29 @@ async function snoozePc(id) {
     await supabasePatch(`pcs_status?id=eq.${id}`, {
         tiempo_limite: new Date(base + 5 * 60000).toISOString(),
     });
+
+    // Incrementar contador de extensiones
+    const stored = await chrome.storage.local.get(['extensionsCount']);
+    const count = (stored.extensionsCount || 0) + 1;
+    await chrome.storage.local.set({ extensionsCount: count });
 }
 
-async function submitReport(id, voluntarioId, nombreLibre, actions, peopleCount, extensionsCount) {
+async function submitReport(id, voluntarioId, nombreLibre, actions, peopleCount) {
+    const stored = await chrome.storage.local.get(['extensionsCount']);
+    const extCount = stored.extensionsCount || 0;
+
     const bitacora = {
         pc_id: id,
         voluntario_id: voluntarioId || null,
         voluntario_nombre_libre: nombreLibre || null,
-        acciones_reportadas: { description: actions, people_helped: peopleCount, extensions: extensionsCount },
-        duracion_total: 20 + extensionsCount * 5,
+        acciones_reportadas: { description: actions, people_helped: peopleCount, extensions: extCount },
+        duracion_total: 20 + extCount * 5,
     };
     if (eventoId) bitacora.evento_id = eventoId;
     await supabasePost('bitacora_uso', bitacora);
+
+    // Limpiar contador tras reportar
+    await chrome.storage.local.set({ extensionsCount: 0 });
     await supabasePatch(`pcs_status?id=eq.${id}`, {
         estado: 'disponible', voluntario_id: null, voluntario_nombre_libre: null,
         inicio_sesion: null, tiempo_limite: null,
@@ -389,7 +469,7 @@ async function handleMessage(message, sender, sendResponse) {
                 if (!pcId) throw new Error('PC no configurada');
                 await submitReport(
                     pcId, message.voluntarioId, message.nombreLibre,
-                    message.actions, message.peopleCount, message.extensionsCount
+                    message.actions, message.peopleCount
                 );
                 await checkStatus();
                 sendResponse({ success: true });
@@ -402,6 +482,22 @@ async function handleMessage(message, sender, sendResponse) {
                 await supabasePatch(`pcs_status?id=eq.${pcId}`, {
                     tiempo_limite: new Date().toISOString()
                 });
+                await checkStatus();
+                sendResponse({ success: true });
+                break;
+            }
+
+            case 'PAUSE_SESSION': {
+                if (!pcId) throw new Error('PC no configurada');
+                await pauseSession(pcId);
+                await checkStatus();
+                sendResponse({ success: true });
+                break;
+            }
+
+            case 'RESUME_SESSION': {
+                if (!pcId) throw new Error('PC no configurada');
+                await resumeSession(pcId);
                 await checkStatus();
                 sendResponse({ success: true });
                 break;

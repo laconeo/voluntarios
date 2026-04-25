@@ -532,7 +532,11 @@ export const supabaseApi = {
         }
 
         // Email nuevo: UUID real + DNI con prefijo IMP_ (marcador: sin cuenta Auth)
-        const newId = crypto.randomUUID();
+        // crypto.randomUUID() is only supported in iOS Safari 15.4+. 
+        // Fallback to a simple UUID-like generator for better compatibility.
+        const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) 
+            ? crypto.randomUUID() 
+            : `id_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
         const importedDni = newUser.dni ? ('IMP_' + newUser.dni) : ('IMP_sin_dni_' + Date.now());
 
         const dbUser = {

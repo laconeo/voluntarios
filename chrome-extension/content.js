@@ -21,8 +21,7 @@
   let remainingSeconds = 0;
   let menuOpen = false;
 
-  // Contador de extensiones acumulado por sesión (persiste entre aperturas del overlay)
-  let sessionExtensions = 0;
+
 
   // FS Design Tokens
   const FS = {
@@ -62,7 +61,6 @@
       showOverlay(msg.pcId, msg.currentState);
       sendResponse({ ok: true });
     } else if (msg.type === 'HIDE_OVERLAY') {
-      sessionExtensions = 0; // nueva sesión → resetear contador
       hideOverlay();
       sendResponse({ ok: true });
     } else if (msg.type === 'TIMER_UPDATE') {
@@ -94,9 +92,14 @@
     document.body.style.overflow = 'hidden';
 
     const isAvailable = !state || state.estado === 'disponible';
+    const isPaused = state?.estado === 'pausa';
+
     if (isAvailable) {
       overlayEl.innerHTML = loginHTML(pcId);
       wireLogin(pcId, state);
+    } else if (isPaused) {
+      overlayEl.innerHTML = pauseHTML(state);
+      wirePause(state);
     } else {
       overlayEl.innerHTML = reportHTML(state);
       wireReport(state);
@@ -326,7 +329,6 @@
           nombreLibre: nombre,   // null si no es comodín
         });
         if (res?.success) {
-          sessionExtensions = 0;
           notice('__fs-lmsg__', '¡Sesión iniciada! Podés comenzar a trabajar.', 'ok');
           setTimeout(() => hideOverlay(), 1600);
         } else throw new Error(res?.error || 'Error desconocido');
@@ -409,9 +411,7 @@
       try {
         const res = await chrome.runtime.sendMessage({ type: 'SNOOZE' });
         if (res?.success) {
-          sessionExtensions++;
-          const ext = sessionExtensions;
-          notice('__fs-rmsg__', `¡+5 minutos! (${ext} extensión${ext !== 1 ? 'es' : ''} en total)`, 'ok');
+          notice('__fs-rmsg__', `¡+5 minutos! Extensión registrada.`, 'ok');
           setTimeout(() => hideOverlay(), 1600);
         } else throw new Error(res?.error || 'Error');
       } catch (e) {
@@ -429,7 +429,7 @@
           type: 'SUBMIT_REPORT',
           voluntarioId: state?.voluntario_id,
           nombreLibre: state?.voluntario_nombre_libre || null,
-          actions, peopleCount: count, extensionsCount: sessionExtensions
+          actions, peopleCount: count
         });
         if (res?.success) {
           notice('__fs-rmsg__', '¡Reporte guardado! Gracias por tu servicio.', 'ok');
@@ -440,6 +440,49 @@
       } catch (e) {
         notice('__fs-rmsg__', e.message, 'err');
         submit.disabled = false; submit.textContent = 'Finalizar y liberar PC';
+      }
+    });
+  }
+
+  // ============================================================
+  // PANTALLA PAUSA
+  // ============================================================
+  function pauseHTML(state) {
+    const nombre = state?.voluntario_nombre?.split(' ')[0] || 'Voluntario';
+    return card({
+      headerIcon: '⏸',
+      headerTitle: 'Sesión en Pausa',
+      headerSub: `Hola ${escHtml(nombre)}, tu sesión está pausada.`,
+      body: `
+        <div style="text-align:center;margin-bottom:24px;">
+          <div style="font-size:24px;font-weight:500;color:${FS.blue};margin-bottom:8px;">
+            Vuelvo enseguida
+          </div>
+        </div>
+
+        <button id="__fs-resume__" class="__fs-btn-primary__">
+          Reanudar Sesión
+        </button>
+        <div id="__fs-pmsg__" class="__fs-notice__"></div>
+        <p style="font-size:12px;color:${FS.textLight};text-align:center;margin:18px 0 0;">
+          El monitor del stand muestra que esta PC está en pausa.
+        </p>
+      `
+    });
+  }
+
+  function wirePause(state) {
+    const btn = document.getElementById('__fs-resume__');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = 'Reanudando…';
+      try {
+        const res = await chrome.runtime.sendMessage({ type: 'RESUME_SESSION' });
+        if (!res?.success) throw new Error(res?.error || 'Error');
+      } catch (e) {
+        notice('__fs-pmsg__', e.message, 'err');
+        btn.disabled = false; btn.textContent = 'Reanudar Sesión';
       }
     });
   }
@@ -501,6 +544,34 @@
       a.addEventListener('mouseout', () => { a.style.background = FS.bg; });
       panel.appendChild(a);
     });
+
+    // Botón de Pausa (Solo si no está ya en pausa y hay sesión)
+    const pauseBtn = document.createElement('div');
+    Object.assign(pauseBtn.style, {
+      display: 'flex', alignItems: 'center', gap: '10px',
+      padding: '11px 14px',
+      color: '#673ab7', // Morado FS
+      fontSize: '14px', fontWeight: '500',
+      borderBottom: `1px solid ${FS.border}`,
+      background: FS.bg,
+      cursor: 'pointer',
+      transition: 'background .12s',
+    });
+    pauseBtn.innerHTML = `<span style="font-size:16px;width:20px;text-align:center;">⏸</span><span>PAUSAR SESIÓN</span>`;
+    pauseBtn.addEventListener('mouseover', () => { pauseBtn.style.background = '#f3e5f5'; });
+    pauseBtn.addEventListener('mouseout', () => { pauseBtn.style.background = FS.bg; });
+    pauseBtn.addEventListener('click', async () => {
+      pauseBtn.style.pointerEvents = 'none';
+      pauseBtn.style.opacity = '0.5';
+      try {
+        await chrome.runtime.sendMessage({ type: 'PAUSE_SESSION' });
+      } catch(e) {
+        console.error(e);
+        pauseBtn.style.pointerEvents = 'auto';
+        pauseBtn.style.opacity = '1';
+      }
+    });
+    panel.appendChild(pauseBtn);
 
     // Botón de cerrar sesión
     const logoutBtn = document.createElement('div');

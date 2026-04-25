@@ -19,6 +19,7 @@ import UserProfile from './components/UserProfile';
 import EventMonitor from './components/EventMonitor';
 import StandaloneCoordinatorDashboard from './components/StandaloneCoordinatorDashboard';
 import StandaloneVolunteerBadges from './components/StandaloneVolunteerBadges';
+import ReceptionistView from './components/ReceptionistView';
 import { Toaster, toast } from 'react-hot-toast';
 
 // Wrapper para StandMetrics – carga el evento por slug y pasa props
@@ -209,9 +210,10 @@ const AppContent: React.FC = () => {
   const isStandMonitor = locationObj.pathname.includes('/stand-monitor');
   const isStandMetrics = locationObj.pathname.includes('/stand-metrics');
   const isEventMonitor = locationObj.pathname.includes('/monitor');
+  const isReceptionist = locationObj.pathname.includes('/recepcionista');
   const isAsistencia = locationObj.pathname.includes('/asistencia');
   const isCredenciales = locationObj.pathname.includes('/credenciales');
-  const isFullscreen = isStandMonitor || isStandMetrics || isEventMonitor || isAsistencia || isCredenciales;
+  const isFullscreen = isStandMonitor || isStandMetrics || isEventMonitor || isAsistencia || isCredenciales || isReceptionist;
 
   useEffect(() => {
     // Listen for Password Recovery event
@@ -353,6 +355,7 @@ const AppContent: React.FC = () => {
 
             <Route path="/:eventSlug/stand-metrics" element={<StandMetricsWrapper />} />
 
+            <Route path="/:eventSlug/recepcionista" element={<ReceptionistView />} />
             <Route path="/:eventSlug/monitor" element={<EventMonitor />} />
             <Route path="/:eventSlug/asistencia" element={<StandaloneCoordinatorDashboard />} />
             <Route path="/:eventSlug/credenciales" element={<StandaloneVolunteerBadges />} />

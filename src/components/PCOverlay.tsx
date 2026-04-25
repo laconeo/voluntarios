@@ -138,6 +138,7 @@ const PCOverlay: React.FC = () => {
             // 1. Save Report
             await pcControlService.createBitacora({
                 pc_id: pc.id,
+                evento_id: pc.evento_id || '', 
                 voluntario_id: pc.voluntario_id,
                 acciones_reportadas: {
                     description: actions,

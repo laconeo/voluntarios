@@ -3,9 +3,10 @@ import { supabase } from '../lib/supabaseClient';
 import { pcControlService } from '../services/pcControlService';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { PCStatus, Event } from '../types';
-import { Monitor, User, Clock, AlertTriangle, Unlock, Settings, Save } from 'lucide-react';
+import { Monitor, MonitorOff, User, Clock, AlertTriangle, Unlock, Settings, Save } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useParams } from 'react-router-dom';
+import { parseSafeDate } from '../lib/utils';
 
 interface PCMonitorProps {
     // Cuando se renderiza desde un dashboard (sin cambio de URL),
@@ -29,14 +30,7 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
     // Derived: how many PCs this event has (from the event record itself, or localStorage fallback)
     const cantidadPCs = eventData?.cantidadPCs ?? null;
 
-    // Helper to parse dates safely across browsers (iOS Safari is strict)
-    const parseSafeDate = (dateStr: string) => {
-        if (!dateStr) return new Date();
-        // Replace space with T for ISO compliance
-        const isoStr = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
-        const d = new Date(isoStr);
-        return isNaN(d.getTime()) ? new Date() : d;
-    };
+
 
     const fetchPcs = useCallback(async (evId?: string) => {
         try {
@@ -60,34 +54,42 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
     }, [fetchPcs, eventData?.id]);
 
     useEffect(() => {
+        let isMounted = true;
         const init = async () => {
-            if (eventSlug) {
-                const data = await mockApi.getEventBySlug(eventSlug);
-                if (data) {
-                    // Fallback: si la BD no devuelve cantidadPCs (columna no existe aún / migración pendiente),
-                    // leemos el valor guardado en localStorage para este slug.
-                    const lsKey = `pc_monitor_config_${eventSlug}`;
-                    let localCount: number | undefined;
-                    try {
-                        const saved = localStorage.getItem(lsKey);
-                        if (saved) {
-                            const parsed = JSON.parse(saved);
-                            localCount = typeof parsed?.count === 'number' ? parsed.count : undefined;
+            try {
+                if (eventSlug) {
+                    const data = await mockApi.getEventBySlug(eventSlug);
+                    if (data && isMounted) {
+                        // Fallback: si la BD no devuelve cantidadPCs (columna no existe aún / migración pendiente),
+                        // leemos el valor guardado en localStorage para este slug.
+                        const lsKey = `pc_monitor_config_${eventSlug}`;
+                        let localCount: number | undefined;
+                        try {
+                            const saved = localStorage.getItem(lsKey);
+                            if (saved) {
+                                const parsed = JSON.parse(saved);
+                                localCount = typeof parsed?.count === 'number' ? parsed.count : undefined;
+                            }
+                        } catch { /* ignore */ }
+
+                        if (data.cantidadPCs == null && localCount != null) {
+                            data.cantidadPCs = localCount;
                         }
-                    } catch { /* ignore */ }
 
-                    if (data.cantidadPCs == null && localCount != null) {
-                        data.cantidadPCs = localCount;
+                        setEventData(data);
+                        setDraftCount(data.cantidadPCs ?? localCount ?? 20);
+                        await fetchPcs(data.id);
+                    } else if (isMounted) {
+                        await fetchPcs();
                     }
-
-                    setEventData(data);
-                    setDraftCount(data.cantidadPCs ?? localCount ?? 20);
-                    await fetchPcs(data.id);
-                } else {
+                } else if (isMounted) {
                     await fetchPcs();
                 }
-            } else {
-                await fetchPcs();
+            } catch (err) {
+                console.error('[PCMonitor] Init Error:', err);
+                if (isMounted) await fetchPcs();
+            } finally {
+                if (isMounted) setLoading(false);
             }
         };
         init();
@@ -99,40 +101,50 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'pcs_status' },
                 (payload) => {
-                    handleRealtimeUpdate(payload);
+                    if (isMounted) handleRealtimeUpdate(payload);
                 }
             )
             .subscribe();
 
         return () => {
+            isMounted = false;
             supabase.removeChannel(channel);
         };
     }, [eventSlug]);
 
     const handleRealtimeUpdate = (payload: any) => {
-        if (payload.eventType === 'UPDATE') {
-            setPcs((prev) =>
-                prev.map((pc) =>
-                    pc.id === payload.new.id ? { ...pc, ...payload.new } : pc
-                )
-            );
-        } else if (payload.eventType === 'INSERT') {
-            // Only add if it belongs to the current event (or no event filter)
-            if (!eventData || payload.new.evento_id === eventData.id) {
-                setPcs((prev) => {
-                    const exists = prev.find(p => p.id === payload.new.id);
-                    if (exists) return prev;
-                    return [...prev, payload.new].sort((a, b) => a.id - b.id);
-                });
-            }
-        }
-        // Refresh to get joined volunteer info when voluntario_id changes
-        if (payload.new?.voluntario_id) {
-            pcControlService.getPcStatus(payload.new.id).then(updatedPc => {
-                if (updatedPc) {
-                    setPcs(prev => prev.map(p => p.id === updatedPc.id ? updatedPc : p));
+        const newPc = payload.new;
+        const currentEventoId = eventData?.id;
+
+        if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+            setPcs((prev) => {
+                const exists = prev.find(p => p.id === newPc.id);
+                
+                // Si el evento de la PC no coincide con el del monitor, 
+                // nos aseguramos de que no esté en la lista.
+                if (currentEventoId && newPc.evento_id !== currentEventoId) {
+                    if (exists) return prev.filter(p => p.id !== newPc.id);
+                    return prev;
+                }
+
+                // Si coincide el evento (o no hay filtro), actualizamos o agregamos
+                if (exists) {
+                    return prev.map(p => p.id === newPc.id ? { ...p, ...newPc } : p);
+                } else {
+                    return [...prev, newPc].sort((a, b) => a.id - b.id);
                 }
             });
+
+            // Si cambió el voluntario, refrescamos para obtener el nombre completo
+            if (newPc.voluntario_id) {
+                pcControlService.getPcStatus(newPc.id).then(updatedPc => {
+                    if (updatedPc) {
+                        setPcs(prev => prev.map(p => p.id === updatedPc.id ? updatedPc : p));
+                    }
+                });
+            }
+        } else if (payload.eventType === 'DELETE') {
+            setPcs(prev => prev.filter(p => p.id !== payload.old.id));
         }
     };
 
@@ -145,6 +157,23 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
             toast.error('Error al resetear PC');
         }
     };
+
+    const handleSetOffline = async (id: number) => {
+        if (!window.confirm(`¿Estás seguro de poner la PC ${id} fuera de servicio?`)) return;
+        try {
+            await pcControlService.updatePcStatus(id, { 
+                estado: 'sin_conexion',
+                voluntario_id: null,
+                inicio_sesion: null,
+                tiempo_limite: null
+            });
+            toast.success(`PC ${id} ahora está Offline`);
+        } catch (error) {
+            toast.error('Error al actualizar estado');
+        }
+    };
+
+
 
     const handleSaveConfig = async () => {
         if (!eventData) return;
@@ -212,6 +241,7 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
         }
         if (status === 'bloqueada') return 'bg-gray-200 border-gray-400 text-gray-600';
         if (status === 'mantenimiento') return 'bg-orange-100 border-orange-300 text-orange-800';
+        if (status === 'pausa') return 'bg-purple-100 border-purple-400 text-purple-900';
         if (status === 'sin_conexion') return 'bg-gray-100 border-gray-300 text-gray-400';
         return 'bg-white border-gray-200';
     };
@@ -227,10 +257,21 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
                     setTimeLeft(calculateTimeRemaining(pc.tiempo_limite!));
                 }, 1000);
                 return () => clearInterval(interval);
+            } else if (pc.estado === 'pausa' && pc.inicio_sesion) {
+                const updateElapsed = () => {
+                    const start = parseSafeDate(pc.inicio_sesion!);
+                    const diff = Math.floor((Date.now() - start.getTime()) / 1000);
+                    const m = Math.floor(diff / 60);
+                    const s = diff % 60;
+                    setTimeLeft(`${m}:${s.toString().padStart(2, '0')}`);
+                };
+                updateElapsed();
+                const interval = setInterval(updateElapsed, 1000);
+                return () => clearInterval(interval);
             } else {
                 setTimeLeft('--:--');
             }
-        }, [pc.estado, pc.tiempo_limite]);
+        }, [pc.estado, pc.tiempo_limite, pc.inicio_sesion]);
 
         return (
             <div className={`border rounded-lg p-4 shadow-sm flex flex-col justify-between h-40 transition-colors duration-300 ${getStatusColor(pc.estado, pc.tiempo_limite, pc.inicio_sesion)}`}>
@@ -262,6 +303,19 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
                             </div>
                         </>
                     )}
+                    {pc.estado === 'pausa' && (
+                        <>
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                                <User size={16} />
+                                <span className="truncate">{pc.voluntario?.fullName || pc.voluntario_nombre_libre || 'En Pausa'}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-lg font-bold font-mono">
+                                <Clock size={16} className="text-purple-600" />
+                                <span>{timeLeft}</span>
+                                <span className="text-[10px] ml-1 uppercase">Pausa</span>
+                            </div>
+                        </>
+                    )}
                     {pc.estado === 'disponible' && (
                         <span className="text-sm italic opacity-75">Esperando usuario...</span>
                     )}
@@ -270,12 +324,30 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
                     )}
                 </div>
 
-                <div className="flex justify-end pt-2 border-t border-black/5">
+                <div className="flex justify-end pt-2 border-t border-black/5 gap-2">
                     {pc.estado !== 'disponible' && pc.estado !== 'sin_conexion' && (
                         <button
                             onClick={() => handleReset(pc.id)}
                             className="bg-white/80 hover:bg-white text-gray-700 hover:text-red-600 p-1.5 rounded transition-colors"
                             title="Resetear / Liberar"
+                        >
+                            <Unlock size={16} />
+                        </button>
+                    )}
+                    {pc.estado !== 'sin_conexion' && (
+                        <button
+                            onClick={() => handleSetOffline(pc.id)}
+                            className="bg-white/80 hover:bg-white text-gray-500 hover:text-orange-600 p-1.5 rounded transition-colors"
+                            title="Poner Offline (Fuera de servicio)"
+                        >
+                            <MonitorOff size={16} />
+                        </button>
+                    )}
+                    {pc.estado === 'sin_conexion' && (
+                        <button
+                            onClick={() => pcControlService.resetPc(pc.id)}
+                            className="bg-white/80 hover:bg-white text-green-600 p-1.5 rounded transition-colors"
+                            title="Restaurar a Disponible"
                         >
                             <Unlock size={16} />
                         </button>
@@ -374,6 +446,9 @@ const PCMonitor: React.FC<PCMonitorProps> = ({ eventSlugProp, eventIdProp }) => 
                         </div>
                         <div className="flex items-center gap-1 text-xs">
                             <div className="w-3 h-3 bg-red-200 border border-red-400 rounded"></div> Tiempo Agotado
+                        </div>
+                        <div className="flex items-center gap-1 text-xs">
+                            <div className="w-3 h-3 bg-purple-200 border border-purple-400 rounded"></div> Pausa
                         </div>
                     </div>
 
