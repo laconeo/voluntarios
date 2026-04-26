@@ -283,95 +283,101 @@
       }
 
       if (res?.success && res.volunteers?.length > 0) {
-        sel.innerHTML = '<option value="">— Seleccioná tu nombre —</option>' +
+        sel.innerHTML = '<option value="">— Selecioná tu nombre —</option>' +
           res.volunteers.map(v => {
             const isSelected = v.id === lastUserId ? 'selected' : '';
             return `<option value="${escHtml(v.id)}" ${isSelected}>${escHtml(v.fullName)}</option>`;
           }).join('') +
           '<option value="__otro__" disabled>——————————</option>' +
-          `<option value="__otro__" ${lastUserName ? 'selected' : ''}>👤 Otro (comodín)</option>`;
+          `<option value="__otro__" ${lastUserName && !lastUserId ? 'selected' : ''}>👤 Otro (comodín)</option>`;
       } else {
         sel.innerHTML = `<option value="">⚠ ${escHtml(res?.error || 'Sin voluntarios activos')}</option>` +
           `<option value="__otro__" ${lastUserName ? 'selected' : ''}>👤 Otro (comodín)</option>`;
       }
 
-      // Disparar evento change inicialmente por si el comodín está seleccionado
+      // Mostrar/ocultar input libre al seleccionar "Otro"
+      sel.addEventListener('change', () => {
+        const esOtro = sel.value === '__otro__';
+        if (wrap) wrap.style.display = esOtro ? 'block' : 'none';
+        if (esOtro && input) {
+          input.style.borderColor = FS.border;
+          input.style.boxShadow = '';
+          input.style.userSelect = 'text';
+          input.style.pointerEvents = 'auto';
+          input.addEventListener('keydown', e => e.stopPropagation());
+          input.addEventListener('keyup', e => e.stopPropagation());
+          input.addEventListener('keypress', e => e.stopPropagation());
+          setTimeout(() => { if (!input.value) input.focus(); }, 150);
+        }
+      });
+
+      // Disparar change inicial para restaurar estado del comodín
       setTimeout(() => {
         if (!document.getElementById('__fs-vol__')) return;
         sel.dispatchEvent(new Event('change'));
-        if (lastUserName && input) {
-           input.value = lastUserName;
-        }
+        if (lastUserName && input) input.value = lastUserName;
       }, 10);
 
-      // Ya terminamos de cargar, liberar el lock
+      // Ya terminamos de cargar — liberar el lock
       isWiringLogin = false;
+
+      // Bandera por invocación para evitar doble-inicio si el overlay se re-inyecta
+      let sessionStarted = false;
+
+      // CLICK en "Iniciar sesión" — {once:true} garantiza que se dispare solo una vez aunque
+      // hubiera alguna re-inyección rápida del DOM.
+      btn.addEventListener('click', async () => {
+        if (sessionStarted) return;          // guardia extra contra doble-click
+        sessionStarted = true;
+
+        const isOtro = sel.value === '__otro__';
+        const userId = isOtro ? null : sel.value;
+        const nombre = isOtro ? input?.value?.trim() : null;
+
+        // Guardar localmente
+        try {
+          localStorage.setItem('__fs_last_user_id', userId || '');
+          localStorage.setItem('__fs_last_user_name', nombre || '');
+        } catch(e) {}
+
+        if (!isOtro && !userId) {
+          notice('__fs-lmsg__', 'Selecioná tu nombre antes de continuar.', 'warn');
+          sessionStarted = false;            // permitir reintentar
+          return;
+        }
+        if (isOtro && !nombre) {
+          notice('__fs-lmsg__', 'Ingresá tu nombre completo.', 'warn');
+          if (input) { input.style.borderColor = '#e53935'; input.focus(); }
+          sessionStarted = false;            // permitir reintentar
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Iniciando…';
+        try {
+          const res = await chrome.runtime.sendMessage({
+            type: 'START_SESSION',
+            userId,
+            nombreLibre: nombre,
+          });
+          if (res?.success) {
+            notice('__fs-lmsg__', '¡Sesión iniciada! Podés comenzar a trabajar.', 'ok');
+            setTimeout(() => hideOverlay(), 1600);
+          } else throw new Error(res?.error || 'Error desconocido');
+        } catch (e) {
+          notice('__fs-lmsg__', e.message, 'err');
+          btn.disabled = false;
+          btn.textContent = 'Iniciar sesión — 20 min';
+          sessionStarted = false;            // permitir reintentar tras error
+        }
+      }, { once: true });
+
     } catch (e) {
       isWiringLogin = false;
       if (!document.getElementById('__fs-vol__')) return;
       sel.innerHTML = `<option value="">⚠ Error: ${escHtml(e.message)}</option>` +
         '<option value="__otro__">👤 Otro (comodín)</option>';
     }
-
-    // Mostrar/ocultar input libre al seleccionar "Otro"
-    sel.addEventListener('change', () => {
-      const esOtro = sel.value === '__otro__';
-      if (wrap) wrap.style.display = esOtro ? 'block' : 'none';
-      if (esOtro && input) {
-        input.style.borderColor = FS.border;
-        input.style.boxShadow = '';
-        input.style.userSelect = 'text';
-        input.style.pointerEvents = 'auto';
-        
-        // Bloquear propagacion por si la app principal roba el teclado
-        input.addEventListener('keydown', e => e.stopPropagation());
-        input.addEventListener('keyup', e => e.stopPropagation());
-        input.addEventListener('keypress', e => e.stopPropagation());
-
-        // Focus garantizado sin que lo mate el render inicial
-        setTimeout(() => {
-            if (!input.value) input.focus();
-        }, 150);
-      }
-    });
-
-    btn.addEventListener('click', async () => {
-      const isOtro = sel.value === '__otro__';
-      const userId = isOtro ? null : sel.value;
-      const nombre = isOtro ? input?.value?.trim() : null;
-
-      // Guardar localmente
-      try {
-        localStorage.setItem('__fs_last_user_id', userId || '');
-        localStorage.setItem('__fs_last_user_name', nombre || '');
-      } catch(e) {}
-
-      if (!isOtro && !userId) {
-        notice('__fs-lmsg__', 'Seleccioná tu nombre antes de continuar.', 'warn');
-        return;
-      }
-      if (isOtro && !nombre) {
-        notice('__fs-lmsg__', 'Ingresá tu nombre completo.', 'warn');
-        if (input) { input.style.borderColor = '#e53935'; input.focus(); }
-        return;
-      }
-
-      btn.disabled = true; btn.textContent = 'Iniciando…';
-      try {
-        const res = await chrome.runtime.sendMessage({
-          type: 'START_SESSION',
-          userId,
-          nombreLibre: nombre,   // null si no es comodín
-        });
-        if (res?.success) {
-          notice('__fs-lmsg__', '¡Sesión iniciada! Podés comenzar a trabajar.', 'ok');
-          setTimeout(() => hideOverlay(), 1600);
-        } else throw new Error(res?.error || 'Error desconocido');
-      } catch (e) {
-        notice('__fs-lmsg__', e.message, 'err');
-        btn.disabled = false; btn.textContent = 'Iniciar sesión — 20 min';
-      }
-    });
   }
 
   // ============================================================
