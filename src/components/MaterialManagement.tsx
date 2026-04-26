@@ -46,6 +46,10 @@ const MaterialManagement: React.FC<MaterialManagementProps> = ({ eventId }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!currentMaterial.name?.trim()) {
+            toast.error('El nombre del material es requerido');
+            return;
+        }
         try {
             if (isEditing && currentMaterial.id) {
                 await supabaseApi.updateMaterial(currentMaterial.id, currentMaterial);
@@ -57,9 +61,9 @@ const MaterialManagement: React.FC<MaterialManagementProps> = ({ eventId }) => {
             setShowForm(false);
             resetForm();
             loadMaterials();
-        } catch (error) {
-            console.error(error);
-            toast.error('Error al guardar material');
+        } catch (error: any) {
+            console.error('[MaterialManagement] Error al guardar material:', error);
+            toast.error(`Error al guardar material: ${error?.message || JSON.stringify(error)}`);
         }
     };
 

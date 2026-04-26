@@ -123,6 +123,10 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
     };
 
     const handleMaterialToggle = async (userId: string, materialId: string) => {
+        if (!selectedEventId) {
+            toast.error('No hay evento seleccionado');
+            return;
+        }
         const current = deliveredMaterials[userId]?.[materialId] ?? false;
         const newStatus = !current;
 
@@ -134,8 +138,9 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
 
         try {
             await mockApi.toggleUserMaterial(selectedEventId, userId, materialId, newStatus);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error guardando material:', error);
+            toast.error(`Error al guardar material: ${error?.message || 'desconocido'}`);
             // Revert
             setDeliveredMaterials(prev => ({
                 ...prev,

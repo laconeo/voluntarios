@@ -588,7 +588,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
 
         <p className="mt-8 text-xs text-gray-400">
           © 2026 Hecho con ❤️ para proveer apoyo al usuario. <br />
-          Versión 0.1.6 25/4/2026
+          Versión 0.1.7 26/4/2026
         </p>
 
       </div>

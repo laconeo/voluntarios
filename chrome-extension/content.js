@@ -21,6 +21,7 @@
   let remainingSeconds = 0;
   let menuOpen = false;
   let currentView = null; // 'login', 'pause', 'report' or null
+  let isWiringLogin = false; // Prevents re-injection during async volunteer loading
 
 
 
@@ -101,15 +102,22 @@
         return;
     }
 
+    // Si estamos en medio de cargar la lista de voluntarios, no re-inyectar
+    if (isWiringLogin && nextView === 'login') {
+        return;
+    }
+
     currentView = nextView;
 
     if (isAvailable) {
       overlayEl.innerHTML = loginHTML(pcId);
       wireLogin(pcId, state);
     } else if (isPaused) {
+      isWiringLogin = false;
       overlayEl.innerHTML = pauseHTML(state);
       wirePause(state);
     } else {
+      isWiringLogin = false;
       overlayEl.innerHTML = reportHTML(state);
       wireReport(state);
     }
@@ -118,6 +126,7 @@
   function hideOverlay() {
     if (overlayEl) { overlayEl.remove(); overlayEl = null; }
     currentView = null;
+    isWiringLogin = false;
     document.body.style.overflow = '';
     ensureWidget();
     startCountdown();
@@ -258,11 +267,21 @@
     const input = document.getElementById('__fs-otro-nombre__');
     if (!sel || !btn) return;
 
+    // Marcar que estamos cargando voluntarios para evitar re-inyección
+    isWiringLogin = true;
+
     try {
       const lastUserId = localStorage.getItem('__fs_last_user_id') || '';
       const lastUserName = localStorage.getItem('__fs_last_user_name') || '';
 
       const res = await chrome.runtime.sendMessage({ type: 'GET_VOLUNTEERS' });
+
+      // Verificar que el overlay aún existe y pertenece a esta invocación
+      if (!overlayEl || !document.getElementById('__fs-vol__')) {
+        isWiringLogin = false;
+        return;
+      }
+
       if (res?.success && res.volunteers?.length > 0) {
         sel.innerHTML = '<option value="">— Seleccioná tu nombre —</option>' +
           res.volunteers.map(v => {
@@ -278,12 +297,18 @@
 
       // Disparar evento change inicialmente por si el comodín está seleccionado
       setTimeout(() => {
+        if (!document.getElementById('__fs-vol__')) return;
         sel.dispatchEvent(new Event('change'));
         if (lastUserName && input) {
            input.value = lastUserName;
         }
       }, 10);
+
+      // Ya terminamos de cargar, liberar el lock
+      isWiringLogin = false;
     } catch (e) {
+      isWiringLogin = false;
+      if (!document.getElementById('__fs-vol__')) return;
       sel.innerHTML = `<option value="">⚠ Error: ${escHtml(e.message)}</option>` +
         '<option value="__otro__">👤 Otro (comodín)</option>';
     }

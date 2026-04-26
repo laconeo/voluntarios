@@ -90,9 +90,9 @@ const MaterialDeliveryList: React.FC<MaterialDeliveryListProps> = ({ eventId, on
 
         try {
             await (mockApi as any).toggleUserMaterial(eventId, userId, materialId, newStatus);
-        } catch (error) {
-            console.error(error);
-            toast.error('Error al guardar estado');
+        } catch (error: any) {
+            console.error('[MaterialDeliveryList] Error al guardar entrega:', error);
+            toast.error(`Error al guardar: ${error?.message || JSON.stringify(error)}`);
             // Revert on error
             setDeliveredMaterials(prev => ({
                 ...prev,

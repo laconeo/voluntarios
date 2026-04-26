@@ -128,6 +128,7 @@ async function resetConfig() {
             await supabasePatch(`pcs_status?id=eq.${pcId}`, { 
                 estado: 'sin_conexion',
                 voluntario_id: null,
+                voluntario_nombre_libre: null,
                 inicio_sesion: null,
                 tiempo_limite: null
             });
@@ -165,7 +166,7 @@ async function checkStatus() {
     if (!pcData) {
         // La PC no existe en DB → registrarla
         try { await registerPc(pcId, eventoId); } catch { /* ya existe */ }
-        await syncState({ estado: 'disponible', tiempo_limite: null, voluntario_id: null, voluntario_nombre: null });
+        await syncState({ estado: 'disponible', tiempo_limite: null, voluntario_id: null, voluntario_nombre: null, voluntario_nombre_libre: null });
         isCheckingStatus = false;
         return;
     }
@@ -183,8 +184,6 @@ async function checkStatus() {
 
 async function syncState(newState) {
     const prevEstado = currentState?.estado;
-    const prevStateStr = JSON.stringify(currentState);
-    const newStateStr = JSON.stringify(newState);
     
     currentState = newState;
 
@@ -221,8 +220,9 @@ async function syncState(newState) {
         await chrome.storage.local.set({ isOverlayActive });
         broadcastToTabs({ type: 'HIDE_OVERLAY' });
     } else if (isOverlayActive) {
-        // Si ya estaba activo, solo reenviar si hay cambios reales en el objeto de estado
-        if (prevStateStr !== newStateStr) {
+        // Si ya estaba activo, solo reenviar si el ESTADO (disponible/pausa/report) cambió.
+        // Ignorar cambios menores en campos como voluntario_nombre para evitar re-render.
+        if (prevEstado !== newState.estado) {
             broadcastToTabs({ type: 'SHOW_OVERLAY', pcId, currentState: newState });
         }
     }
@@ -303,6 +303,7 @@ async function registerPc(id, evId) {
         estado: 'disponible',
         evento_id: evId || null,
         voluntario_id: null,
+        voluntario_nombre_libre: null,
         inicio_sesion: null,
         tiempo_limite: null
     };
