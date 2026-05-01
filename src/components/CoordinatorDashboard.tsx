@@ -138,10 +138,11 @@ const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ user, onLog
 
         try {
             await mockApi.toggleUserMaterial(selectedEventId, userId, materialId, newStatus);
+            if (newStatus) toast.success('Material entregado ✓');
         } catch (error: any) {
             console.error('Error guardando material:', error);
             toast.error(`Error al guardar material: ${error?.message || 'desconocido'}`);
-            // Revert
+            // Revert optimistic update on error
             setDeliveredMaterials(prev => ({
                 ...prev,
                 [userId]: { ...prev[userId], [materialId]: current }

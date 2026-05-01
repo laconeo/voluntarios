@@ -23,6 +23,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [isRegistering, setIsRegistering] = useState(!!initialDni);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showVersionNotes, setShowVersionNotes] = useState(false);
   const [termsContent, setTermsContent] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -588,7 +589,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
 
         <p className="mt-8 text-xs text-gray-400">
           © 2026 Hecho con ❤️ para proveer apoyo al usuario. <br />
-          Versión 0.1.7 26/4/2026
+          <button 
+            type="button" 
+            onClick={() => setShowVersionNotes(true)}
+            className="hover:text-fs-blue transition-colors hover:underline"
+          >
+            Versión 0.1.8 01/05/2026
+          </button>
         </p>
 
       </div>
@@ -631,6 +638,21 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
               Pedir ayuda a un misionero de servicio
             </a>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showVersionNotes}
+        onClose={() => setShowVersionNotes(false)}
+        title="Novedades de la Versión 0.1.8"
+      >
+        <div className="text-gray-700 space-y-3 text-sm">
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>Gestión de Voluntarios:</strong> Se agregó botón para eliminar turno en el historial de turnos de un voluntario en la versión móvil.</li>
+            <li><strong>Entrega de Materiales:</strong> Corrección validando que la entrega se realiza una vez por voluntario por evento (pudiendo usar los mismos materiales en todos los turnos). Se agregó mensaje toast de confirmación.</li>
+            <li><strong>Métricas del Stand:</strong> Nueva sección de Análisis de Ausentismo.</li>
+            <li><strong>Extensión (v1.0.5):</strong> Se valida que al finalizar la sesión el número de acompañantes inicie con 1. Actualización de los enlaces del menú "Actividades del stand" con tracking.</li>
+          </ul>
         </div>
       </Modal>
 

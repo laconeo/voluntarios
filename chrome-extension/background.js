@@ -101,8 +101,26 @@ async function loadConfig() {
 }
 
 async function configure(newPcId, newEventoId, newEventoNombre) {
-    pcId = parseInt(newPcId);
-    eventoId = newEventoId || null;
+    const pcIdNum = parseInt(newPcId);
+    const eventoIdStr = newEventoId || null;
+
+    // VALIDACIÓN DE COLISIÓN DE EVENTOS
+    try {
+        const data = await supabaseGet(`pcs_por_evento?select=evento_id,evento_nombre,estado&id=eq.${pcIdNum}`);
+        if (data && data.length > 0) {
+            const existing = data[0];
+            if (existing.evento_id && existing.evento_id !== eventoIdStr && existing.estado !== 'sin_conexion') {
+                const evtName = existing.evento_nombre || 'otro evento';
+                throw new Error(`La PC #${pcIdNum} ya está en uso en "${evtName}". Por favor, asigne un número diferente (ej. 101) para no desvincularla.`);
+            }
+        }
+    } catch (e) {
+        if (e.message.includes('desvincularla')) throw e;
+        console.warn('[PC] No se pudo validar colisión:', e.message);
+    }
+
+    pcId = pcIdNum;
+    eventoId = eventoIdStr;
     const eventoNombre = newEventoNombre || null;
     await chrome.storage.local.set({ pcId, eventoId, eventoNombre, configured: true });
     

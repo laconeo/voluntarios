@@ -1550,6 +1550,21 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                     )}
                                                 </div>
                                             </div>
+
+                                            {booking.status !== 'cancelled' && (
+                                                <div className="flex justify-end border-t border-gray-100 pt-2 mt-3">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (window.confirm('¿Estás seguro de que quieres eliminar este turno? Se enviará un aviso al voluntario.')) {
+                                                                handleDeleteBooking(booking.id);
+                                                            }
+                                                        }}
+                                                        className="flex items-center gap-1.5 text-red-600 hover:text-red-900 px-3 py-1.5 hover:bg-red-50 rounded-md transition-colors text-xs font-medium"
+                                                    >
+                                                        <Trash2 size={14} /> Eliminar turno
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>

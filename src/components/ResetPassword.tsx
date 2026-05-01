@@ -62,7 +62,7 @@ const ResetPassword = () => {
                 </form>
                 <p className="mt-8 text-xs text-gray-400">
                     © 2026 Hecho con ❤️ para proveer apoyo al usuario. <br />
-                    Versión 0.1.7 26/4/2026
+                    Versión 0.1.8 01/05/2026
                 </p>
             </div>
         </div>

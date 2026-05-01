@@ -51,12 +51,22 @@ interface HourlyStats {
     expSessions: number;
 }
 
+interface AttendanceStats {
+    day: string; // YYYY-MM-DD
+    label: string;
+    total: number;
+    attended: number;
+    absent: number;
+    pending: number;
+}
+
 interface MetricsState {
     days: DayRow[];
     totals: Totals;
     stationStats: StationStats[];
     dailyStationStats: DailyStationStats[];
     hourlyStats: HourlyStats[];
+    attendanceStats: AttendanceStats[];
     loadedAt: Date;
 }
 
@@ -303,7 +313,92 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                 { pcSessions: 0, pcPersonas: 0, pcExtensiones: 0, expSessions: 0, expPersonas: 0 }
             );
 
-            setData({ days, totals, stationStats, dailyStationStats, hourlyStats, loadedAt: new Date() });
+            // ── Ausentismo (Bookings & Shifts) ──────────────────────────────────
+            const { data: bookingsData } = await supabase
+                .from('bookings')
+                .select('attendance, status, shifts(date)')
+                .eq('event_id', eventId)
+                .neq('status', 'cancelled');
+            
+            const attendanceMap = new Map<string, AttendanceStats>();
+            
+            // ── Pre-llenar días según el filtro seleccionado ──
+            let fillStart: Date | undefined = since;
+            let fillEnd: Date | undefined;
+
+            if (period === 'all') {
+                if (eventStart && eventEnd) {
+                    fillStart = new Date(eventStart + 'T00:00:00');
+                    fillEnd = new Date(eventEnd + 'T00:00:00');
+                }
+            } else {
+                fillEnd = new Date(); // local today
+            }
+
+            if (fillStart && fillEnd && !isNaN(fillStart.getTime()) && !isNaN(fillEnd.getTime())) {
+                // Ensure we iterate smoothly by converting to clean YYYY-MM-DD local strings first
+                const startStr = toLocalDateStr(fillStart);
+                const endStr = toLocalDateStr(fillEnd);
+                const s = new Date(startStr + 'T00:00:00');
+                const e = new Date(endStr + 'T00:00:00');
+                let current = new Date(s);
+                while (current <= e) {
+                    const dayStr = toLocalDateStr(current);
+                    attendanceMap.set(dayStr, {
+                        day: dayStr,
+                        label: dayLabel(dayStr),
+                        total: 0,
+                        attended: 0,
+                        absent: 0,
+                        pending: 0
+                    });
+                    current.setDate(current.getDate() + 1);
+                }
+            }
+            
+            if (bookingsData) {
+                for (const b of bookingsData as any[]) {
+                    if (!b.shifts || !b.shifts.date) continue;
+                    
+                    const day = b.shifts.date;
+                    if (!attendanceMap.has(day)) {
+                        attendanceMap.set(day, {
+                            day,
+                            label: dayLabel(day),
+                            total: 0,
+                            attended: 0,
+                            absent: 0,
+                            pending: 0
+                        });
+                    }
+                    
+                    const stat = attendanceMap.get(day)!;
+                    stat.total++;
+                    if (b.attendance === 'attended') stat.attended++;
+                    else if (b.attendance === 'absent') stat.absent++;
+                    else stat.pending++;
+                }
+            }
+            
+            const attendanceStats = Array.from(attendanceMap.values())
+                .filter(stat => {
+                    const statDateStr = stat.day;
+                    if (period === 'all' && eventStart && eventEnd) {
+                        return statDateStr >= eventStart && statDateStr <= eventEnd;
+                    }
+                    if (period === 'today') {
+                        return statDateStr === toLocalDateStr(new Date());
+                    }
+                    if (period === 'week') {
+                        const todayStr = toLocalDateStr(new Date());
+                        const sinceStr = toLocalDateStr(since!);
+                        return statDateStr >= sinceStr && statDateStr <= todayStr;
+                    }
+                    return true;
+                })
+                .sort((a, b) => a.day.localeCompare(b.day));
+
+            setData({ days, totals, stationStats, dailyStationStats, hourlyStats, attendanceStats, loadedAt: new Date() });
         } catch (error) {
             console.error('[StandMetrics] Error fatal cargando métricas:', error);
         } finally {
@@ -804,6 +899,68 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                 )}
             </Section>
 
+            {/* ── Análisis de Ausentismo ── */}
+            <Section title="Análisis de Ausentismo de Voluntarios" icon={<Users size={18} color="#ea580c" />}>
+                {!data?.attendanceStats.length ? (
+                    <Empty text="Sin datos de asistencia para el período seleccionado." />
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ background: '#fff7ed' }}>
+                                        <Th>Fecha</Th>
+                                        <Th align="right">Turnos Confirmados</Th>
+                                        <Th align="right">Presentes</Th>
+                                        <Th align="right">Ausentes</Th>
+                                        <Th align="right">Pendientes</Th>
+                                        <Th align="right">% Ausentismo (s/Confirmados)</Th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {data.attendanceStats.map((stat, i) => {
+                                        // Ausentismo = ausentes / (presentes + ausentes)  ó sobre total confirmado?
+                                        // Usualmente sobre el total de turnos que no están pendientes
+                                        // O sobre el total general. Vamos a usar ausentes / (presentes + ausentes) si hay marcados, sino 0.
+                                        const totalMarked = stat.attended + stat.absent;
+                                        const pct = totalMarked > 0 ? ((stat.absent / totalMarked) * 100).toFixed(1) : '0.0';
+                                        
+                                        return (
+                                            <tr key={stat.day} style={{ background: i % 2 === 0 ? 'white' : '#fafafa', borderBottom: `1px solid ${FS_BORDER}` }}>
+                                                <td style={{ padding: '9px 12px', fontWeight: 600, color: '#333' }}>
+                                                    {stat.label}
+                                                </td>
+                                                <Td>{stat.total}</Td>
+                                                <Td color="#15803d" bold>{stat.attended}</Td>
+                                                <Td color="#dc2626" bold>{stat.absent}</Td>
+                                                <Td color="#94a3b8">{stat.pending}</Td>
+                                                <Td color="#ea580c" bold>{pct}%</Td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                                <tfoot>
+                                    <tr style={{ background: '#ffedd5', borderTop: `1px solid #fdba74` }}>
+                                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#9a3412', fontSize: 12, textTransform: 'uppercase' }}>Total</td>
+                                        <Td bold>{data.attendanceStats.reduce((acc, s) => acc + s.total, 0)}</Td>
+                                        <Td bold color="#15803d">{data.attendanceStats.reduce((acc, s) => acc + s.attended, 0)}</Td>
+                                        <Td bold color="#dc2626">{data.attendanceStats.reduce((acc, s) => acc + s.absent, 0)}</Td>
+                                        <Td bold color="#94a3b8">{data.attendanceStats.reduce((acc, s) => acc + s.pending, 0)}</Td>
+                                        <Td bold color="#ea580c">
+                                            {(() => {
+                                                const totalA = data.attendanceStats.reduce((acc, s) => acc + s.attended, 0);
+                                                const totalM = data.attendanceStats.reduce((acc, s) => acc + s.absent, 0);
+                                                const sum = totalA + totalM;
+                                                return sum > 0 ? ((totalM / sum) * 100).toFixed(1) + '%' : '0.0%';
+                                            })()}
+                                        </Td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </Section>
 
         </div>
     );
@@ -901,10 +1058,19 @@ const StationTable = ({ stats, totalsColor, isTotal }: { stats: StationStats[]; 
 };
 
 const HourlyChart = ({ stats }: { stats: HourlyStats[] }) => {
-    // Filtrar solo las horas con actividad para que el gráfico no sea demasiado ancho si no hay nada
-    // Pero mejor mostrar de 8am a 20pm por defecto o el rango activo
-    const activeStats = stats.filter(s => s.hour >= 8 && s.hour <= 21);
-    const maxVal = Math.max(...stats.map(s => s.pcSessions + s.expSessions), 1);
+    // Encontrar el rango de horas con actividad (por defecto 8 a 21)
+    let minActive = 8;
+    let maxActive = 21;
+
+    for (const s of stats) {
+        if (s.pcSessions > 0 || s.expSessions > 0) {
+            if (s.hour < minActive) minActive = s.hour;
+            if (s.hour > maxActive) maxActive = s.hour;
+        }
+    }
+
+    const activeStats = stats.filter(s => s.hour >= minActive && s.hour <= maxActive);
+    const maxVal = Math.max(...activeStats.map(s => s.pcSessions + s.expSessions), 1);
 
     return (
         <div style={{ padding: '10px 0' }}>

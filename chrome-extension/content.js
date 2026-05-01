@@ -47,10 +47,11 @@
 
   // Quick-links del stand
   const QUICK_LINKS = [
-    { icon: '🌳', label: 'Crear Árbol', url: 'https://www.familysearch.org/es/gettingstarted/create-family-tree' },
-    { icon: '🎁', label: 'Regalo', url: 'https://www.familysearch.org/es/tree-designs/global/' },
-    { icon: '📖', label: 'Apellido', url: 'https://www.familysearch.org/es/surname' },
-    { icon: '📷', label: 'Rincón de tus Abuelos', url: 'https://www.familysearch.org/es/campaign/photocollage/editor' },
+    { icon: '👤', label: 'Cuenta', url: 'https://www.familysearch.org/es/identity/signup/username-password?cid=RE-00047742' },
+    { icon: '🌳', label: 'Árbol guiado', url: 'https://www.familysearch.org/es/tree/guided/connect-to-tree?cid=RE-00047742' },
+    { icon: '🧭', label: 'Navegación del árbol', url: 'https://www.familysearch.org/es/tree/pedigree/landscape/?cid=RE-00047742' },
+    { icon: '🎁', label: 'Regalo Árbol con Diseño', url: 'https://www.familysearch.org/es/tree-designs/global/?cid=RE-00047742' },
+    { icon: '📖', label: 'Apellidos', url: 'https://www.familysearch.org/es/surname?cid=RE-00047742' },
     { icon: '❓', label: 'Ayuda', url: 'https://laconeo.github.io/centro-virtual/' },
   ];
 
@@ -413,7 +414,7 @@
             <span id="__fs-cnt__" style="
               font-size:30px;font-weight:300;color:${FS.text};
               min-width:44px;text-align:center;
-            ">0</span>
+            ">1</span>
             <button id="__fs-plus__" style="
               width:34px;height:34px;border-radius:50%;cursor:pointer;
               border:1px solid ${FS.border};background:${FS.bgAlt};
@@ -436,7 +437,7 @@
   function wireReport(state) {
     // 'count' es local (personas ayudadas en esta apertura del overlay)
     // 'sessionExtensions' es del módulo — persiste entre snoozes
-    let count = 0;
+    let count = 1;
     const cntEl = document.getElementById('__fs-cnt__');
     const minusEl = document.getElementById('__fs-minus__');
     const plusEl = document.getElementById('__fs-plus__');
@@ -444,7 +445,7 @@
     const submit = document.getElementById('__fs-submit__');
     const actSel = document.getElementById('__fs-act__');
 
-    minusEl?.addEventListener('click', () => { if (count > 0) { count--; if (cntEl) cntEl.textContent = count; } });
+    minusEl?.addEventListener('click', () => { if (count > 1) { count--; if (cntEl) cntEl.textContent = count; } });
     plusEl?.addEventListener('click', () => { count++; if (cntEl) cntEl.textContent = count; });
 
     snooze?.addEventListener('click', async () => {

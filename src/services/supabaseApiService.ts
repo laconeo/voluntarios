@@ -2191,10 +2191,19 @@ export const supabaseApi = {
 
     toggleUserMaterial: async (eventId: string, userId: string, materialId: string, delivered: boolean): Promise<void> => {
         if (delivered) {
-            const { error } = await supabase.from('user_materials').insert({ event_id: eventId, user_id: userId, material_id: materialId });
-            if (error && error.code !== '23505') throw error; // Ignore 23505 (unique violation)
+            // Usamos upsert especificando la restricción única real de la tabla
+            const { error } = await supabase.from('user_materials').upsert(
+                { event_id: eventId, user_id: userId, material_id: materialId },
+                { onConflict: 'user_id,material_id' }
+            );
+            if (error) throw error;
         } else {
-            const { error } = await supabase.from('user_materials').delete().match({ event_id: eventId, user_id: userId, material_id: materialId });
+            const { error } = await supabase
+                .from('user_materials')
+                .delete()
+                .eq('event_id', eventId)
+                .eq('user_id', userId)
+                .eq('material_id', materialId);
             if (error) throw error;
         }
     },
