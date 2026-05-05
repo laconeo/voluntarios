@@ -34,6 +34,8 @@ export interface Event {
   ocupacion: number; // porcentaje
   cantidadPCs?: number; // Cantidad de computadoras del stand para este evento
   showAvailableShiftsModal?: boolean; // Si se muestra la modal de últimos turnos disponibles al ingresar
+  convocatoriaCerrada?: boolean; // Si las registraciones de voluntarios están cerradas
+  mensajeConvocatoriaCerrada?: string; // Mensaje personalizado cuando la convocatoria está cerrada
   createdAt: string;
 }
 

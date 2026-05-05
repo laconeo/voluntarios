@@ -43,6 +43,8 @@ const mapEvent = (row: any): Event => ({
     ocupacion: 0, // Calculated separately
     cantidadPCs: row.cantidad_pcs ?? undefined,
     showAvailableShiftsModal: row.show_available_shifts_modal ?? false,
+    convocatoriaCerrada: row.convocatoria_cerrada ?? false,
+    mensajeConvocatoriaCerrada: row.mensaje_convocatoria_cerrada ?? '',
     createdAt: row.created_at,
 });
 
@@ -637,6 +639,8 @@ export const supabaseApi = {
         };
         if (eventData.cantidadPCs !== undefined) dbEvent.cantidad_pcs = eventData.cantidadPCs;
         if (eventData.showAvailableShiftsModal !== undefined) dbEvent.show_available_shifts_modal = eventData.showAvailableShiftsModal;
+        if (eventData.convocatoriaCerrada !== undefined) dbEvent.convocatoria_cerrada = eventData.convocatoriaCerrada;
+        if (eventData.mensajeConvocatoriaCerrada !== undefined) dbEvent.mensaje_convocatoria_cerrada = eventData.mensajeConvocatoriaCerrada;
         const { data, error } = await supabase.from('events').insert(dbEvent).select().single();
         if (error) throw error;
         return mapEvent(data);
@@ -655,6 +659,8 @@ export const supabaseApi = {
         if (updates.estado) dbUpdates.estado = updates.estado;
         if (updates.cantidadPCs !== undefined) dbUpdates.cantidad_pcs = updates.cantidadPCs;
         if (updates.showAvailableShiftsModal !== undefined) dbUpdates.show_available_shifts_modal = updates.showAvailableShiftsModal;
+        if (updates.convocatoriaCerrada !== undefined) dbUpdates.convocatoria_cerrada = updates.convocatoriaCerrada;
+        if (updates.mensajeConvocatoriaCerrada !== undefined) dbUpdates.mensaje_convocatoria_cerrada = updates.mensajeConvocatoriaCerrada;
 
         const { data, error } = await supabase.from('events').update(dbUpdates).eq('id', eventId).select().single();
 

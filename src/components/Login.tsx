@@ -650,6 +650,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
           <ul className="list-disc pl-5 space-y-2">
             <li><strong>Entrega de Materiales:</strong> Corrección del registro de materiales.</li>
             <li><strong>Métricas del Stand:</strong> Se agrega filtro seleccionando un día determinado. Se agregaron dos secciones: Turnos Cancelados y Actividad de Computadoras.</li>
+            <li><strong>Gestión de Eventos:</strong> En la edición del evento se puede marcar el cierre de la convocatoria para no permitir que se registren más voluntarios.</li>
           </ul>
         </div>
       </Modal>

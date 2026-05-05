@@ -145,6 +145,37 @@ const EventPortalWrapper: React.FC<{
     }
   };
 
+  // Check if registration is closed
+  if (event.convocatoriaCerrada) {
+    const mensaje = event.mensajeConvocatoriaCerrada?.trim()
+      || 'Las inscripciones para este evento han cerrado. Gracias por tu interés en participar como voluntario.';
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg border border-red-200 p-8 text-center">
+          <div className="mb-6">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">{event.nombre}</h2>
+            <span className="inline-block px-3 py-1 bg-red-100 text-red-700 text-sm font-semibold rounded-full">
+              Convocatoria Cerrada
+            </span>
+          </div>
+          <p className="text-gray-600 leading-relaxed">{mensaje}</p>
+          <div className="mt-6 pt-4 border-t border-gray-100">
+            <img
+              src={`${import.meta.env.BASE_URL}FamilySearch-logo.png`}
+              alt="FamilySearch Logo"
+              className="w-32 h-auto object-contain mx-auto opacity-60"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return <Login onLogin={onLogin} onRegister={handleRegisterWithEvent} onRecoverPassword={onRecoverPassword} contactEmail={event.contactEmail} />;
   }

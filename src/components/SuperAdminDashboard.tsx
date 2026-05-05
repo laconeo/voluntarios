@@ -54,6 +54,8 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
         estado: 'Inactivo' as 'Activo' | 'Inactivo' | 'Archivado',
         cantidadPCs: '' as string | number,
         showAvailableShiftsModal: false as boolean,
+        convocatoriaCerrada: false as boolean,
+        mensajeConvocatoriaCerrada: '' as string,
     });
 
     const nombreEventoInputRef = React.useRef<HTMLInputElement>(null);
@@ -121,7 +123,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
     };
 
     const iniciarCrearEvento = () => {
-        setFormData({ nombre: '', slug: '', ubicacion: '', pais: '', contactEmail: '', fechaInicio: '', fechaFin: '', descripcion: '', estado: 'Inactivo', cantidadPCs: '', showAvailableShiftsModal: false });
+        setFormData({ nombre: '', slug: '', ubicacion: '', pais: '', contactEmail: '', fechaInicio: '', fechaFin: '', descripcion: '', estado: 'Inactivo', cantidadPCs: '', showAvailableShiftsModal: false, convocatoriaCerrada: false, mensajeConvocatoriaCerrada: '' });
         setVistaActual('crear');
     };
 
@@ -139,6 +141,8 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
             estado: evento.estado,
             cantidadPCs: evento.cantidadPCs !== undefined ? evento.cantidadPCs : '',
             showAvailableShiftsModal: evento.showAvailableShiftsModal ?? false,
+            convocatoriaCerrada: evento.convocatoriaCerrada ?? false,
+            mensajeConvocatoriaCerrada: evento.mensajeConvocatoriaCerrada ?? '',
         });
         setVistaActual('editar');
     };
@@ -1103,6 +1107,43 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ user, onViewM
                                             </p>
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* Convocatoria cerrada */}
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                    <div className="flex items-start gap-3 mb-3">
+                                        <div className="flex items-center h-5 mt-0.5">
+                                            <input
+                                                type="checkbox"
+                                                id="convocatoriaCerrada"
+                                                name="convocatoriaCerrada"
+                                                checked={formData.convocatoriaCerrada}
+                                                onChange={handleInputChange}
+                                                className="w-4 h-4 rounded border-red-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="convocatoriaCerrada" className="text-sm font-semibold text-red-800 cursor-pointer flex items-center gap-2">
+                                                ⛔ Convocatoria cerrada
+                                            </label>
+                                            <p className="text-xs text-red-600 mt-1">
+                                                Al activar esta opción, los voluntarios que intenten ingresar verán únicamente el mensaje personalizado abajo, sin poder registrarse ni iniciar sesión.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {formData.convocatoriaCerrada && (
+                                        <div>
+                                            <label className="block text-xs font-semibold text-red-700 mb-1">Mensaje personalizado para los voluntarios</label>
+                                            <textarea
+                                                name="mensajeConvocatoriaCerrada"
+                                                value={formData.mensajeConvocatoriaCerrada}
+                                                onChange={handleInputChange}
+                                                rows={3}
+                                                placeholder="Ej: Las inscripciones para este evento han cerrado. Gracias por tu interés."
+                                                className="w-full px-3 py-2 border border-red-300 rounded-md focus:ring-1 focus:ring-red-500 focus:border-red-500 bg-white text-sm resize-none"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
