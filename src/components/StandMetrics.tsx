@@ -5,7 +5,7 @@ import autoTable from 'jspdf-autotable';
 import { toLocalDateStr, parseSafeDate } from '../lib/utils';
 import { pcControlService } from '../services/pcControlService';
 import { supabase } from '../lib/supabaseClient';
-import { Monitor, Users, Zap, Clock, TrendingUp, RefreshCw, AlertTriangle, Activity, Download } from 'lucide-react';
+import { Monitor, Users, Zap, Clock, TrendingUp, RefreshCw, AlertTriangle, Activity, Download, XCircle } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StandMetrics — Dashboard unificado de rendimiento del stand
@@ -58,6 +58,14 @@ interface AttendanceStats {
     attended: number;
     absent: number;
     pending: number;
+    cancelled: number;
+}
+
+interface PcStat {
+    pcId: number;
+    pcName: string;
+    totalPersonas: number;
+    activeDays: number;
 }
 
 interface MetricsState {
@@ -67,6 +75,7 @@ interface MetricsState {
     dailyStationStats: DailyStationStats[];
     hourlyStats: HourlyStats[];
     attendanceStats: AttendanceStats[];
+    pcStats: PcStat[];
     loadedAt: Date;
 }
 
@@ -101,7 +110,7 @@ const urgency = (ms: number | null): { color: string; bg: string; border: string
 
 const PERIODS = [
     { label: 'Hoy', value: 'today' },
-    { label: '7 días', value: 'week' },
+    { label: 'Elegir una fecha', value: 'custom' },
     { label: 'Todo el evento', value: 'all' },
 ] as const;
 type Period = typeof PERIODS[number]['value'];
@@ -111,7 +120,7 @@ const FS_DARK = '#006838';
 const FS_BLUE = '#005994';
 const FS_BORDER = '#d9d9d9';
 
-const sinceForPeriod = (p: Period, eventStart?: string): Date | undefined => {
+const sinceForPeriod = (p: Period, eventStart?: string, customDate?: string): Date | undefined => {
     if (p === 'all') {
         if (eventStart) {
             const d = new Date(eventStart + 'T00:00:00');
@@ -119,9 +128,11 @@ const sinceForPeriod = (p: Period, eventStart?: string): Date | undefined => {
         }
         return undefined;
     }
+    if (p === 'custom' && customDate) {
+        return new Date(customDate + 'T00:00:00');
+    }
     const d = new Date();
     if (p === 'today') d.setHours(0, 0, 0, 0);
-    if (p === 'week') { d.setDate(d.getDate() - 6); d.setHours(0, 0, 0, 0); }
     return d;
 };
 
@@ -134,6 +145,7 @@ const dayLabel = (dateStr: string): string => {
 
 const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventStart, eventEnd }) => {
     const [period, setPeriod] = useState<Period>('today');
+    const [customDate, setCustomDate] = useState<string>(toLocalDateStr(new Date()));
     const [data, setData] = useState<MetricsState | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -200,7 +212,7 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
     }, [fetchDeadTime]);
 
     const load = useCallback(async () => {
-        const since = sinceForPeriod(period, eventStart);
+        const since = sinceForPeriod(period, eventStart, customDate);
         setRefreshing(true);
         // No limpiamos 'data' inmediatamente para evitar parpadeo si ya había algo
         // Pero si es la carga inicial (loading true), sí lo dejamos en null
@@ -238,6 +250,9 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                 const hour = logDate.getHours();
                 const stId = log.stationId;
                 const stNombre = log.stationNombre || 'Puesto Desconocido';
+                
+                if (period === 'custom' && day !== customDate) continue;
+                if (period === 'today' && day !== toLocalDateStr(new Date())) continue;
 
                 // Total
                 if (!mapTotal.has(stId)) {
@@ -262,14 +277,38 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                 hStat.expSessions++;
             }
 
-            // Bitácora para sesiones de PC por hora
+            // Bitácora para sesiones de PC por hora y Cantidad por PC
             const bitacora = await pcControlService.getBitacoraForEvent(eventId, since);
+            const mapPc = new Map<number, { pcId: number; pcName: string; totalPersonas: number; days: Set<string> }>();
+
             for (const b of bitacora) {
                 const bDate = parseSafeDate(b.created_at);
                 const hour = bDate.getHours();
+                const dayStr = toLocalDateStr(bDate);
+                
+                if (period === 'custom' && dayStr !== customDate) continue;
+                if (period === 'today' && dayStr !== toLocalDateStr(new Date())) continue;
+                
                 const hStat = hourlyMap.get(hour)!;
                 hStat.pcSessions++;
+
+                const pcId = b.pc_id;
+                const peopleHelped = (b.acciones_reportadas as any)?.people_helped ?? 0;
+                
+                if (!mapPc.has(pcId)) {
+                    mapPc.set(pcId, { pcId, pcName: `PC ${pcId}`, totalPersonas: 0, days: new Set() });
+                }
+                const p = mapPc.get(pcId)!;
+                p.totalPersonas += Number(peopleHelped);
+                p.days.add(dayStr);
             }
+
+            const pcStats: PcStat[] = Array.from(mapPc.values()).map(p => ({
+                pcId: p.pcId,
+                pcName: p.pcName,
+                totalPersonas: p.totalPersonas,
+                activeDays: p.days.size
+            })).sort((a, b) => a.pcId - b.pcId);
 
             const stationStats = Array.from(mapTotal.values()).sort((a, b) => a.stationNombre.localeCompare(b.stationNombre));
             
@@ -289,6 +328,12 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                     // Filtrado estricto por fechas de evento si es "todo el evento"
                     if (period === 'all' && eventStart && eventEnd) {
                         return row.day >= eventStart && row.day <= eventEnd;
+                    }
+                    if (period === 'custom') {
+                        return row.day === customDate;
+                    }
+                    if (period === 'today') {
+                        return row.day === toLocalDateStr(new Date());
                     }
                     return true;
                 })
@@ -317,8 +362,7 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
             const { data: bookingsData } = await supabase
                 .from('bookings')
                 .select('attendance, status, shifts(date)')
-                .eq('event_id', eventId)
-                .neq('status', 'cancelled');
+                .eq('event_id', eventId);
             
             const attendanceMap = new Map<string, AttendanceStats>();
             
@@ -331,6 +375,9 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                     fillStart = new Date(eventStart + 'T00:00:00');
                     fillEnd = new Date(eventEnd + 'T00:00:00');
                 }
+            } else if (period === 'custom' && customDate) {
+                fillStart = new Date(customDate + 'T00:00:00');
+                fillEnd = new Date(customDate + 'T00:00:00');
             } else {
                 fillEnd = new Date(); // local today
             }
@@ -350,7 +397,8 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                         total: 0,
                         attended: 0,
                         absent: 0,
-                        pending: 0
+                        pending: 0,
+                        cancelled: 0
                     });
                     current.setDate(current.getDate() + 1);
                 }
@@ -368,15 +416,20 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                             total: 0,
                             attended: 0,
                             absent: 0,
-                            pending: 0
+                            pending: 0,
+                            cancelled: 0
                         });
                     }
                     
                     const stat = attendanceMap.get(day)!;
-                    stat.total++;
-                    if (b.attendance === 'attended') stat.attended++;
-                    else if (b.attendance === 'absent') stat.absent++;
-                    else stat.pending++;
+                    if (b.status === 'cancelled') {
+                        stat.cancelled++;
+                    } else {
+                        stat.total++;
+                        if (b.attendance === 'attended') stat.attended++;
+                        else if (b.attendance === 'absent') stat.absent++;
+                        else stat.pending++;
+                    }
                 }
             }
             
@@ -389,23 +442,21 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                     if (period === 'today') {
                         return statDateStr === toLocalDateStr(new Date());
                     }
-                    if (period === 'week') {
-                        const todayStr = toLocalDateStr(new Date());
-                        const sinceStr = toLocalDateStr(since!);
-                        return statDateStr >= sinceStr && statDateStr <= todayStr;
+                    if (period === 'custom') {
+                        return statDateStr === customDate;
                     }
                     return true;
                 })
                 .sort((a, b) => a.day.localeCompare(b.day));
 
-            setData({ days, totals, stationStats, dailyStationStats, hourlyStats, attendanceStats, loadedAt: new Date() });
+            setData({ days, totals, stationStats, dailyStationStats, hourlyStats, attendanceStats, pcStats, loadedAt: new Date() });
         } catch (error) {
             console.error('[StandMetrics] Error fatal cargando métricas:', error);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [eventId, period, eventStart, eventEnd]);
+    }, [eventId, period, eventStart, eventEnd, customDate]);
 
     // Auto-refresh completo cada 2 minutos
     const MAIN_REFRESH_S = 120;
@@ -611,7 +662,7 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     {/* Selector de período */}
-                    <div style={{ display: 'flex', background: '#f0f0f0', borderRadius: 8, padding: 3, gap: 2 }}>
+                    <div style={{ display: 'flex', background: '#f0f0f0', borderRadius: 8, padding: 3, gap: 2, alignItems: 'center' }}>
                         {PERIODS.map(p => (
                             <button
                                 key={p.value}
@@ -632,6 +683,25 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                                 {p.label}
                             </button>
                         ))}
+                        {period === 'custom' && (
+                            <input 
+                                type="date" 
+                                value={customDate} 
+                                onChange={e => setCustomDate(e.target.value)} 
+                                style={{
+                                    border: 'none', 
+                                    background: 'white', 
+                                    padding: '5px 10px', 
+                                    borderRadius: 6, 
+                                    outline: 'none', 
+                                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)',
+                                    marginLeft: 6,
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: FS_DARK
+                                }} 
+                            />
+                        )}
                     </div>
                     <button
                         onClick={handleDownloadPDF}
@@ -899,6 +969,72 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                 )}
             </Section>
 
+            {/* ── Cantidad de Personas Atendidas por PC ── */}
+            <Section title="Cantidad de Personas Atendidas por PC" icon={<Monitor size={18} color="#7c3aed" />}>
+                {!data?.pcStats.length ? (
+                    <Empty text="Sin datos de atención en PCs para el período seleccionado." />
+                ) : (
+                    <div style={{ padding: '10px 0' }}>
+                        {(() => {
+                            const maxVal = Math.max(...data.pcStats.map(pc => pc.totalPersonas), 1);
+                            return (
+                                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 180, borderBottom: `2px solid ${FS_BORDER}`, paddingBottom: 5, overflowX: 'auto', minWidth: '100%' }} className="hide-scrollbar">
+                                    {data.pcStats.map(pc => {
+                                        const hPct = (pc.totalPersonas / maxVal) * 100;
+                                        return (
+                                            <div key={pc.pcId} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 40 }}>
+                                                <div style={{ width: '100%', height: 140, display: 'flex', flexDirection: 'column-reverse' }}>
+                                                    <div 
+                                                        style={{ height: `${hPct}%`, background: '#7c3aed', width: '100%', borderRadius: '4px 4px 0 0', transition: 'height 0.3s' }} 
+                                                        title={`Total: ${pc.totalPersonas}`}
+                                                    />
+                                                </div>
+                                                <span style={{ fontSize: 11, fontWeight: 700, color: '#666', marginTop: 8 }}>{pc.pcName}</span>
+                                                <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 800 }}>{pc.totalPersonas}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                )}
+            </Section>
+
+            {/* ── Turnos Cancelados ── */}
+            <Section title="Turnos Cancelados" icon={<XCircle size={18} color="#ef4444" />}>
+                {!data?.attendanceStats.length ? (
+                    <Empty text="Sin datos para el período seleccionado." />
+                ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ background: '#fef2f2', color: '#991b1b' }}>
+                                    <Th>Fecha</Th>
+                                    <Th align="right">Turnos Cancelados</Th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {data.attendanceStats.map((stat, i) => (
+                                    <tr key={stat.day} style={{ background: i % 2 === 0 ? 'white' : '#fafafa', borderBottom: `1px solid ${FS_BORDER}` }}>
+                                        <td style={{ padding: '8px 12px', fontWeight: 600, color: '#333' }}>
+                                            {stat.label}
+                                        </td>
+                                        <Td bold color={stat.cancelled > 0 ? '#ef4444' : '#9ca3af'}>{stat.cancelled}</Td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot>
+                                <tr style={{ background: '#fee2e2', borderTop: `1px solid #fca5a5` }}>
+                                    <td style={{ padding: '8px 12px', fontWeight: 700, color: '#991b1b', fontSize: 12, textTransform: 'uppercase' }}>Total</td>
+                                    <Td bold color="#991b1b">{data.attendanceStats.reduce((acc, s) => acc + s.cancelled, 0)}</Td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                )}
+            </Section>
+
             {/* ── Análisis de Ausentismo ── */}
             <Section title="Análisis de Ausentismo de Voluntarios" icon={<Users size={18} color="#ea580c" />}>
                 {!data?.attendanceStats.length ? (
@@ -1071,10 +1207,24 @@ const HourlyChart = ({ stats }: { stats: HourlyStats[] }) => {
 
     const activeStats = stats.filter(s => s.hour >= minActive && s.hour <= maxActive);
     const maxVal = Math.max(...activeStats.map(s => s.pcSessions + s.expSessions), 1);
+    
+    // Cálculo de la media
+    const totalActivity = activeStats.reduce((sum, s) => sum + s.pcSessions + s.expSessions, 0);
+    const average = activeStats.length > 0 ? totalActivity / activeStats.length : 0;
+    const avgH = maxVal > 0 ? (average / maxVal) * 100 : 0;
 
     return (
         <div style={{ padding: '10px 0' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 160, borderBottom: `2px solid ${FS_BORDER}`, paddingBottom: 5, overflowX: 'auto', minWidth: '100%' }} className="hide-scrollbar">
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 160, borderBottom: `2px solid ${FS_BORDER}`, paddingBottom: 5, overflowX: 'auto', minWidth: '100%', position: 'relative' }} className="hide-scrollbar">
+                {/* Línea de la media */}
+                {average > 0 && (
+                    <div style={{ position: 'absolute', bottom: 5, left: 0, right: 0, height: `${avgH}%`, borderTop: '2px dashed #f59e0b', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: 10, color: '#d97706', fontWeight: 'bold', background: 'white', padding: '0 4px', transform: 'translateY(-50%)', marginLeft: 4 }}>
+                            Promedio: {average.toFixed(1)} / hr
+                        </span>
+                    </div>
+                )}
+                
                 {activeStats.map(s => {
                     const pcH = (s.pcSessions / maxVal) * 100;
                     const expH = (s.expSessions / maxVal) * 100;

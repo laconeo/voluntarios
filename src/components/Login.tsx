@@ -594,7 +594,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
             onClick={() => setShowVersionNotes(true)}
             className="hover:text-fs-blue transition-colors hover:underline"
           >
-            Versión 0.1.8 01/05/2026
+            Versión 0.1.9 05/05/2026
           </button>
         </p>
 
@@ -644,14 +644,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
       <Modal
         isOpen={showVersionNotes}
         onClose={() => setShowVersionNotes(false)}
-        title="Novedades de la Versión 0.1.8"
+        title="Novedades de la Versión 0.1.9"
       >
         <div className="text-gray-700 space-y-3 text-sm">
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong>Gestión de Voluntarios:</strong> Se agregó botón para eliminar turno en el historial de turnos de un voluntario en la versión móvil.</li>
-            <li><strong>Entrega de Materiales:</strong> Corrección validando que la entrega se realiza una vez por voluntario por evento (pudiendo usar los mismos materiales en todos los turnos). Se agregó mensaje toast de confirmación.</li>
-            <li><strong>Métricas del Stand:</strong> Nueva sección de Análisis de Ausentismo.</li>
-            <li><strong>Extensión (v1.0.5):</strong> Se valida que al finalizar la sesión el número de acompañantes inicie con 1. Actualización de los enlaces del menú "Actividades del stand" con tracking.</li>
+            <li><strong>Entrega de Materiales:</strong> Corrección del registro de materiales.</li>
+            <li><strong>Métricas del Stand:</strong> Se agrega filtro seleccionando un día determinado. Se agregaron dos secciones: Turnos Cancelados y Actividad de Computadoras.</li>
           </ul>
         </div>
       </Modal>

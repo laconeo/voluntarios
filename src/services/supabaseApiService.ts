@@ -2180,23 +2180,51 @@ export const supabaseApi = {
 
     // ==================== DELIVERY ====================
     getUserMaterials: async (eventId: string): Promise<{ user_id: string; material_id: string }[]> => {
-        const { data, error } = await supabase.from('user_materials').select('*').eq('event_id', eventId);
-        if (error) {
+        try {
+            const data = await fetchAllPaginated<any>(() => supabase.from('user_materials').select('*').eq('event_id', eventId));
+            return data || [];
+        } catch (error: any) {
             // If table doesn't exist, return empty (for now)
-            if (error.code === '42P01') return [];
+            if (error?.code === '42P01') return [];
             throw error;
         }
-        return data || [];
     },
 
     toggleUserMaterial: async (eventId: string, userId: string, materialId: string, delivered: boolean): Promise<void> => {
         if (delivered) {
-            // Usamos upsert especificando la restricción única real de la tabla
-            const { error } = await supabase.from('user_materials').upsert(
-                { event_id: eventId, user_id: userId, material_id: materialId },
-                { onConflict: 'user_id,material_id' }
-            );
-            if (error) throw error;
+            // Verificar si ya existe
+            const { data: existing, error: selectError } = await supabase
+                .from('user_materials')
+                .select('id')
+                .eq('event_id', eventId)
+                .eq('user_id', userId)
+                .eq('material_id', materialId)
+                .maybeSingle();
+
+            if (selectError) {
+                console.error('[toggleUserMaterial] Error en SELECT:', JSON.stringify(selectError));
+                throw selectError;
+            }
+
+            if (!existing) {
+                const { data: inserted, error: insertError } = await supabase
+                    .from('user_materials')
+                    .insert({ event_id: eventId, user_id: userId, material_id: materialId })
+                    .select();
+
+                console.log('[toggleUserMaterial] INSERT result:', { inserted, insertError: insertError ? JSON.stringify(insertError) : null });
+
+                // Si el error es violación de unicidad (carrera), lo ignoramos.
+                // Cualquier otro error (incluido RLS silencioso) lo lanzamos.
+                if (insertError && insertError.code !== '23505') {
+                    throw new Error(`Error al insertar: [${insertError.code}] ${insertError.message} | ${insertError.hint || ''}`);
+                }
+
+                // Si no hubo error pero tampoco se insertó nada → RLS bloqueó el INSERT
+                if (!insertError && (!inserted || inserted.length === 0)) {
+                    throw new Error('El servidor no guardó la entrega. Verificá las políticas RLS de la tabla user_materials (la política de INSERT requiere auth.uid() activo).');
+                }
+            }
         } else {
             const { error } = await supabase
                 .from('user_materials')
