@@ -5,7 +5,7 @@ import autoTable from 'jspdf-autotable';
 import { toLocalDateStr, parseSafeDate } from '../lib/utils';
 import { pcControlService } from '../services/pcControlService';
 import { supabase } from '../lib/supabaseClient';
-import { Monitor, Users, Zap, Clock, TrendingUp, RefreshCw, AlertTriangle, Activity, Download, XCircle } from 'lucide-react';
+import { Monitor, Users, Zap, Clock, TrendingUp, RefreshCw, AlertTriangle, Activity, Download, XCircle, CheckCircle } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StandMetrics — Dashboard unificado de rendimiento del stand
@@ -359,9 +359,10 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
             );
 
             // ── Ausentismo (Bookings & Shifts) ──────────────────────────────────
+            // Incluimos user_id para deduplicar voluntarios únicos por día
             const { data: bookingsData } = await supabase
                 .from('bookings')
-                .select('attendance, status, shifts(date)')
+                .select('user_id, attendance, status, shifts(date)')
                 .eq('event_id', eventId);
             
             const attendanceMap = new Map<string, AttendanceStats>();
@@ -404,33 +405,58 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                 }
             }
             
+            // Mapa de sets para deduplicar voluntarios únicos por día
+            const dayUniqueUsers = new Map<string, {
+                total: Set<string>;
+                attended: Set<string>;
+                absent: Set<string>;
+                pending: Set<string>;
+                cancelled: Set<string>;
+            }>();
+
             if (bookingsData) {
                 for (const b of bookingsData as any[]) {
                     if (!b.shifts || !b.shifts.date) continue;
-                    
                     const day = b.shifts.date;
-                    if (!attendanceMap.has(day)) {
-                        attendanceMap.set(day, {
-                            day,
-                            label: dayLabel(day),
-                            total: 0,
-                            attended: 0,
-                            absent: 0,
-                            pending: 0,
-                            cancelled: 0
+                    const uid: string = b.user_id || 'unknown';
+
+                    if (!dayUniqueUsers.has(day)) {
+                        dayUniqueUsers.set(day, {
+                            total: new Set(),
+                            attended: new Set(),
+                            absent: new Set(),
+                            pending: new Set(),
+                            cancelled: new Set(),
                         });
                     }
-                    
-                    const stat = attendanceMap.get(day)!;
+                    const sets = dayUniqueUsers.get(day)!;
+
                     if (b.status === 'cancelled') {
-                        stat.cancelled++;
+                        sets.cancelled.add(uid);
                     } else {
-                        stat.total++;
-                        if (b.attendance === 'attended') stat.attended++;
-                        else if (b.attendance === 'absent') stat.absent++;
-                        else stat.pending++;
+                        sets.total.add(uid);
+                        if (b.attendance === 'attended') sets.attended.add(uid);
+                        else if (b.attendance === 'absent') sets.absent.add(uid);
+                        else sets.pending.add(uid);
                     }
                 }
+            }
+
+            // Convertir sets → conteos y poblar attendanceMap
+            for (const [day, sets] of dayUniqueUsers.entries()) {
+                if (!attendanceMap.has(day)) {
+                    attendanceMap.set(day, {
+                        day,
+                        label: dayLabel(day),
+                        total: 0, attended: 0, absent: 0, pending: 0, cancelled: 0
+                    });
+                }
+                const stat = attendanceMap.get(day)!;
+                stat.total = sets.total.size;
+                stat.attended = sets.attended.size;
+                stat.absent = sets.absent.size;
+                stat.pending = sets.pending.size;
+                stat.cancelled = sets.cancelled.size;
             }
             
             const attendanceStats = Array.from(attendanceMap.values())
@@ -615,6 +641,11 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
     const avgPeoplePerExp = totalSessions > 0 ? (totalPersonas / totalSessions).toFixed(1) : '0';
     const maxPersonasDia = data ? Math.max(...data.days.map(d => d.pcPersonas + d.expPersonas), 1) : 1;
 
+    // Índice de asistencia real: voluntarios que asistieron / voluntarios confirmados (total)
+    const totalConfirmados = data?.attendanceStats.reduce((acc, s) => acc + s.total, 0) ?? 0;
+    const totalAsistieron = data?.attendanceStats.reduce((acc, s) => acc + s.attended, 0) ?? 0;
+    const attendanceRate = totalConfirmados > 0 ? ((totalAsistieron / totalConfirmados) * 100).toFixed(1) : null;
+
     if (loading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
@@ -728,6 +759,30 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                 <StatCard icon={<Zap size={20} color={FS_BLUE} />} bg="#f0f6fc" border="#b0d0e8" label="Puestos de atención" value={data?.totals.expPersonas ?? 0} sub={`${data?.totals.expSessions ?? 0} experiencias únicas`} valColor={FS_BLUE} />
                 <StatCard icon={<Monitor size={20} color="#7c3aed" />} bg="#f5f0ff" border="#d0b8f5" label="Personas en PC" value={data?.totals.pcPersonas ?? 0} sub={`${data?.totals.pcSessions ?? 0} sesiones de PC`} valColor="#7c3aed" />
                 <StatCard icon={<Activity size={20} color="#0891b2" />} bg="#f0f9fc" border="#b0dde8" label="Promedio por experiencia" value={avgPeoplePerExp} sub="Personas / Sesión" valColor="#0891b2" />
+                {/* Índice de asistencia real */}
+                <div style={{
+                    background: attendanceRate !== null && Number(attendanceRate) >= 70 ? '#f0faf4' : '#fff7ed',
+                    border: `1px solid ${attendanceRate !== null && Number(attendanceRate) >= 70 ? '#b0e0c0' : '#fdba74'}`,
+                    borderTop: `4px solid ${attendanceRate !== null && Number(attendanceRate) >= 70 ? FS_GREEN : '#f97316'}`,
+                    borderRadius: 10,
+                    padding: '16px 18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14
+                }}>
+                    <div style={{ background: 'white', borderRadius: 10, padding: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+                        <CheckCircle size={20} color={attendanceRate !== null && Number(attendanceRate) >= 70 ? FS_GREEN : '#f97316'} />
+                    </div>
+                    <div>
+                        <p style={{ fontSize: 28, fontWeight: 800, color: attendanceRate !== null && Number(attendanceRate) >= 70 ? FS_DARK : '#c2410c', margin: 0 }}>
+                            {attendanceRate !== null ? `${attendanceRate}%` : '—'}
+                        </p>
+                        <p style={{ fontSize: 12, color: '#555', margin: '2px 0 0', fontWeight: 600 }}>Tasa de asistencia</p>
+                        <p style={{ fontSize: 12, color: '#444', margin: '1px 0 0', fontWeight: 700 }}>
+                            {totalAsistieron} de {totalConfirmados} confirmados
+                        </p>
+                    </div>
+                </div>
             </div>
 
             {/* ── Tiempo muerto en tiempo real ── */}
@@ -1046,20 +1101,21 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                                 <thead>
                                     <tr style={{ background: '#fff7ed' }}>
                                         <Th>Fecha</Th>
-                                        <Th align="right">Turnos Confirmados</Th>
+                                        <Th align="right">Confirmados</Th>
                                         <Th align="right">Presentes</Th>
                                         <Th align="right">Ausentes</Th>
                                         <Th align="right">Pendientes</Th>
-                                        <Th align="right">% Ausentismo (s/Confirmados)</Th>
+                                        <Th align="right">% Asistencia Real</Th>
+                                        <Th align="right">% Ausentismo</Th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {data.attendanceStats.map((stat, i) => {
-                                        // Ausentismo = ausentes / (presentes + ausentes)  ó sobre total confirmado?
-                                        // Usualmente sobre el total de turnos que no están pendientes
-                                        // O sobre el total general. Vamos a usar ausentes / (presentes + ausentes) si hay marcados, sino 0.
                                         const totalMarked = stat.attended + stat.absent;
-                                        const pct = totalMarked > 0 ? ((stat.absent / totalMarked) * 100).toFixed(1) : '0.0';
+                                        const absentPct = totalMarked > 0 ? ((stat.absent / totalMarked) * 100).toFixed(1) : '0.0';
+                                        // Tasa de asistencia real: presentes / confirmados totales
+                                        const attendPct = stat.total > 0 ? ((stat.attended / stat.total) * 100).toFixed(1) : '0.0';
+                                        const attendPctNum = Number(attendPct);
                                         
                                         return (
                                             <tr key={stat.day} style={{ background: i % 2 === 0 ? 'white' : '#fafafa', borderBottom: `1px solid ${FS_BORDER}` }}>
@@ -1070,7 +1126,8 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                                                 <Td color="#15803d" bold>{stat.attended}</Td>
                                                 <Td color="#dc2626" bold>{stat.absent}</Td>
                                                 <Td color="#94a3b8">{stat.pending}</Td>
-                                                <Td color="#ea580c" bold>{pct}%</Td>
+                                                <Td color={attendPctNum >= 70 ? '#15803d' : attendPctNum >= 50 ? '#d97706' : '#dc2626'} bold>{attendPct}%</Td>
+                                                <Td color="#ea580c" bold>{absentPct}%</Td>
                                             </tr>
                                         );
                                     })}
@@ -1078,10 +1135,13 @@ const StandMetrics: React.FC<StandMetricsProps> = ({ eventId, eventName, eventSt
                                 <tfoot>
                                     <tr style={{ background: '#ffedd5', borderTop: `1px solid #fdba74` }}>
                                         <td style={{ padding: '8px 12px', fontWeight: 700, color: '#9a3412', fontSize: 12, textTransform: 'uppercase' }}>Total</td>
-                                        <Td bold>{data.attendanceStats.reduce((acc, s) => acc + s.total, 0)}</Td>
-                                        <Td bold color="#15803d">{data.attendanceStats.reduce((acc, s) => acc + s.attended, 0)}</Td>
+                                        <Td bold>{totalConfirmados}</Td>
+                                        <Td bold color="#15803d">{totalAsistieron}</Td>
                                         <Td bold color="#dc2626">{data.attendanceStats.reduce((acc, s) => acc + s.absent, 0)}</Td>
                                         <Td bold color="#94a3b8">{data.attendanceStats.reduce((acc, s) => acc + s.pending, 0)}</Td>
+                                        <Td bold color={Number(attendanceRate ?? 0) >= 70 ? '#15803d' : Number(attendanceRate ?? 0) >= 50 ? '#d97706' : '#dc2626'}>
+                                            {attendanceRate !== null ? `${attendanceRate}%` : '—'}
+                                        </Td>
                                         <Td bold color="#ea580c">
                                             {(() => {
                                                 const totalA = data.attendanceStats.reduce((acc, s) => acc + s.attended, 0);

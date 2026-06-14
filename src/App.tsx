@@ -21,6 +21,7 @@ import StandaloneCoordinatorDashboard from './components/StandaloneCoordinatorDa
 import StandaloneVolunteerBadges from './components/StandaloneVolunteerBadges';
 import ReceptionistView from './components/ReceptionistView';
 import { Toaster, toast } from 'react-hot-toast';
+import { ClosedProjectModal } from './components/ClosedProjectModal';
 
 // Wrapper para StandMetrics – carga el evento por slug y pasa props
 const StandMetricsWrapper: React.FC = () => {
@@ -343,6 +344,7 @@ const AppContent: React.FC = () => {
           fontFamily: '"Noto Sans", sans-serif'
         }
       }} />
+      <ClosedProjectModal />
       {!isFullscreen && (
         <div className="print:hidden">
           <Header
