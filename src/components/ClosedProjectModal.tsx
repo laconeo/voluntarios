@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldAlert, X } from 'lucide-react';
+import { getWhatsAppUrl } from '../lib/phoneUtils';
 
 export const ClosedProjectModal: React.FC = () => {
   const [isOpen, setIsOpen] = useState(true);
@@ -7,8 +8,8 @@ export const ClosedProjectModal: React.FC = () => {
   if (!isOpen) return null;
 
   const handleWhatsAppRedirect = () => {
-    const message = encodeURIComponent('Hola, necesito soporte con respecto al proyecto Voluntarios.');
-    window.open(`https://wa.me/5219541409079?text=${message}`, '_blank');
+    const message = 'Hola, necesito soporte con respecto al proyecto Voluntarios.';
+    window.open(getWhatsAppUrl('5219541409079', message), '_blank');
   };
 
   return (

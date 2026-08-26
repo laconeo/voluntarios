@@ -10,6 +10,7 @@ import { toast } from 'react-hot-toast';
 import { emailService } from '../services/emailService';
 import * as XLSX from 'xlsx';
 import { formatShiftSummary, toLocalDateStr } from '../lib/utils';
+import { getWhatsAppUrl } from '../lib/phoneUtils';
 
 interface EventVolunteersListProps {
     eventId: string;
@@ -588,27 +589,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
     const handleShareWhatsApp = () => {
         if (!summaryUser) return;
         const text = generateSummaryText();
-
-        // Limpiar el número dejando solo dígitos
-        let phone = summaryUser.phone.replace(/\D/g, '');
-
-        // Lógica específica para Argentina (mejora la probabilidad de que funcione el enlace directo)
-        // Si tiene 10 dígitos (ej: 11 1234 5678), asumimos que es número local y agregamos 549
-        if (phone.length === 10) {
-            phone = '549' + phone;
-        }
-        // Si tiene 11 dígitos y empieza con 0 (ej: 011 1234 5678), quitamos el 0 y agregamos 549
-        else if (phone.length === 11 && phone.startsWith('0')) {
-            phone = '549' + phone.substring(1);
-        }
-
-        // Si ya tiene 12 o 13 dígitos (ej: 54911...), lo dejamos así.
-
-        // Construir URL. Si el teléfono es válido (>6 dígitos al menos), intentamos el enlace directo.
-        let url = phone.length > 6
-            ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
-            : `https://wa.me/?text=${encodeURIComponent(text)}`;
-
+        const url = getWhatsAppUrl(summaryUser.phone, text, eventDetails?.pais);
         window.open(url, '_blank');
     };
 
@@ -1346,12 +1327,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
 
                             const handleShareInviteWhatsApp = () => {
                                 const text = generateInviteText();
-                                let phone = viewingUser.phone.replace(/\D/g, '');
-                                if (phone.length === 10) phone = '549' + phone;
-                                else if (phone.length === 11 && phone.startsWith('0')) phone = '549' + phone.substring(1);
-                                const url = phone.length > 6
-                                    ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
-                                    : `https://wa.me/?text=${encodeURIComponent(text)}`;
+                                const url = getWhatsAppUrl(viewingUser.phone, text, eventDetails?.pais);
                                 window.open(url, '_blank');
                             };
 
@@ -1597,9 +1573,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                     ) : (
                         <div className="space-y-4">
                             {pendingCancellations.map((cancellation) => {
-                                let waPhone = cancellation.user?.phone?.replace(/\D/g, '') || '';
-                                if (waPhone.length === 10) waPhone = '549' + waPhone;
-                                else if (waPhone.length === 11 && waPhone.startsWith('0')) waPhone = '549' + waPhone.substring(1);
+                                const waUrl = getWhatsAppUrl(cancellation.user?.phone, undefined, eventDetails?.pais);
 
                                 return (
                                     <div key={cancellation.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -1610,7 +1584,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                 <p>
                                                     <strong>Teléfono:</strong>{' '}
                                                     <a
-                                                        href={`https://wa.me/${waPhone}`}
+                                                        href={waUrl}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="text-green-600 hover:text-green-800 font-medium"
@@ -1744,13 +1718,6 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                     + `Inscribite desde: https://familysearch.me/feriadellibro\n\n`
                                     + `Tu participación es muy importante. Te esperamos!`;
 
-                                const cleanPhone = (phone: string) => {
-                                    let p = phone.replace(/\D/g, '');
-                                    if (p.length === 10) p = '549' + p;
-                                    else if (p.length === 11 && p.startsWith('0')) p = '549' + p.substring(1);
-                                    return p;
-                                };
-
                                 return (
                                     <div key={vol.id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow">
                                         <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
@@ -1777,10 +1744,7 @@ const EventVolunteersList: React.FC<EventVolunteersListProps> = ({ eventId }) =>
                                                 {/* WhatsApp */}
                                                 <button
                                                     onClick={() => {
-                                                        const phone = cleanPhone(vol.phone || '');
-                                                        const url = phone.length > 6
-                                                            ? `https://wa.me/${phone}?text=${encodeURIComponent(messageText)}`
-                                                            : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+                                                        const url = getWhatsAppUrl(vol.phone, messageText, eventDetails?.pais);
                                                         window.open(url, '_blank');
                                                     }}
                                                     className="flex items-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"

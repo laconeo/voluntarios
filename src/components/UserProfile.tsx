@@ -64,7 +64,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdate, onCancel }) =
                     </div>
                     <div>
                         <label className={labelClasses}>Teléfono</label>
-                        <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required className={inputClasses} />
+                        <input type="tel" name="phone" placeholder="Ej: +54 9 11 5555 6666 o +56 9 1234 5678" value={formData.phone} onChange={handleChange} required className={inputClasses} />
                     </div>
                     <div>
                         <label className={labelClasses}>Talle de Remera</label>

@@ -364,7 +364,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
 
             <div>
               <label className={labelClasses}>Teléfono Móvil</label>
-              <input type="tel" name="phone" placeholder="Ej: 11 5555 6666" value={formData.phone} onChange={handleInputChange} required
+              <input type="tel" name="phone" placeholder="Ej: +54 9 11 5555 6666 o +56 9 1234 5678" value={formData.phone} onChange={handleInputChange} required
                 className={inputClasses} />
             </div>
             <div>
