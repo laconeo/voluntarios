@@ -1,9 +1,9 @@
-
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Printer, User } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, Printer, User, Image as ImageIcon, Upload, X, RotateCcw, Check, Loader2 } from 'lucide-react';
 import { supabaseApi as mockApi } from '../services/supabaseApiService';
 import type { Event } from '../types';
 import { toast } from 'react-hot-toast';
+
 const baseUrl = import.meta.env.BASE_URL || '/';
 const voluntarioImg = `${baseUrl}VOLUNTARIO.png`;
 const coordinadorImg = `${baseUrl}COORDINADOR.png`;
@@ -19,12 +19,60 @@ interface BadgeData {
     roleName: string;
 }
 
+const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                const MAX_SIZE = 1200;
+                if (width > MAX_SIZE || height > MAX_SIZE) {
+                    if (width > height) {
+                        height = Math.round((height * MAX_SIZE) / width);
+                        width = MAX_SIZE;
+                    } else {
+                        width = Math.round((width * MAX_SIZE) / height);
+                        height = MAX_SIZE;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.88));
+                } else {
+                    resolve(e.target?.result as string);
+                }
+            };
+            img.onerror = () => reject(new Error('Error al procesar la imagen'));
+            img.src = e.target?.result as string;
+        };
+        reader.onerror = () => reject(new Error('Error al leer el archivo'));
+        reader.readAsDataURL(file);
+    });
+};
+
 const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [badges, setBadges] = useState<BadgeData[]>([]);
     const [event, setEvent] = useState<Event | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+
+    // Modal state for background configuration
+    const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+    const [draftBgVoluntario, setDraftBgVoluntario] = useState<string>('');
+    const [draftBgCoordinador, setDraftBgCoordinador] = useState<string>('');
+    const [isSavingBg, setIsSavingBg] = useState(false);
+
+    const fileInputVoluntarioRef = useRef<HTMLInputElement>(null);
+    const fileInputCoordinadorRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         fetchData();
@@ -47,6 +95,10 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
             ]);
 
             setEvent(eventData);
+            if (eventData) {
+                setDraftBgVoluntario(eventData.credentialBgVoluntarioUrl || '');
+                setDraftBgCoordinador(eventData.credentialBgCoordinadorUrl || '');
+            }
 
             // Fetch all users to get names
             const allUsers = await mockApi.getAllUsers();
@@ -56,7 +108,6 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
             const badgeList: BadgeData[] = [];
 
             // 1. Process Bookings (Volunteers)
-            // If they have confirmed bookings, they get a 'Voluntario' badge
             bookings.filter(b => b.status === 'confirmed').forEach(b => {
                 const user = allUsers.find(u => u.id === b.userId);
                 if (user) {
@@ -73,7 +124,6 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
             });
 
             // 2. Process Coordinators
-            // If they are assigned as coordinators in any shift, they get a 'Coordinador' badge
             allShifts.forEach(shift => {
                 if (shift.coordinatorIds) {
                     shift.coordinatorIds.forEach(coordId => {
@@ -101,6 +151,61 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const openConfigModal = () => {
+        setDraftBgVoluntario(event?.credentialBgVoluntarioUrl || '');
+        setDraftBgCoordinador(event?.credentialBgCoordinadorUrl || '');
+        setIsConfigModalOpen(true);
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, role: 'Voluntario' | 'Coordinador') => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            toast.error('Por favor selecciona un archivo de imagen válido');
+            return;
+        }
+
+        try {
+            const dataUrl = await compressImage(file);
+            if (role === 'Voluntario') {
+                setDraftBgVoluntario(dataUrl);
+            } else {
+                setDraftBgCoordinador(dataUrl);
+            }
+            toast.success(`Imagen de ${role} cargada`);
+        } catch (err) {
+            console.error(err);
+            toast.error('No se pudo procesar la imagen');
+        }
+    };
+
+    const handleSaveBackgrounds = async () => {
+        if (!event) return;
+        setIsSavingBg(true);
+        try {
+            const updatedEvent = await mockApi.updateEvent(event.id, {
+                credentialBgVoluntarioUrl: draftBgVoluntario || undefined,
+                credentialBgCoordinadorUrl: draftBgCoordinador || undefined,
+            });
+            setEvent(updatedEvent);
+            toast.success('Fondos de credenciales guardados con éxito');
+            setIsConfigModalOpen(false);
+        } catch (error) {
+            console.error('Error guardando imágenes de fondo:', error);
+            toast.error('Error al guardar las imágenes de fondo');
+        } finally {
+            setIsSavingBg(false);
+        }
+    };
+
+    const getBadgeBg = (roleName: string) => {
+        if (roleName === 'Coordinador') {
+            return event?.credentialBgCoordinadorUrl || coordinadorImg;
+        }
+        return event?.credentialBgVoluntarioUrl || voluntarioImg;
     };
 
     const handlePrint = () => {
@@ -146,13 +251,14 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
     return (
         <div className="min-h-screen bg-gray-50 pb-20 print:bg-white print:pb-0 print:min-h-0">
             {/* Header - Hidden on print */}
-            <div className="bg-white border-b border-gray-200 sticky top-0 z-50 print:hidden">
+            <div className="bg-white border-b border-gray-200 sticky top-0 z-50 print:hidden shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={onClose}
                                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                title="Volver"
                             >
                                 <ChevronLeft size={24} />
                             </button>
@@ -169,7 +275,7 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                                     placeholder="Buscar por nombre..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8CB83E] focus:border-transparent outline-none"
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8CB83E] focus:border-transparent outline-none text-sm"
                                 />
                                 <div className="absolute left-3 top-2.5 text-gray-400">
                                     <User size={18} />
@@ -187,20 +293,28 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                                     {selectedIds.size === filteredBadges.length ? 'Deseleccionar todas' : 'Seleccionar visibles'}
                                 </button>
                             </div>
+
+                            <button
+                                onClick={openConfigModal}
+                                className="flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-50 font-semibold shadow-sm transition-all active:scale-95 text-sm"
+                                title="Subir o cambiar imágenes de fondo"
+                            >
+                                <ImageIcon size={18} className="text-[#8CB83E]" />
+                                <span className="hidden sm:inline">Configurar Fondos</span>
+                            </button>
+
                             <button
                                 onClick={handlePrint}
                                 disabled={selectedIds.size === 0}
-                                className="flex items-center justify-center gap-2 bg-[#8CB83E] text-white px-6 py-2.5 rounded-xl hover:bg-[#7cb342] font-bold shadow-lg shadow-green-100 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none"
+                                className="flex items-center justify-center gap-2 bg-[#8CB83E] text-white px-5 py-2.5 rounded-xl hover:bg-[#7cb342] font-bold shadow-md shadow-green-100 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none text-sm"
                             >
-                                <Printer size={20} />
+                                <Printer size={18} />
                                 Imprimir Selección
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
-
-
 
             {/* Badges Container */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 print:p-0 print:m-0 print:max-w-none">
@@ -257,7 +371,7 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                                 background-repeat: no-repeat !important;
                                 transform: none !important;
                                 box-sizing: border-box !important;
-                                background-color: white !important; /* Ensure card background is white */
+                                background-color: white !important;
                             }
                             .no-print {
                                 display: none !important;
@@ -331,6 +445,8 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                 <div className="badge-mosaic print-container">
                     {filteredBadges.map((badge) => {
                         const isSelected = selectedIds.has(badge.id);
+                        const bgUrl = getBadgeBg(badge.roleName);
+
                         return (
                             <div 
                                 key={badge.id} 
@@ -338,13 +454,13 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                                 id={`badge-${badge.id}`}
                                 onClick={() => toggleSelect(badge.id)}
                                 style={{ 
-                                    backgroundImage: `url("${badge.roleName === 'Coordinador' ? coordinadorImg : voluntarioImg}")` 
+                                    backgroundImage: `url("${bgUrl}")` 
                                 }}
                             >
                                 {/* Selection Indicator */}
                                 <div className="selection-overlay print:hidden">
                                     <div className={`custom-checkbox ${isSelected ? 'checked' : ''}`}>
-                                        {isSelected && <div className="w-2.5 h-2.5 bg-white rounded-sm" />}
+                                        {isSelected && <div className="w-2.5 h-2.5 bg-[#8CB83E] rounded-sm" />}
                                     </div>
                                 </div>
 
@@ -367,6 +483,168 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                     </div>
                 )}
             </div>
+
+            {/* Modal: Configuración de Imágenes de Fondo */}
+            {isConfigModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn print:hidden">
+                    <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]">
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-green-100 text-[#8CB83E] rounded-xl">
+                                    <ImageIcon size={22} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900">Fondos de Credencial</h3>
+                                    <p className="text-xs text-gray-500">Personaliza la imagen de fondo para este evento</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsConfigModalOpen(false)}
+                                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                            {/* Card 1: Voluntario */}
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                                            <span className="w-2.5 h-2.5 bg-blue-500 rounded-full inline-block"></span>
+                                            Fondo Credencial Voluntario
+                                        </h4>
+                                        <p className="text-xs text-gray-500">Se usará en la credencial de los voluntarios confirmados</p>
+                                    </div>
+                                    {draftBgVoluntario && (
+                                        <button
+                                            onClick={() => setDraftBgVoluntario('')}
+                                            className="text-xs text-red-600 hover:text-red-800 font-semibold flex items-center gap-1 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors"
+                                        >
+                                            <RotateCcw size={12} />
+                                            Restablecer por defecto
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
+                                    {/* Preview */}
+                                    <div 
+                                        className="w-28 h-36 rounded-lg border border-gray-300 bg-white shadow-sm flex-shrink-0 bg-cover bg-center relative overflow-hidden flex flex-col justify-center items-center"
+                                        style={{ backgroundImage: `url("${draftBgVoluntario || voluntarioImg}")` }}
+                                    >
+                                        <span className="bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded backdrop-blur-xs uppercase">
+                                            Ejemplo
+                                        </span>
+                                    </div>
+
+                                    {/* Upload Control */}
+                                    <div className="flex-1 w-full flex flex-col justify-center">
+                                        <input
+                                            ref={fileInputVoluntarioRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => handleFileChange(e, 'Voluntario')}
+                                        />
+                                        <button
+                                            onClick={() => fileInputVoluntarioRef.current?.click()}
+                                            className="w-full border-2 border-dashed border-[#8CB83E] hover:bg-green-50/50 p-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer group"
+                                        >
+                                            <Upload size={24} className="text-[#8CB83E] group-hover:scale-110 transition-transform" />
+                                            <span className="text-sm font-semibold text-gray-700">Subir nueva imagen de Voluntario</span>
+                                            <span className="text-xs text-gray-400">PNG, JPG, WEBP (Recomendado 90mm x 110mm)</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card 2: Coordinador */}
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                                            <span className="w-2.5 h-2.5 bg-amber-500 rounded-full inline-block"></span>
+                                            Fondo Credencial Coordinador
+                                        </h4>
+                                        <p className="text-xs text-gray-500">Se usará en la credencial de los coordinadores asignados</p>
+                                    </div>
+                                    {draftBgCoordinador && (
+                                        <button
+                                            onClick={() => setDraftBgCoordinador('')}
+                                            className="text-xs text-red-600 hover:text-red-800 font-semibold flex items-center gap-1 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors"
+                                        >
+                                            <RotateCcw size={12} />
+                                            Restablecer por defecto
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
+                                    {/* Preview */}
+                                    <div 
+                                        className="w-28 h-36 rounded-lg border border-gray-300 bg-white shadow-sm flex-shrink-0 bg-cover bg-center relative overflow-hidden flex flex-col justify-center items-center"
+                                        style={{ backgroundImage: `url("${draftBgCoordinador || coordinadorImg}")` }}
+                                    >
+                                        <span className="bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded backdrop-blur-xs uppercase">
+                                            Ejemplo
+                                        </span>
+                                    </div>
+
+                                    {/* Upload Control */}
+                                    <div className="flex-1 w-full flex flex-col justify-center">
+                                        <input
+                                            ref={fileInputCoordinadorRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => handleFileChange(e, 'Coordinador')}
+                                        />
+                                        <button
+                                            onClick={() => fileInputCoordinadorRef.current?.click()}
+                                            className="w-full border-2 border-dashed border-[#8CB83E] hover:bg-green-50/50 p-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer group"
+                                        >
+                                            <Upload size={24} className="text-[#8CB83E] group-hover:scale-110 transition-transform" />
+                                            <span className="text-sm font-semibold text-gray-700">Subir nueva imagen de Coordinador</span>
+                                            <span className="text-xs text-gray-400">PNG, JPG, WEBP (Recomendado 90mm x 110mm)</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 bg-gray-50">
+                            <button
+                                onClick={() => setIsConfigModalOpen(false)}
+                                className="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-800 hover:bg-gray-200/60 rounded-xl transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSaveBackgrounds}
+                                disabled={isSavingBg}
+                                className="flex items-center gap-2 bg-[#8CB83E] text-white px-6 py-2.5 rounded-xl hover:bg-[#7cb342] font-bold shadow-md shadow-green-100 transition-all active:scale-95 disabled:opacity-50"
+                            >
+                                {isSavingBg ? (
+                                    <>
+                                        <Loader2 size={18} className="animate-spin" />
+                                        Guardando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check size={18} />
+                                        Guardar Cambios
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

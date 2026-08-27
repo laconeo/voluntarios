@@ -45,6 +45,8 @@ const mapEvent = (row: any): Event => ({
     showAvailableShiftsModal: row.show_available_shifts_modal ?? false,
     convocatoriaCerrada: row.convocatoria_cerrada ?? false,
     mensajeConvocatoriaCerrada: row.mensaje_convocatoria_cerrada ?? '',
+    credentialBgVoluntarioUrl: row.credential_bg_voluntario ?? (typeof localStorage !== 'undefined' ? localStorage.getItem(`event_${row.id}_bg_voluntario`) || undefined : undefined),
+    credentialBgCoordinadorUrl: row.credential_bg_coordinador ?? (typeof localStorage !== 'undefined' ? localStorage.getItem(`event_${row.id}_bg_coordinador`) || undefined : undefined),
     createdAt: row.created_at,
 });
 
@@ -641,6 +643,8 @@ export const supabaseApi = {
         if (eventData.showAvailableShiftsModal !== undefined) dbEvent.show_available_shifts_modal = eventData.showAvailableShiftsModal;
         if (eventData.convocatoriaCerrada !== undefined) dbEvent.convocatoria_cerrada = eventData.convocatoriaCerrada;
         if (eventData.mensajeConvocatoriaCerrada !== undefined) dbEvent.mensaje_convocatoria_cerrada = eventData.mensajeConvocatoriaCerrada;
+        if (eventData.credentialBgVoluntarioUrl !== undefined) dbEvent.credential_bg_voluntario = eventData.credentialBgVoluntarioUrl;
+        if (eventData.credentialBgCoordinadorUrl !== undefined) dbEvent.credential_bg_coordinador = eventData.credentialBgCoordinadorUrl;
         const { data, error } = await supabase.from('events').insert(dbEvent).select().single();
         if (error) throw error;
         return mapEvent(data);
@@ -661,6 +665,14 @@ export const supabaseApi = {
         if (updates.showAvailableShiftsModal !== undefined) dbUpdates.show_available_shifts_modal = updates.showAvailableShiftsModal;
         if (updates.convocatoriaCerrada !== undefined) dbUpdates.convocatoria_cerrada = updates.convocatoriaCerrada;
         if (updates.mensajeConvocatoriaCerrada !== undefined) dbUpdates.mensaje_convocatoria_cerrada = updates.mensajeConvocatoriaCerrada;
+        if (updates.credentialBgVoluntarioUrl !== undefined) {
+            dbUpdates.credential_bg_voluntario = updates.credentialBgVoluntarioUrl;
+            if (typeof localStorage !== 'undefined') localStorage.setItem(`event_${eventId}_bg_voluntario`, updates.credentialBgVoluntarioUrl);
+        }
+        if (updates.credentialBgCoordinadorUrl !== undefined) {
+            dbUpdates.credential_bg_coordinador = updates.credentialBgCoordinadorUrl;
+            if (typeof localStorage !== 'undefined') localStorage.setItem(`event_${eventId}_bg_coordinador`, updates.credentialBgCoordinadorUrl);
+        }
 
         const { data, error } = await supabase.from('events').update(dbUpdates).eq('id', eventId).select().single();
 
@@ -674,12 +686,20 @@ export const supabaseApi = {
                 } else if (error.message?.includes('cantidad_pcs')) {
                     console.warn('[updateEvent] La columna cantidad_pcs no existe aún. Guardando sin ella.');
                     delete dbUpdates.cantidad_pcs;
+                } else if (error.message?.includes('credential_bg_voluntario')) {
+                    console.warn('[updateEvent] La columna credential_bg_voluntario no existe aún. Guardando sin ella.');
+                    delete dbUpdates.credential_bg_voluntario;
+                } else if (error.message?.includes('credential_bg_coordinador')) {
+                    console.warn('[updateEvent] La columna credential_bg_coordinador no existe aún. Guardando sin ella.');
+                    delete dbUpdates.credential_bg_coordinador;
                 }
                 const { data: data2, error: error2 } = await supabase.from('events').update(dbUpdates).eq('id', eventId).select().single();
                 if (error2) throw error2;
                 const mapped = mapEvent(data2);
                 if (updates.cantidadPCs !== undefined) mapped.cantidadPCs = updates.cantidadPCs;
                 if (updates.showAvailableShiftsModal !== undefined) mapped.showAvailableShiftsModal = updates.showAvailableShiftsModal;
+                if (updates.credentialBgVoluntarioUrl !== undefined) mapped.credentialBgVoluntarioUrl = updates.credentialBgVoluntarioUrl;
+                if (updates.credentialBgCoordinadorUrl !== undefined) mapped.credentialBgCoordinadorUrl = updates.credentialBgCoordinadorUrl;
                 return mapped;
             }
             throw error;

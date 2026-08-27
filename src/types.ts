@@ -36,6 +36,8 @@ export interface Event {
   showAvailableShiftsModal?: boolean; // Si se muestra la modal de últimos turnos disponibles al ingresar
   convocatoriaCerrada?: boolean; // Si las registraciones de voluntarios están cerradas
   mensajeConvocatoriaCerrada?: string; // Mensaje personalizado cuando la convocatoria está cerrada
+  credentialBgVoluntarioUrl?: string; // Imagen de fondo personalizada para credencial de voluntario
+  credentialBgCoordinadorUrl?: string; // Imagen de fondo personalizada para credencial de coordinador
   createdAt: string;
 }
 

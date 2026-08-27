@@ -594,7 +594,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
             onClick={() => setShowVersionNotes(true)}
             className="hover:text-fs-blue transition-colors hover:underline"
           >
-            Versión 0.1.9 05/05/2026
+            Versión 1.0.0 27/08/2026
           </button>
         </p>
 
@@ -644,10 +644,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onRecoverPassword, i
       <Modal
         isOpen={showVersionNotes}
         onClose={() => setShowVersionNotes(false)}
-        title="Novedades de la Versión 0.1.9"
+        title="Novedades de la Versión 1.0.0"
       >
         <div className="text-gray-700 space-y-3 text-sm">
           <ul className="list-disc pl-5 space-y-2">
+            <li><strong>Credenciales Personalizadas:</strong> Carga de imágenes de fondo personalizadas por evento para credenciales de Voluntarios y Coordinadores.</li>
+            <li><strong>Formato de Teléfonos:</strong> Corrección y eliminación del código de país hardcodeado en la edición y registro de números de teléfono.</li>
             <li><strong>Entrega de Materiales:</strong> Corrección del registro de materiales.</li>
             <li><strong>Métricas del Stand:</strong> Se agrega filtro seleccionando un día determinado. Se agregaron dos secciones: Turnos Cancelados y Actividad de Computadoras.</li>
             <li><strong>Gestión de Eventos:</strong> En la edición del evento se puede marcar el cierre de la convocatoria para no permitir que se registren más voluntarios.</li>
