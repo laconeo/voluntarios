@@ -40,6 +40,8 @@ export interface Event {
   credentialBgCoordinadorUrl?: string; // Imagen de fondo personalizada para credencial de coordinador
   credentialWidthMm?: number; // Ancho de la credencial en mm (default: 90)
   credentialHeightMm?: number; // Alto de la credencial en mm (default: 110)
+  credentialNameFontSizePt?: number; // Tamaño de fuente del nombre en la credencial en pt (default: 24)
+  credentialNamePositionY?: number; // Posición vertical del nombre en % (0=arriba, 100=abajo, default: 48)
   createdAt: string;
 }
 

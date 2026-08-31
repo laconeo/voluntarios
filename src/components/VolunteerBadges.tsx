@@ -71,6 +71,8 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
     const [draftBgCoordinador, setDraftBgCoordinador] = useState<string>('');
     const [draftWidthMm, setDraftWidthMm] = useState<number>(90);
     const [draftHeightMm, setDraftHeightMm] = useState<number>(110);
+    const [draftFontSizePt, setDraftFontSizePt] = useState<number>(24);
+    const [draftNamePositionY, setDraftNamePositionY] = useState<number>(48);
     const [isSavingBg, setIsSavingBg] = useState(false);
 
     const fileInputVoluntarioRef = useRef<HTMLInputElement>(null);
@@ -102,6 +104,8 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                 setDraftBgCoordinador(eventData.credentialBgCoordinadorUrl || '');
                 setDraftWidthMm(eventData.credentialWidthMm || 90);
                 setDraftHeightMm(eventData.credentialHeightMm || 110);
+                setDraftFontSizePt(eventData.credentialNameFontSizePt || 24);
+                setDraftNamePositionY(eventData.credentialNamePositionY ?? 48);
             }
 
             // Fetch all users to get names
@@ -162,6 +166,8 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
         setDraftBgCoordinador(event?.credentialBgCoordinadorUrl || '');
         setDraftWidthMm(event?.credentialWidthMm || 90);
         setDraftHeightMm(event?.credentialHeightMm || 110);
+        setDraftFontSizePt(event?.credentialNameFontSizePt || 24);
+        setDraftNamePositionY(event?.credentialNamePositionY ?? 48);
         setIsConfigModalOpen(true);
     };
 
@@ -194,6 +200,8 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
         try {
             const clampedWidth = Math.min(Math.max(draftWidthMm, 50), 200);
             const clampedHeight = Math.min(Math.max(draftHeightMm, 50), 300);
+            const clampedFontSize = Math.min(Math.max(draftFontSizePt, 6), 72);
+            const clampedPositionY = Math.min(Math.max(draftNamePositionY, 0), 100);
 
             // Actualizamos el estado local inmediatamente con los valores del draft
             const localUpdatedEvent: typeof event = {
@@ -202,10 +210,14 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                 credentialBgCoordinadorUrl: draftBgCoordinador || event.credentialBgCoordinadorUrl,
                 credentialWidthMm: clampedWidth,
                 credentialHeightMm: clampedHeight,
+                credentialNameFontSizePt: clampedFontSize,
+                credentialNamePositionY: clampedPositionY,
             };
             setEvent(localUpdatedEvent);
             setDraftWidthMm(clampedWidth);
             setDraftHeightMm(clampedHeight);
+            setDraftFontSizePt(clampedFontSize);
+            setDraftNamePositionY(clampedPositionY);
 
             // Intentamos persistir en Supabase (puede fallar si las columnas no existen aún)
             try {
@@ -214,6 +226,8 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                     credentialBgCoordinadorUrl: draftBgCoordinador || undefined,
                     credentialWidthMm: clampedWidth,
                     credentialHeightMm: clampedHeight,
+                    credentialNameFontSizePt: clampedFontSize,
+                    credentialNamePositionY: clampedPositionY,
                 });
                 setEvent(updatedEvent);
             } catch (dbError) {
@@ -443,7 +457,6 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
 
                     .name-container {
                         position: absolute;
-                        top: calc(48% - 7px);
                         left: 0;
                         right: 0;
                         transform: translateY(-50%);
@@ -495,8 +508,11 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                                 </div>
 
                                 {/* Volunteer Name centered in the card */}
-                                <div className="name-container">
-                                    <h2 className="text-3xl font-black text-gray-800 uppercase tracking-tight leading-tight break-words">
+                                <div
+                                    className="name-container"
+                                    style={{ top: `${event?.credentialNamePositionY ?? 48}%` }}
+                                >
+                                    <h2 style={{ fontSize: `${event?.credentialNameFontSizePt || 24}pt` }} className="font-black text-gray-800 uppercase tracking-tight leading-tight break-words">
                                         {badge.volunteerName}
                                     </h2>
                                 </div>
@@ -578,6 +594,100 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                                 </div>
                                 <p className="text-xs text-blue-600 mt-3 font-medium">📐 Tamaño actual: {draftWidthMm}mm × {draftHeightMm}mm — Predeterminado: 90mm × 110mm</p>
                             </div>
+
+                            {/* Tamaño de fuente del nombre */}
+                            <div className="bg-purple-50 p-4 rounded-xl border border-purple-200">
+                                <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-1">
+                                    <span className="w-2.5 h-2.5 bg-purple-400 rounded-full inline-block"></span>
+                                    Tamaño de Fuente del Nombre
+                                </h4>
+                                <p className="text-xs text-gray-500 mb-4">Ajusta el tamaño de la letra del nombre para que se vea proporcionado. Útil cuando la persona tiene nombre y apellidos largos.</p>
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="range"
+                                        min={6}
+                                        max={72}
+                                        step={1}
+                                        value={draftFontSizePt}
+                                        onChange={(e) => setDraftFontSizePt(Number(e.target.value))}
+                                        className="flex-1 h-2 bg-purple-200 rounded-full appearance-none cursor-pointer accent-purple-500"
+                                    />
+                                    <div className="flex items-center gap-1.5">
+                                        <input
+                                            type="number"
+                                            min={6}
+                                            max={72}
+                                            value={draftFontSizePt}
+                                            onChange={(e) => setDraftFontSizePt(Number(e.target.value))}
+                                            className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none font-bold"
+                                        />
+                                        <span className="text-xs text-gray-400 whitespace-nowrap">pt</span>
+                                    </div>
+                                </div>
+                                {/* Preview en vivo */}
+                                <div className="mt-4 bg-white rounded-lg border border-purple-100 p-3 text-center overflow-hidden">
+                                    <p className="text-[10px] text-gray-400 mb-1 uppercase tracking-wider">Vista previa</p>
+                                    <p
+                                        style={{ fontSize: `${draftFontSizePt}pt`, lineHeight: '1.1' }}
+                                        className="font-black text-gray-800 uppercase tracking-tight break-words leading-tight"
+                                    >
+                                        Nombre Apellido
+                                    </p>
+                                </div>
+                                <p className="text-xs text-purple-600 mt-3 font-medium">🔤 Tamaño actual: {draftFontSizePt}pt — Predeterminado: 24pt (rango: 6pt–72pt)</p>
+                            </div>
+
+                            {/* Posición vertical del nombre */}
+                            <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
+                                <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-1">
+                                    <span className="w-2.5 h-2.5 bg-orange-400 rounded-full inline-block"></span>
+                                    Posición Vertical del Nombre
+                                </h4>
+                                <p className="text-xs text-gray-500 mb-4">Mueve el nombre hacia arriba o abajo dentro de la credencial para centrarlo sobre la zona correcta del diseño.</p>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs text-gray-400 whitespace-nowrap">Arriba</span>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        step={1}
+                                        value={draftNamePositionY}
+                                        onChange={(e) => setDraftNamePositionY(Number(e.target.value))}
+                                        className="flex-1 h-2 bg-orange-200 rounded-full appearance-none cursor-pointer accent-orange-500"
+                                    />
+                                    <span className="text-xs text-gray-400 whitespace-nowrap">Abajo</span>
+                                    <div className="flex items-center gap-1.5 ml-2">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            value={draftNamePositionY}
+                                            onChange={(e) => setDraftNamePositionY(Number(e.target.value))}
+                                            className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-orange-400 focus:border-transparent outline-none font-bold"
+                                        />
+                                        <span className="text-xs text-gray-400">%</span>
+                                    </div>
+                                </div>
+                                {/* Preview en vivo */}
+                                <div className="mt-4 bg-white rounded-lg border border-orange-100 overflow-hidden relative" style={{ height: '80px' }}>
+                                    <p className="text-[10px] text-gray-400 absolute top-1 left-0 right-0 text-center uppercase tracking-wider">Vista previa</p>
+                                    <div
+                                        className="absolute left-0 right-0 text-center"
+                                        style={{ top: `${draftNamePositionY}%`, transform: 'translateY(-50%)' }}
+                                    >
+                                        <p className="font-black text-gray-800 uppercase tracking-tight text-sm leading-tight">
+                                            Nombre Apellido
+                                        </p>
+                                    </div>
+                                    {/* Línea guía */}
+                                    <div
+                                        className="absolute left-0 right-0 border-t border-dashed border-orange-300 opacity-50"
+                                        style={{ top: `${draftNamePositionY}%` }}
+                                    />
+                                </div>
+                                <p className="text-xs text-orange-600 mt-3 font-medium">📍 Posición actual: {draftNamePositionY}% — Predeterminado: 48% (0% = arriba, 100% = abajo)</p>
+                            </div>
+
                             {/* Card 1: Voluntario */}
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                                 <div className="flex items-center justify-between mb-3">
