@@ -38,6 +38,8 @@ export interface Event {
   mensajeConvocatoriaCerrada?: string; // Mensaje personalizado cuando la convocatoria está cerrada
   credentialBgVoluntarioUrl?: string; // Imagen de fondo personalizada para credencial de voluntario
   credentialBgCoordinadorUrl?: string; // Imagen de fondo personalizada para credencial de coordinador
+  credentialWidthMm?: number; // Ancho de la credencial en mm (default: 90)
+  credentialHeightMm?: number; // Alto de la credencial en mm (default: 110)
   createdAt: string;
 }
 

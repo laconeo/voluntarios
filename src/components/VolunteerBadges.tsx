@@ -69,6 +69,8 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
     const [draftBgVoluntario, setDraftBgVoluntario] = useState<string>('');
     const [draftBgCoordinador, setDraftBgCoordinador] = useState<string>('');
+    const [draftWidthMm, setDraftWidthMm] = useState<number>(90);
+    const [draftHeightMm, setDraftHeightMm] = useState<number>(110);
     const [isSavingBg, setIsSavingBg] = useState(false);
 
     const fileInputVoluntarioRef = useRef<HTMLInputElement>(null);
@@ -98,6 +100,8 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
             if (eventData) {
                 setDraftBgVoluntario(eventData.credentialBgVoluntarioUrl || '');
                 setDraftBgCoordinador(eventData.credentialBgCoordinadorUrl || '');
+                setDraftWidthMm(eventData.credentialWidthMm || 90);
+                setDraftHeightMm(eventData.credentialHeightMm || 110);
             }
 
             // Fetch all users to get names
@@ -156,6 +160,8 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
     const openConfigModal = () => {
         setDraftBgVoluntario(event?.credentialBgVoluntarioUrl || '');
         setDraftBgCoordinador(event?.credentialBgCoordinadorUrl || '');
+        setDraftWidthMm(event?.credentialWidthMm || 90);
+        setDraftHeightMm(event?.credentialHeightMm || 110);
         setIsConfigModalOpen(true);
     };
 
@@ -186,16 +192,22 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
         if (!event) return;
         setIsSavingBg(true);
         try {
+            const clampedWidth = Math.min(Math.max(draftWidthMm, 50), 200);
+            const clampedHeight = Math.min(Math.max(draftHeightMm, 50), 300);
             const updatedEvent = await mockApi.updateEvent(event.id, {
                 credentialBgVoluntarioUrl: draftBgVoluntario || undefined,
                 credentialBgCoordinadorUrl: draftBgCoordinador || undefined,
+                credentialWidthMm: clampedWidth,
+                credentialHeightMm: clampedHeight,
             });
             setEvent(updatedEvent);
-            toast.success('Fondos de credenciales guardados con éxito');
+            setDraftWidthMm(clampedWidth);
+            setDraftHeightMm(clampedHeight);
+            toast.success('Configuración de credenciales guardada con éxito');
             setIsConfigModalOpen(false);
         } catch (error) {
-            console.error('Error guardando imágenes de fondo:', error);
-            toast.error('Error al guardar las imágenes de fondo');
+            console.error('Error guardando configuración de credenciales:', error);
+            toast.error('Error al guardar la configuración');
         } finally {
             setIsSavingBg(false);
         }
@@ -345,7 +357,7 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                             }
                             .badge-mosaic {
                                 display: grid !important;
-                                grid-template-columns: repeat(2, 90mm) !important;
+                                grid-template-columns: repeat(2, ${event?.credentialWidthMm || 90}mm) !important;
                                 gap: 0 !important; 
                                 row-gap: 0 !important;
                                 justify-content: center !important;
@@ -359,14 +371,14 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                             }
                             .badge-card.selected {
                                 display: flex !important;
-                                width: 90mm !important;
-                                height: 110mm !important;
+                                width: ${event?.credentialWidthMm || 90}mm !important;
+                                height: ${event?.credentialHeightMm || 110}mm !important;
                                 border: 0.1mm solid #eee !important;
                                 margin: 0 !important;
                                 box-shadow: none !important;
                                 break-inside: avoid;
                                 page-break-inside: avoid;
-                                background-size: cover !important;
+                                background-size: 100% 100% !important;
                                 background-position: center !important;
                                 background-repeat: no-repeat !important;
                                 transform: none !important;
@@ -380,16 +392,16 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
 
                     .badge-mosaic {
                         display: grid;
-                        grid-template-columns: repeat(auto-fill, 90mm);
+                        grid-template-columns: repeat(auto-fill, ${event?.credentialWidthMm || 90}mm);
                         gap: 20px;
                         justify-content: center;
                     }
 
                     .badge-card {
-                        width: 90mm;
-                        height: 110mm;
+                        width: ${event?.credentialWidthMm || 90}mm;
+                        height: ${event?.credentialHeightMm || 110}mm;
                         background: white;
-                        background-size: cover;
+                        background-size: 100% 100%;
                         background-position: center;
                         background-repeat: no-repeat;
                         border: 2px solid #e5e7eb;
@@ -495,8 +507,8 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
                                     <ImageIcon size={22} />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-bold text-gray-900">Fondos de Credencial</h3>
-                                    <p className="text-xs text-gray-500">Personaliza la imagen de fondo para este evento</p>
+                                    <h3 className="text-lg font-bold text-gray-900">Configurar Credencial</h3>
+                                    <p className="text-xs text-gray-500">Personaliza el fondo y las dimensiones de la credencial</p>
                                 </div>
                             </div>
                             <button
@@ -509,6 +521,45 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
 
                         {/* Modal Body */}
                         <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                            {/* Dimensiones */}
+                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+                                <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-3">
+                                    <span className="w-2.5 h-2.5 bg-blue-400 rounded-full inline-block"></span>
+                                    Dimensiones de la Credencial
+                                </h4>
+                                <p className="text-xs text-gray-500 mb-4">Ajusta el tamaño para que la imagen de fondo encaje perfectamente sin recortarse.</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1">Ancho (mm)</label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="number"
+                                                min={50}
+                                                max={200}
+                                                value={draftWidthMm}
+                                                onChange={(e) => setDraftWidthMm(Number(e.target.value))}
+                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none"
+                                            />
+                                            <span className="text-xs text-gray-400 whitespace-nowrap">50–200</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1">Alto (mm)</label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="number"
+                                                min={50}
+                                                max={300}
+                                                value={draftHeightMm}
+                                                onChange={(e) => setDraftHeightMm(Number(e.target.value))}
+                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none"
+                                            />
+                                            <span className="text-xs text-gray-400 whitespace-nowrap">50–300</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-blue-600 mt-3 font-medium">📐 Tamaño actual: {draftWidthMm}mm × {draftHeightMm}mm — Predeterminado: 90mm × 110mm</p>
+                            </div>
                             {/* Card 1: Voluntario */}
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                                 <div className="flex items-center justify-between mb-3">

@@ -47,6 +47,8 @@ const mapEvent = (row: any): Event => ({
     mensajeConvocatoriaCerrada: row.mensaje_convocatoria_cerrada ?? '',
     credentialBgVoluntarioUrl: row.credential_bg_voluntario ?? (typeof localStorage !== 'undefined' ? localStorage.getItem(`event_${row.id}_bg_voluntario`) || undefined : undefined),
     credentialBgCoordinadorUrl: row.credential_bg_coordinador ?? (typeof localStorage !== 'undefined' ? localStorage.getItem(`event_${row.id}_bg_coordinador`) || undefined : undefined),
+    credentialWidthMm: row.credential_width_mm ?? (typeof localStorage !== 'undefined' ? Number(localStorage.getItem(`event_${row.id}_credential_width`)) || undefined : undefined),
+    credentialHeightMm: row.credential_height_mm ?? (typeof localStorage !== 'undefined' ? Number(localStorage.getItem(`event_${row.id}_credential_height`)) || undefined : undefined),
     createdAt: row.created_at,
 });
 
@@ -673,6 +675,14 @@ export const supabaseApi = {
             dbUpdates.credential_bg_coordinador = updates.credentialBgCoordinadorUrl;
             if (typeof localStorage !== 'undefined') localStorage.setItem(`event_${eventId}_bg_coordinador`, updates.credentialBgCoordinadorUrl);
         }
+        if (updates.credentialWidthMm !== undefined) {
+            dbUpdates.credential_width_mm = updates.credentialWidthMm;
+            if (typeof localStorage !== 'undefined') localStorage.setItem(`event_${eventId}_credential_width`, String(updates.credentialWidthMm));
+        }
+        if (updates.credentialHeightMm !== undefined) {
+            dbUpdates.credential_height_mm = updates.credentialHeightMm;
+            if (typeof localStorage !== 'undefined') localStorage.setItem(`event_${eventId}_credential_height`, String(updates.credentialHeightMm));
+        }
 
         const { data, error } = await supabase.from('events').update(dbUpdates).eq('id', eventId).select().single();
 
@@ -692,6 +702,12 @@ export const supabaseApi = {
                 } else if (error.message?.includes('credential_bg_coordinador')) {
                     console.warn('[updateEvent] La columna credential_bg_coordinador no existe aún. Guardando sin ella.');
                     delete dbUpdates.credential_bg_coordinador;
+                } else if (error.message?.includes('credential_width_mm')) {
+                    console.warn('[updateEvent] La columna credential_width_mm no existe aún. Guardando sin ella.');
+                    delete dbUpdates.credential_width_mm;
+                } else if (error.message?.includes('credential_height_mm')) {
+                    console.warn('[updateEvent] La columna credential_height_mm no existe aún. Guardando sin ella.');
+                    delete dbUpdates.credential_height_mm;
                 }
                 const { data: data2, error: error2 } = await supabase.from('events').update(dbUpdates).eq('id', eventId).select().single();
                 if (error2) throw error2;
@@ -700,6 +716,8 @@ export const supabaseApi = {
                 if (updates.showAvailableShiftsModal !== undefined) mapped.showAvailableShiftsModal = updates.showAvailableShiftsModal;
                 if (updates.credentialBgVoluntarioUrl !== undefined) mapped.credentialBgVoluntarioUrl = updates.credentialBgVoluntarioUrl;
                 if (updates.credentialBgCoordinadorUrl !== undefined) mapped.credentialBgCoordinadorUrl = updates.credentialBgCoordinadorUrl;
+                if (updates.credentialWidthMm !== undefined) mapped.credentialWidthMm = updates.credentialWidthMm;
+                if (updates.credentialHeightMm !== undefined) mapped.credentialHeightMm = updates.credentialHeightMm;
                 return mapped;
             }
             throw error;
