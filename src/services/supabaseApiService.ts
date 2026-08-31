@@ -686,32 +686,31 @@ export const supabaseApi = {
 
         const { data, error } = await supabase.from('events').update(dbUpdates).eq('id', eventId).select().single();
 
-        // Si el error es por columnas de migración pendiente, reintentamos sin esos campos.
+        // Si el error es por columnas de migración pendiente, eliminamos TODAS las columnas
+        // opcionales conocidas de un solo golpe y reintentamos (evita fallas en cascada con else-if).
         if (error) {
-            const isColumnMissing = error.code === '42703'; // undefined_column en PostgreSQL
+            // 42703 = undefined_column (PostgreSQL directo)
+            // PGRST204 = columna no encontrada en el schema cache de PostgREST (Supabase)
+            const isColumnMissing = error.code === '42703' || error.code === 'PGRST204';
             if (isColumnMissing) {
-                if (error.message?.includes('show_available_shifts_modal')) {
-                    console.warn('[updateEvent] La columna show_available_shifts_modal no existe aún. Guardando sin ella.');
-                    delete dbUpdates.show_available_shifts_modal;
-                } else if (error.message?.includes('cantidad_pcs')) {
-                    console.warn('[updateEvent] La columna cantidad_pcs no existe aún. Guardando sin ella.');
-                    delete dbUpdates.cantidad_pcs;
-                } else if (error.message?.includes('credential_bg_voluntario')) {
-                    console.warn('[updateEvent] La columna credential_bg_voluntario no existe aún. Guardando sin ella.');
-                    delete dbUpdates.credential_bg_voluntario;
-                } else if (error.message?.includes('credential_bg_coordinador')) {
-                    console.warn('[updateEvent] La columna credential_bg_coordinador no existe aún. Guardando sin ella.');
-                    delete dbUpdates.credential_bg_coordinador;
-                } else if (error.message?.includes('credential_width_mm')) {
-                    console.warn('[updateEvent] La columna credential_width_mm no existe aún. Guardando sin ella.');
-                    delete dbUpdates.credential_width_mm;
-                } else if (error.message?.includes('credential_height_mm')) {
-                    console.warn('[updateEvent] La columna credential_height_mm no existe aún. Guardando sin ella.');
-                    delete dbUpdates.credential_height_mm;
-                }
+                const optionalColumns = [
+                    'show_available_shifts_modal',
+                    'cantidad_pcs',
+                    'credential_bg_voluntario',
+                    'credential_bg_coordinador',
+                    'credential_width_mm',
+                    'credential_height_mm',
+                    'convocatoria_cerrada',
+                    'mensaje_convocatoria_cerrada',
+                    'contact_email',
+                ];
+                console.warn('[updateEvent] Columna no encontrada en BD:', error.message, '— Reintentando sin columnas opcionales.');
+                optionalColumns.forEach(col => delete dbUpdates[col]);
+
                 const { data: data2, error: error2 } = await supabase.from('events').update(dbUpdates).eq('id', eventId).select().single();
                 if (error2) throw error2;
                 const mapped = mapEvent(data2);
+                // Restaurar en el objeto retornado los valores que guardamos localmente
                 if (updates.cantidadPCs !== undefined) mapped.cantidadPCs = updates.cantidadPCs;
                 if (updates.showAvailableShiftsModal !== undefined) mapped.showAvailableShiftsModal = updates.showAvailableShiftsModal;
                 if (updates.credentialBgVoluntarioUrl !== undefined) mapped.credentialBgVoluntarioUrl = updates.credentialBgVoluntarioUrl;

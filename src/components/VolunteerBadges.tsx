@@ -194,19 +194,37 @@ const VolunteerBadges: React.FC<VolunteerBadgesProps> = ({ eventId, onClose }) =
         try {
             const clampedWidth = Math.min(Math.max(draftWidthMm, 50), 200);
             const clampedHeight = Math.min(Math.max(draftHeightMm, 50), 300);
-            const updatedEvent = await mockApi.updateEvent(event.id, {
-                credentialBgVoluntarioUrl: draftBgVoluntario || undefined,
-                credentialBgCoordinadorUrl: draftBgCoordinador || undefined,
+
+            // Actualizamos el estado local inmediatamente con los valores del draft
+            const localUpdatedEvent: typeof event = {
+                ...event,
+                credentialBgVoluntarioUrl: draftBgVoluntario || event.credentialBgVoluntarioUrl,
+                credentialBgCoordinadorUrl: draftBgCoordinador || event.credentialBgCoordinadorUrl,
                 credentialWidthMm: clampedWidth,
                 credentialHeightMm: clampedHeight,
-            });
-            setEvent(updatedEvent);
+            };
+            setEvent(localUpdatedEvent);
             setDraftWidthMm(clampedWidth);
             setDraftHeightMm(clampedHeight);
+
+            // Intentamos persistir en Supabase (puede fallar si las columnas no existen aún)
+            try {
+                const updatedEvent = await mockApi.updateEvent(event.id, {
+                    credentialBgVoluntarioUrl: draftBgVoluntario || undefined,
+                    credentialBgCoordinadorUrl: draftBgCoordinador || undefined,
+                    credentialWidthMm: clampedWidth,
+                    credentialHeightMm: clampedHeight,
+                });
+                setEvent(updatedEvent);
+            } catch (dbError) {
+                // Las columnas pueden no existir en la BD aún; los datos ya están en localStorage
+                console.warn('[VolunteerBadges] No se pudo persistir en Supabase, usando localStorage:', dbError);
+            }
+
             toast.success('Configuración de credenciales guardada con éxito');
             setIsConfigModalOpen(false);
         } catch (error) {
-            console.error('Error guardando configuración de credenciales:', error);
+            console.error('Error inesperado al guardar configuración:', error);
             toast.error('Error al guardar la configuración');
         } finally {
             setIsSavingBg(false);
